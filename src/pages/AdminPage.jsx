@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, LoaderCircle, RefreshCw, ShieldCheck, UserRoundCog } from 'lucide-react';
+import { Building2, CheckCircle2, LoaderCircle, RefreshCw, ShieldCheck, UserRoundCog } from 'lucide-react';
 import PageHeader from '../components/common/PageHeader';
 import { listProfiles, updateProfileAccess } from '../features/auth/accountApi';
 import { useAuth } from '../features/auth/AuthContext';
+import { listWorkspaceMembers, setWorkspaceMember } from '../features/cloud/workspaceApi';
 
 export default function AdminPage() {
   const auth = useAuth();
   const [profiles, setProfiles] = useState([]);
+  const [memberships, setMemberships] = useState([]);
   const [state, setState] = useState({ loading: true, saving: '', error: '', message: '' });
 
   const counts = useMemo(() => ({
@@ -19,8 +21,12 @@ export default function AdminPage() {
   async function loadProfiles() {
     setState((current) => ({ ...current, loading: true, error: '', message: '' }));
     try {
-      const result = await listProfiles();
+      const [result, memberResult] = await Promise.all([
+        listProfiles(),
+        auth.workspace?.id ? listWorkspaceMembers(auth.workspace.id) : Promise.resolve([]),
+      ]);
       setProfiles(result);
+      setMemberships(memberResult);
       setState({ loading: false, saving: '', error: '', message: '' });
     } catch (error) {
       setState({ loading: false, saving: '', error: error.message || 'Unable to load registered users.', message: '' });
@@ -29,22 +35,41 @@ export default function AdminPage() {
 
   useEffect(() => {
     loadProfiles();
-  }, []);
+  }, [auth.workspace?.id]);
 
   async function changeAccess(profile, nextStatus, nextRole = profile.role) {
     setState((current) => ({ ...current, saving: profile.user_id, error: '', message: '' }));
     try {
       const updated = await updateProfileAccess({ userId: profile.user_id, status: nextStatus, role: nextRole });
       setProfiles((current) => current.map((item) => item.user_id === profile.user_id ? updated : item));
+      if (nextStatus === 'active' && auth.workspace?.id && !memberships.some((membership) => membership.user_id === profile.user_id && membership.status === 'active')) {
+        const membership = await setWorkspaceMember({ workspaceId: auth.workspace.id, userId: profile.user_id, role: 'officer', status: 'active' });
+        setMemberships((current) => [...current.filter((item) => item.user_id !== profile.user_id), membership]);
+      }
       setState({ loading: false, saving: '', error: '', message: `Access updated for ${profile.display_name || profile.email}.` });
     } catch (error) {
       setState((current) => ({ ...current, saving: '', error: error.message || 'Unable to update access.', message: '' }));
     }
   }
 
+  async function changeMembership(profile, value) {
+    const existing = memberships.find((membership) => membership.user_id === profile.user_id);
+    const status = value === 'none' ? 'suspended' : 'active';
+    const role = value === 'none' ? existing?.role || 'officer' : value;
+    setState((current) => ({ ...current, saving: profile.user_id, error: '', message: '' }));
+    try {
+      const membership = await setWorkspaceMember({ workspaceId: auth.workspace.id, userId: profile.user_id, role, status });
+      setMemberships((current) => [...current.filter((item) => item.user_id !== profile.user_id), membership]);
+      setState({ loading: false, saving: '', error: '', message: `Workspace access updated for ${profile.display_name || profile.email}.` });
+    } catch (error) {
+      setState((current) => ({ ...current, saving: '', error: error.message || 'Unable to update workspace access.', message: '' }));
+    }
+  }
+
   return (
     <>
       <PageHeader title="Administration" description="Approve registered users and control access to official workspaces." />
+      <div className="mb-4 flex items-center gap-3 rounded-md border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-950"><Building2 className="h-5 w-5 shrink-0" /><div><p className="font-semibold">{auth.workspace?.name}</p><p className="mt-0.5 text-xs text-teal-800">Workspace code: {auth.workspace?.code}</p></div></div>
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Metric label="Registered" value={counts.total} />
         <Metric label="Pending" value={counts.pending} tone="amber" />
@@ -63,11 +88,14 @@ export default function AdminPage() {
             {profiles.map((profile) => {
               const isSelf = profile.user_id === auth.user?.id;
               const saving = state.saving === profile.user_id;
+              const membership = memberships.find((item) => item.user_id === profile.user_id);
+              const membershipValue = membership?.status === 'active' ? membership.role : 'none';
               return (
-                <div key={profile.user_id} className="grid gap-3 px-4 py-4 lg:grid-cols-[minmax(0,1fr)_150px_150px_auto] lg:items-center">
+                <div key={profile.user_id} className="grid gap-3 px-4 py-4 lg:grid-cols-[minmax(0,1fr)_140px_140px_170px_auto] lg:items-center">
                   <div className="min-w-0"><p className="truncate text-sm font-semibold text-slate-900">{profile.display_name || 'Unnamed user'} {isSelf && <span className="font-normal text-slate-500">(you)</span>}</p><p className="mt-1 truncate text-xs text-slate-500">{profile.email}</p></div>
                   <select aria-label={`Role for ${profile.email}`} value={profile.role} disabled={saving || isSelf} onChange={(event) => changeAccess(profile, profile.status, event.target.value)} className="h-9 rounded-md border border-slate-300 bg-white px-2 text-xs"><option value="user">User</option><option value="platform_admin">Platform admin</option></select>
                   <AccessStatus status={profile.status} />
+                  <select aria-label={`Workspace access for ${profile.email}`} value={membershipValue} disabled={saving || isSelf || profile.status !== 'active'} onChange={(event) => changeMembership(profile, event.target.value)} className="h-9 rounded-md border border-slate-300 bg-white px-2 text-xs disabled:bg-slate-100"><option value="none">No workspace access</option><option value="officer">Officer</option><option value="workspace_admin">Workspace admin</option></select>
                   <div className="flex flex-wrap gap-2 lg:justify-end">
                     {profile.status === 'pending' && <ActionButton disabled={saving} onClick={() => changeAccess(profile, 'active')} tone="approve">Approve</ActionButton>}
                     {profile.status === 'active' && !isSelf && <ActionButton disabled={saving} onClick={() => changeAccess(profile, 'suspended')} tone="suspend">Suspend</ActionButton>}
@@ -80,7 +108,7 @@ export default function AdminPage() {
           </div>
         )}
       </section>
-      <div className="mt-4 flex gap-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-950"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" /><p>Approval grants application access. Workspace membership will separately determine which official Issues the user may view or change.</p></div>
+      <div className="mt-4 flex gap-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-950"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" /><p>Approval activates the account and adds it to this workspace as an Officer. Workspace access can grant workspace administration or remove the user from official Issues.</p></div>
     </>
   );
 }

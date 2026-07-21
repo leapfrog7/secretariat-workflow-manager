@@ -13,6 +13,7 @@ import { normalizeMilestone } from '../utils/milestoneUtils';
 import { normalizeIssueSummary } from '../utils/summaryUtils';
 import { addChronologyEvent } from './chronologyRepository';
 import { calculateNextAppearance, isScheduledIssue } from '../utils/scheduleUtils';
+import { queueCloudIssueDelete, queueCloudIssueUpsert } from '../features/cloud/cloudIssueSync';
 
 function requireValidIssue(input) {
   const issue = normalizeIssue(input);
@@ -32,7 +33,8 @@ export async function reactivateScheduledIssues({ issueId, referenceDate = today
     .map((issue) => issue.id);
   if (!dueIds.length) return 0;
 
-  return db.transaction('rw', db.issues, db.issueMilestones, db.officers, db.chronology, async () => {
+  const reactivatedIssues = [];
+  const count = await db.transaction('rw', db.issues, db.issueMilestones, db.officers, db.chronology, async () => {
     let reactivated = 0;
     for (const id of dueIds) {
       const raw = await db.issues.get(id);
@@ -73,10 +75,13 @@ export async function reactivateScheduledIssues({ issueId, referenceDate = today
         eventDate: now,
         createdAt: now,
       }));
+      reactivatedIssues.push(issue);
       reactivated += 1;
     }
     return reactivated;
   });
+  reactivatedIssues.forEach(queueCloudIssueUpsert);
+  return count;
 }
 
 export async function getAllIssues({ includeArchived = true, includeScheduled = true } = {}) {
@@ -125,6 +130,7 @@ export async function createIssue(input) {
     eventType: 'Issue created',
     title: issue.shortTitle,
   });
+  queueCloudIssueUpsert(issue);
   return issue;
 }
 
@@ -133,7 +139,7 @@ export async function updateIssue(id, input) {
 }
 
 export async function updateIssuePosition(id, input) {
-  return db.transaction('rw', db.issues, db.issueMilestones, db.officers, db.chronology, async () => {
+  const issue = await db.transaction('rw', db.issues, db.issueMilestones, db.officers, db.chronology, async () => {
     const existingRaw = await db.issues.get(id);
     if (!existingRaw) throw new Error('Issue not found.');
     const existing = normalizeIssue(existingRaw);
@@ -195,10 +201,12 @@ export async function updateIssuePosition(id, input) {
     }
     return issue;
   });
+  queueCloudIssueUpsert(issue);
+  return issue;
 }
 
 export async function bringBackIssue(id) {
-  return db.transaction('rw', db.issues, db.issueMilestones, db.officers, db.chronology, async () => {
+  const issue = await db.transaction('rw', db.issues, db.issueMilestones, db.officers, db.chronology, async () => {
     const raw = await db.issues.get(id);
     if (!raw) throw new Error('Issue not found.');
     const existing = normalizeIssue(raw);
@@ -238,6 +246,8 @@ export async function bringBackIssue(id) {
     }));
     return issue;
   });
+  queueCloudIssueUpsert(issue);
+  return issue;
 }
 
 export async function archiveIssue(id) {
@@ -249,6 +259,7 @@ export async function archiveIssue(id) {
     eventType: 'Issue archived',
     title: existing.shortTitle,
   });
+  queueCloudIssueUpsert(await getIssueById(id));
 }
 
 export async function restoreIssue(id) {
@@ -260,6 +271,7 @@ export async function restoreIssue(id) {
     eventType: 'Issue restored',
     title: existing.shortTitle,
   });
+  queueCloudIssueUpsert(await getIssueById(id));
 }
 
 export async function permanentlyDeleteIssue(id) {
@@ -280,6 +292,7 @@ export async function permanentlyDeleteIssue(id) {
     await db.issueSummaries.bulkDelete(summaries);
     await db.issues.delete(id);
   });
+  queueCloudIssueDelete(id);
 }
 
 export async function getIssueStatistics() {
