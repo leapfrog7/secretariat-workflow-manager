@@ -38,6 +38,9 @@ async function request(baseUrl, path, options = {}) {
     });
   } catch (error) {
     if (error.name === 'AbortError') throw error;
+    if (isHostedLoopbackRequest) {
+      throw new Error('Cannot reach LM Studio from the hosted app. Restart it with "lms server start --cors", then allow localhost access if your browser asks.');
+    }
     throw new Error('Cannot reach LM Studio. Confirm that its local server is running.');
   }
   const payload = await response.json().catch(() => ({}));
