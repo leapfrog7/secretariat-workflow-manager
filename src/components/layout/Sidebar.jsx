@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
-import { BookOpenCheck, ClipboardCheck, ClipboardList, FilePlus2, Settings } from 'lucide-react';
+import { BookOpenCheck, ClipboardCheck, ClipboardList, FilePlus2, Settings, UserRoundCog } from 'lucide-react';
 import { APP_NAME } from '../../constants/issueConstants';
+import { useAuth } from '../../features/auth/AuthContext';
 
 const navItems = [
   { label: 'Issues', to: '/issues', icon: ClipboardList },
@@ -11,6 +12,8 @@ const navItems = [
 
 export default function Sidebar() {
   const { pathname } = useLocation();
+  const auth = useAuth();
+  const visibleItems = auth.isAdmin ? [...navItems, { label: 'Administration', to: '/admin', icon: UserRoundCog }] : navItems;
   return (
     <aside className="hidden w-60 shrink-0 border-r border-[#244750] bg-[#17333b] text-white md:block">
       <div className="border-b border-white/10 px-4 py-5">
@@ -25,7 +28,7 @@ export default function Sidebar() {
         </div>
       </div>
       <nav className="space-y-1.5 p-3" aria-label="Main navigation">
-        {navItems.map((item) => {
+        {visibleItems.map((item) => {
           const Icon = item.icon;
           const isActive = item.to === '/issues'
             ? pathname === '/issues' || (pathname.startsWith('/issues/') && pathname !== '/issues/new')

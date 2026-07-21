@@ -6,19 +6,26 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "db:migrate": "node --env-file-if-exists=.env.local scripts/migrate.js",
+    "db:verify": "node --env-file-if-exists=.env.local scripts/verify-database.js",
+    "auth:trust-origin": "node --env-file-if-exists=.env.local scripts/trust-auth-origin.js",
+    "admin:bootstrap": "node --env-file-if-exists=.env.local scripts/bootstrap-admin.js"
   },
   "dependencies": {
+    "@neondatabase/neon-js": "^0.2.0-beta.1",
+    "@tailwindcss/vite": "latest",
     "@vitejs/plugin-react": "latest",
-    "vite": "latest",
+    "date-fns": "latest",
+    "dexie": "latest",
+    "lucide-react": "0.555.0",
     "react": "latest",
     "react-dom": "latest",
     "react-router-dom": "latest",
     "tailwindcss": "latest",
-    "@tailwindcss/vite": "latest",
-    "dexie": "latest",
-    "lucide-react": "latest",
-    "date-fns": "latest"
+    "vite": "8.1.4"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "@neondatabase/serverless": "^1.0.2"
+  }
 }
