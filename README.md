@@ -2,6 +2,8 @@
 
 A local-first React application for managing government-secretariat Issues, allocation, milestones, communications, references, eReceipts, recurring work and CSMOP-structured drafting.
 
+**Live application:** https://leapfrog7.github.io/secretariat-workflow-manager/
+
 ## Core Design
 
 - Issue data is stored in the user's browser through IndexedDB.
