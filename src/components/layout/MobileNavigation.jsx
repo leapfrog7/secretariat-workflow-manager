@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
-import { BookOpenCheck, ClipboardList, FilePlus2, Settings } from 'lucide-react';
+import { BookOpenCheck, ClipboardList, FilePlus2, Settings, UserRoundCog } from 'lucide-react';
+import { useAuth } from '../../features/auth/AuthContext';
 
 const navItems = [
   { label: 'Issues', to: '/issues', icon: ClipboardList },
@@ -10,10 +11,12 @@ const navItems = [
 
 export default function MobileNavigation() {
   const { pathname } = useLocation();
+  const auth = useAuth();
+  const visibleItems = auth.isAdmin ? [...navItems, { label: 'Administration', mobileLabel: 'Admin', to: '/admin', icon: UserRoundCog }] : navItems;
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[#d2dfdc] bg-white/95 backdrop-blur md:hidden" aria-label="Mobile navigation">
-      <div className="grid grid-cols-4" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
-        {navItems.map((item) => {
+      <div className="grid" style={{ gridTemplateColumns: `repeat(${visibleItems.length}, minmax(0, 1fr))` }}>
+        {visibleItems.map((item) => {
           const Icon = item.icon;
           const isActive = item.to === '/issues'
             ? pathname === '/issues' || (pathname.startsWith('/issues/') && pathname !== '/issues/new')
