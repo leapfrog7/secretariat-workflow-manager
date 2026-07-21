@@ -1,10 +1,11 @@
 import { Link, useLocation } from 'react-router-dom';
-import { ClipboardCheck, ClipboardList, FilePlus2, Settings } from 'lucide-react';
+import { BookOpenCheck, ClipboardCheck, ClipboardList, FilePlus2, Settings } from 'lucide-react';
 import { APP_NAME } from '../../constants/issueConstants';
 
 const navItems = [
   { label: 'Issues', to: '/issues', icon: ClipboardList },
   { label: 'Create Issue', to: '/issues/new', icon: FilePlus2 },
+  { label: 'How to use', to: '/help', icon: BookOpenCheck },
   { label: 'Settings', to: '/settings', icon: Settings },
 ];
 

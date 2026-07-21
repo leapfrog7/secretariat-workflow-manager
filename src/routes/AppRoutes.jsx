@@ -4,6 +4,7 @@ import IssueRegisterPage from '../pages/IssueRegisterPage';
 import IssueFormPage from '../pages/IssueFormPage';
 import IssueWorkspacePage from '../pages/IssueWorkspacePage';
 import SettingsPage from '../pages/SettingsPage';
+import HelpPage from '../pages/HelpPage';
 import NotFoundPage from '../pages/NotFoundPage';
 
 const router = createHashRouter([
@@ -19,6 +20,7 @@ const router = createHashRouter([
       { path: 'review', element: <Navigate to="/issues" replace /> },
       { path: 'tasks', element: <Navigate to="/issues" replace /> },
       { path: 'settings', element: <SettingsPage /> },
+      { path: 'help', element: <HelpPage /> },
       { path: '*', element: <NotFoundPage /> },
     ],
   },

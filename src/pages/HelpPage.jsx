@@ -1,0 +1,149 @@
+import { Link } from 'react-router-dom';
+import {
+  ArchiveRestore,
+  Bot,
+  CalendarClock,
+  CheckCircle2,
+  ClipboardList,
+  Cloud,
+  FilePlus2,
+  FileText,
+  HardDrive,
+  History,
+  MessageSquareText,
+  Settings,
+  ShieldCheck,
+} from 'lucide-react';
+import PageHeader from '../components/common/PageHeader';
+
+const sections = [
+  ['Start here', 'start'],
+  ['Issues', 'issues'],
+  ['Issue workspace', 'workspace'],
+  ['Periodic work', 'periodic'],
+  ['AI drafting', 'ai'],
+  ['Local LLM', 'local-ai'],
+  ['Future API', 'api'],
+  ['Data and backup', 'data'],
+];
+
+export default function HelpPage() {
+  return (
+    <>
+      <PageHeader title="How to use" description="A practical guide to tracking Issues, preserving official context and preparing structured communications." />
+
+      <div className="grid items-start gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <nav className="surface hidden rounded-md p-2 lg:sticky lg:top-20 lg:block" aria-label="Help topics">
+          {sections.map(([label, id]) => <a key={id} href={`#${id}`} className="block rounded px-3 py-2 text-sm font-medium text-slate-600 hover:bg-teal-50 hover:text-teal-800">{label}</a>)}
+        </nav>
+
+        <div className="min-w-0 space-y-5" style={{ overflowWrap: 'anywhere' }}>
+          <HelpSection id="start" icon={CheckCircle2} title="Start with the basic workflow" tone="teal">
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Step number="1" title="Create an Issue">Enter a clear title. Add the deadline, subject type, eFile number, stage or allocation only when they are useful.</Step>
+              <Step number="2" title="Allocate and update">Assign the Issue to a saved officer and update its stage and current position as work progresses.</Step>
+              <Step number="3" title="Preserve the record">Record communications, eReceipts, references and summary updates so the history remains available for review and drafting.</Step>
+            </div>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <Link to="/issues/new" className="inline-flex h-10 items-center gap-2 rounded-md bg-teal-700 px-3 text-sm font-semibold !text-white hover:bg-teal-800"><FilePlus2 className="h-4 w-4" />Create Issue</Link>
+              <Link to="/settings" className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"><Settings className="h-4 w-4" />Open Settings</Link>
+            </div>
+          </HelpSection>
+
+          <HelpSection id="issues" icon={ClipboardList} title="Using the Issues register" tone="blue">
+            <GuideRows rows={[
+              ['Dashboard indicators', 'Total, Pending, Overdue, In Progress and Awaiting Discussion show the current workload at a glance.'],
+              ['Search', 'Searches Issue titles and the recorded eReceipt or source-document details linked to Issues.'],
+              ['Current register', 'Shows active work, its current stage, assigned officer, age and deadline position.'],
+              ['Scheduled', 'Contains completed periodic Issues waiting for their next appearance date.'],
+              ['Archive', 'Retains completed or inactive Issues outside the current register. Restore an archived Issue when fresh work or a new receipt arrives.'],
+            ]} />
+          </HelpSection>
+
+          <HelpSection id="workspace" icon={FileText} title="Inside an Issue" tone="amber">
+            <div className="divide-y divide-slate-200 border-y border-slate-200">
+              <WorkspaceRow icon={History} title="Current Position">Update the stage (Pending, In Progress, Awaiting Input, Completed, Cancelled or Deferred), assignment and latest position. Every saved position becomes a milestone, so earlier updates are not overwritten. Maintain the running summary for a concise account of the matter.</WorkspaceRow>
+              <WorkspaceRow icon={MessageSquareText} title="Record of Communication">Add incoming, outgoing and internal communications chronologically. Record the eReceipt number, source, subject, date and useful details without uploading the PDF.</WorkspaceRow>
+              <WorkspaceRow icon={FileText} title="References">Capture rules, O.M.s, instructions, court directions or other authorities with their citation, date and relevant proposition.</WorkspaceRow>
+              <WorkspaceRow icon={Bot} title="AI Context">Choose exactly which Issue details, summary, communications and references may be supplied to the drafting model. Review the context before generation.</WorkspaceRow>
+            </div>
+          </HelpSection>
+
+          <HelpSection id="periodic" icon={CalendarClock} title="Periodic and returning work" tone="cyan">
+            <p className="text-sm leading-6 text-slate-700">For weekly, monthly or one-time future work, open <strong>Schedule return</strong> in Current Position and select the pattern and next appearance date. When the current cycle is completed, the Issue moves to Scheduled and returns to the current register as Pending on that date.</p>
+            <p className="mt-3 text-sm leading-6 text-slate-600">Use this for periodic returns, recurring reports and matters that should remain out of the active register until a known future date.</p>
+          </HelpSection>
+
+          <HelpSection id="ai" icon={Bot} title="Preparing an AI-assisted draft" tone="violet">
+            <ol className="space-y-3">
+              <Instruction number="1" title="Prepare the office profile">In Settings, enter the Ministry or Department, bilingual heading if required, place of issue and house-style notes. Select the officers authorized to sign communications.</Instruction>
+              <Instruction number="2" title="Build reliable Issue context">Keep the running summary current and record only relevant communications and references. Better source material produces safer drafts.</Instruction>
+              <Instruction number="3" title="Select context deliberately">In AI Context, choose the summary, communications and references needed for this draft. Sensitive or irrelevant entries can remain unselected.</Instruction>
+              <Instruction number="4" title="Describe the outgoing communication">Select the communication type, authorized signatory, recipient relationship and recipient organization. In Purpose / requested action, state who should do what and by when.</Instruction>
+              <Instruction number="5" title="Choose the drafting scope">Leave detailed Issue context off for a concise purpose-led draft. Enable it when the body must draw facts from selected communications, summary or references.</Instruction>
+              <Instruction number="6" title="Review before use">The application assembles the CSMOP-oriented structure and the model proposes the body. Edit the result, verify every fact and citation, complete placeholders, and obtain the required approval before issue.</Instruction>
+            </ol>
+            <div className="mt-5 flex gap-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-3 text-sm leading-6 text-amber-950"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" /><p>AI output is a drafting aid, not an official decision. The responsible officer remains accountable for factual accuracy, authority, tone, classification and approval.</p></div>
+          </HelpSection>
+
+          <HelpSection id="local-ai" icon={HardDrive} title="Using a Local LLM" tone="emerald">
+            <p className="text-sm leading-6 text-slate-700">Local AI is available now. The model runs through LM Studio on the user&apos;s own laptop; the hosted application does not run or pay for the model.</p>
+            <div className="mt-4 rounded-md border border-slate-200 bg-slate-950 px-4 py-3 font-mono text-sm text-slate-100">
+              <div>lms server stop</div>
+              <div>lms server start --cors</div>
+            </div>
+            <GuideRows className="mt-4" rows={[
+              ['Connect', 'Open Settings → Local AI, use http://127.0.0.1:1234, test the connection and select a loaded model.'],
+              ['Browser permission', 'When using the hosted application, allow localhost or local-network access if the browser asks.'],
+              ['Model choice', 'A stronger instruct model generally follows official drafting constraints better. Small models should be used with conservative drafting and close review.'],
+              ['Privacy boundary', 'Selected context is sent to LM Studio on that laptop. Stop the local server when it is not needed and do not expose it to the wider network without authentication.'],
+            ]} />
+          </HelpSection>
+
+          <HelpSection id="api" icon={Cloud} title="Cloud API support" tone="slate" badge="Planned">
+            <p className="text-sm leading-6 text-slate-700">A future release will allow users to choose between a Local LLM and a supported cloud AI API. API drafting is not available in the application yet.</p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <Choice title="Local LLM" status="Available now" icon={HardDrive}>Runs on the user&apos;s computer through LM Studio. There is no per-request API charge, but capability depends on the local model and hardware.</Choice>
+              <Choice title="Cloud API" status="Planned · Paid" icon={Cloud}>Will use a configured provider and API credential. Provider usage charges will apply, and selected drafting context will leave the laptop for processing.</Choice>
+            </div>
+            <p className="mt-4 text-xs leading-5 text-slate-500">API support will require explicit provider configuration, cost visibility and clear consent before any Issue context is transmitted.</p>
+          </HelpSection>
+
+          <HelpSection id="data" icon={ArchiveRestore} title="Local data and backup" tone="rose">
+            <GuideRows rows={[
+              ['Local storage', 'Issues and settings are stored in IndexedDB for the current browser and website address. There is no central account or automatic cloud sync.'],
+              ['Different laptop or browser', 'Data does not move automatically. Export a JSON backup from the old browser and import it into the new one.'],
+              ['Regular backup', 'Use Settings → Data and backup regularly. Import replaces the current local database, so review the confirmation carefully.'],
+              ['Hosted and local copies', 'The localhost application and GitHub Pages application use separate browser storage. Transfer data between them through JSON export and import.'],
+            ]} />
+          </HelpSection>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function HelpSection({ id, icon: Icon, title, tone, badge, children }) {
+  const tones = { teal: 'border-t-teal-600 text-teal-700', blue: 'border-t-blue-600 text-blue-700', amber: 'border-t-amber-500 text-amber-700', cyan: 'border-t-cyan-600 text-cyan-700', violet: 'border-t-violet-600 text-violet-700', emerald: 'border-t-emerald-600 text-emerald-700', slate: 'border-t-slate-500 text-slate-700', rose: 'border-t-rose-600 text-rose-700' };
+  return <section id={id} className={`surface min-w-0 scroll-mt-20 overflow-hidden rounded-md border-t-4 p-4 sm:p-5 ${tones[tone]}`}><div className="mb-4 flex items-center gap-2 border-b border-slate-200 pb-3"><Icon className="h-5 w-5 shrink-0" /><h2 className="text-base font-semibold text-[#17333b]">{title}</h2>{badge && <span className="ml-auto rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">{badge}</span>}</div>{children}</section>;
+}
+
+function Step({ number, title, children }) {
+  return <div className="border-l-2 border-teal-200 pl-3"><div className="flex items-center gap-2"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-teal-700 text-xs font-bold text-white">{number}</span><h3 className="text-sm font-semibold text-slate-900">{title}</h3></div><p className="mt-2 text-sm leading-6 text-slate-600">{children}</p></div>;
+}
+
+function GuideRows({ rows, className = '' }) {
+  return <dl className={`divide-y divide-slate-200 border-y border-slate-200 ${className}`}>{rows.map(([term, description]) => <div key={term} className="grid gap-1 py-3 sm:grid-cols-[170px_minmax(0,1fr)] sm:gap-4"><dt className="text-sm font-semibold text-slate-900">{term}</dt><dd className="text-sm leading-6 text-slate-600">{description}</dd></div>)}</dl>;
+}
+
+function WorkspaceRow({ icon: Icon, title, children }) {
+  return <div className="grid gap-2 py-4 sm:grid-cols-[180px_minmax(0,1fr)] sm:gap-4"><div className="flex items-center gap-2 text-sm font-semibold text-slate-900"><Icon className="h-4 w-4 text-amber-700" />{title}</div><p className="text-sm leading-6 text-slate-600">{children}</p></div>;
+}
+
+function Instruction({ number, title, children }) {
+  return <li className="grid grid-cols-[28px_minmax(0,1fr)] gap-3"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-violet-100 text-xs font-bold text-violet-800">{number}</span><div><h3 className="text-sm font-semibold text-slate-900">{title}</h3><p className="mt-1 text-sm leading-6 text-slate-600">{children}</p></div></li>;
+}
+
+function Choice({ title, status, icon: Icon, children }) {
+  return <div className="rounded-md border border-slate-200 bg-slate-50 p-3"><div className="flex items-center gap-2"><Icon className="h-4 w-4 text-slate-700" /><h3 className="text-sm font-semibold text-slate-900">{title}</h3></div><div className="mt-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{status}</div><p className="mt-2 text-sm leading-6 text-slate-600">{children}</p></div>;
+}
