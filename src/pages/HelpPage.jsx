@@ -1,11 +1,12 @@
 import { Link } from 'react-router-dom';
 import {
-  ArchiveRestore,
+  ArrowRight,
   Bot,
   CalendarClock,
   CheckCircle2,
   ClipboardList,
   Cloud,
+  Database,
   FilePlus2,
   FileText,
   HardDrive,
@@ -13,36 +14,53 @@ import {
   MessageSquareText,
   Settings,
   ShieldCheck,
+  UserRoundCog,
+  Users,
 } from 'lucide-react';
 import PageHeader from '../components/common/PageHeader';
 
 const sections = [
   ['Start here', 'start'],
-  ['Issues', 'issues'],
+  ['Account and workspace', 'access'],
+  ['Create an Issue', 'create'],
+  ['Issues register', 'issues'],
   ['Issue workspace', 'workspace'],
   ['Periodic work', 'periodic'],
   ['AI drafting', 'ai'],
   ['Local LLM', 'local-ai'],
+  ['Administration', 'admin'],
+  ['Data and sync', 'data'],
   ['Future API', 'api'],
-  ['Data and backup', 'data'],
 ];
 
 export default function HelpPage() {
+  const scrollToTopic = (id) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   return (
     <>
-      <PageHeader title="How to use" description="A practical guide to tracking Issues, preserving official context and preparing structured communications." />
+      <PageHeader title="How to use" description="A practical guide to access, Issue management, official records, AI drafting and data safety." />
 
-      <div className="grid items-start gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
-        <nav className="surface hidden rounded-md p-2 lg:sticky lg:top-20 lg:block" aria-label="Help topics">
-          {sections.map(([label, id]) => <a key={id} href={`#${id}`} className="block rounded px-3 py-2 text-sm font-medium text-slate-600 hover:bg-teal-50 hover:text-teal-800">{label}</a>)}
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <nav className="surface min-w-0 overflow-hidden rounded-md p-2 lg:sticky lg:top-20" aria-label="Topics on this page">
+          <div className="px-2 pb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">On this page</div>
+          <div className="flex gap-1 overflow-x-auto lg:block">
+            {sections.map(([label, id]) => (
+              <button key={id} type="button" onClick={() => scrollToTopic(id)} className="block shrink-0 rounded px-3 py-2 text-left text-sm font-medium text-slate-600 hover:bg-teal-50 hover:text-teal-800 lg:w-full">
+                {label}
+              </button>
+            ))}
+          </div>
         </nav>
 
         <div className="min-w-0 space-y-5" style={{ overflowWrap: 'anywhere' }}>
           <HelpSection id="start" icon={CheckCircle2} title="Start with the basic workflow" tone="teal">
+            <p className="mb-4 text-sm leading-6 text-slate-600">The application is designed around a simple official-work cycle. Create the matter, keep its present position visible, preserve the record behind it and use that context when preparing a communication.</p>
             <div className="grid gap-4 sm:grid-cols-3">
               <Step number="1" title="Create an Issue">Enter a clear title. Add the deadline, subject type, eFile number, stage or allocation only when they are useful.</Step>
               <Step number="2" title="Allocate and update">Assign the Issue to a saved officer and update its stage and current position as work progresses.</Step>
-              <Step number="3" title="Preserve the record">Record communications, eReceipts, references and summary updates so the history remains available for review and drafting.</Step>
+              <Step number="3" title="Preserve and use context">Record communications, eReceipts, references and summary updates. Use selected context to prepare a structured official draft.</Step>
             </div>
             <div className="mt-5 flex flex-wrap gap-2">
               <Link to="/issues/new" className="inline-flex h-10 items-center gap-2 rounded-md bg-teal-700 px-3 text-sm font-semibold !text-white hover:bg-teal-800"><FilePlus2 className="h-4 w-4" />Create Issue</Link>
@@ -50,72 +68,120 @@ export default function HelpPage() {
             </div>
           </HelpSection>
 
-          <HelpSection id="issues" icon={ClipboardList} title="Using the Issues register" tone="blue">
+          <HelpSection id="access" icon={Users} title="Account and workspace access" tone="blue">
+            <GuideLocation>Sign-in screen and the workspace name in the application header</GuideLocation>
+            <GuideRows rows={[
+              ['Create an account', 'Register with your email address and password. A new account remains in Approval pending until a platform administrator activates it.'],
+              ['Workspace access', 'After account approval, the user must also belong to an official workspace. The workspace name in the header identifies the shared register currently in use.'],
+              ['Check again', 'Use Check again on an approval or workspace-access screen after an administrator has changed your access. There is no need to create a second account.'],
+              ['Across laptops', 'Sign in to the same account and workspace on another laptop to receive cloud-synced Issues and the shared officer directory. Local-only records are explained under Data and sync below.'],
+              ['Sign out', 'Use the account control in the header when leaving a shared computer. Signing out does not delete locally cached work.'],
+            ]} />
+          </HelpSection>
+
+          <HelpSection id="create" icon={FilePlus2} title="Creating an Issue" tone="emerald">
+            <GuideLocation link="/issues/new" label="Open Create Issue">Main navigation &gt; Create Issue</GuideLocation>
+            <GuideRows className="mt-4" rows={[
+              ['Title', 'The only essential description. Use a short, recognizable subject so the Issue is easy to find later.'],
+              ['Current stage', 'Defaults to Pending. Change it during creation only when the matter is already at another stage.'],
+              ['Assigned to', 'Optionally allocate the Issue to an officer already saved in Settings. Leave it blank when ownership is not yet decided.'],
+              ['Deadline and identifiers', 'Deadline, subject type, eFile number, category and priority are optional. Subject types include RTI, Parliamentary Matter, Audit, VIP Reference, Public Grievance, Court Case, Administrative, PMO and Cabinet Secretariat matters.'],
+              ['After saving', 'The Issue opens in its workspace, where its position, communications, references and AI drafting context can be maintained.'],
+            ]} />
+          </HelpSection>
+
+          <HelpSection id="issues" icon={ClipboardList} title="Using the Issues register" tone="cyan">
+            <GuideLocation link="/issues" label="Open Issues">Main navigation &gt; Issues</GuideLocation>
             <GuideRows rows={[
               ['Dashboard indicators', 'Total, Pending, Overdue, In Progress and Awaiting Discussion show the current workload at a glance.'],
-              ['Search', 'Searches Issue titles and the recorded eReceipt or source-document details linked to Issues.'],
+              ['Search', 'Searches Issue titles as well as recorded eReceipt and source-document details, including receipt number, subject and source.'],
               ['Current register', 'Shows active work, its current stage, assigned officer, age and deadline position.'],
+              ['Deadline position', 'The table shows how many days have passed since creation and whether the matter is due on a future date or already overdue.'],
               ['Scheduled', 'Contains completed periodic Issues waiting for their next appearance date.'],
               ['Archive', 'Retains completed or inactive Issues outside the current register. Restore an archived Issue when fresh work or a new receipt arrives.'],
             ]} />
           </HelpSection>
 
           <HelpSection id="workspace" icon={FileText} title="Inside an Issue" tone="amber">
+            <GuideLocation link="/issues" label="Choose an Issue">Issues &gt; select an Issue from the table</GuideLocation>
             <div className="divide-y divide-slate-200 border-y border-slate-200">
-              <WorkspaceRow icon={History} title="Current Position">Update the stage (Pending, In Progress, Awaiting Input, Completed, Cancelled or Deferred), assignment and latest position. Every saved position becomes a milestone, so earlier updates are not overwritten. Maintain the running summary for a concise account of the matter.</WorkspaceRow>
-              <WorkspaceRow icon={MessageSquareText} title="Record of Communication">Add incoming, outgoing and internal communications chronologically. Record the eReceipt number, source, subject, date and useful details without uploading the PDF.</WorkspaceRow>
+              <WorkspaceRow icon={History} title="Current Position">Update the stage (Pending, In Progress, Awaiting Input, Awaiting Discussion, Completed, Cancelled or Deferred), assignment and latest position. Every saved position becomes a dated milestone instead of replacing history. The latest five appear first; open the earlier history when needed. Maintain the running summary for a concise account of the matter.</WorkspaceRow>
+              <WorkspaceRow icon={MessageSquareText} title="Record of Communication">Add incoming, outgoing and internal communications chronologically. Record the eReceipt number, source, subject, date, direction and useful details. The application stores the register entry, not the PDF.</WorkspaceRow>
               <WorkspaceRow icon={FileText} title="References">Capture rules, O.M.s, instructions, court directions or other authorities with their citation, date and relevant proposition.</WorkspaceRow>
-              <WorkspaceRow icon={Bot} title="AI Context">Choose exactly which Issue details, summary, communications and references may be supplied to the drafting model. Review the context before generation.</WorkspaceRow>
+              <WorkspaceRow icon={Bot} title="AI Context">Preview the material available for drafting and choose exactly which summary, communications and references may be supplied to the model. Search eReceipts where needed and review the assembled context before generation.</WorkspaceRow>
             </div>
+            <p className="mt-4 text-xs leading-5 text-slate-500">Use the running summary for the current understanding of the matter. Use milestones for position history, communications for the correspondence chain and references for the legal or rule position.</p>
           </HelpSection>
 
           <HelpSection id="periodic" icon={CalendarClock} title="Periodic and returning work" tone="cyan">
+            <GuideLocation link="/issues" label="Choose an Issue">Issue workspace &gt; Current Position &gt; Schedule return</GuideLocation>
             <p className="text-sm leading-6 text-slate-700">For weekly, monthly or one-time future work, open <strong>Schedule return</strong> in Current Position and select the pattern and next appearance date. When the current cycle is completed, the Issue moves to Scheduled and returns to the current register as Pending on that date.</p>
             <p className="mt-3 text-sm leading-6 text-slate-600">Use this for periodic returns, recurring reports and matters that should remain out of the active register until a known future date.</p>
           </HelpSection>
 
           <HelpSection id="ai" icon={Bot} title="Preparing an AI-assisted draft" tone="violet">
+            <GuideLocation link="/issues" label="Choose an Issue">Issue workspace &gt; AI Context</GuideLocation>
             <ol className="space-y-3">
               <Instruction number="1" title="Prepare the office profile">In Settings, enter the Ministry or Department, bilingual heading if required, place of issue and house-style notes. Select the officers authorized to sign communications.</Instruction>
               <Instruction number="2" title="Build reliable Issue context">Keep the running summary current and record only relevant communications and references. Better source material produces safer drafts.</Instruction>
               <Instruction number="3" title="Select context deliberately">In AI Context, choose the summary, communications and references needed for this draft. Sensitive or irrelevant entries can remain unselected.</Instruction>
-              <Instruction number="4" title="Describe the outgoing communication">Select the communication type, authorized signatory, recipient relationship and recipient organization. In Purpose / requested action, state who should do what and by when.</Instruction>
+              <Instruction number="4" title="Describe the outgoing communication">Choose Office Memorandum, D.O. Letter, Letter, Office Order, Order, I.D. Note or another available form. Select the authorized signatory, recipient relationship and recipient organization. State who should do what and by when.</Instruction>
               <Instruction number="5" title="Choose the drafting scope">Leave detailed Issue context off for a concise purpose-led draft. Enable it when the body must draw facts from selected communications, summary or references.</Instruction>
-              <Instruction number="6" title="Review before use">The application assembles the CSMOP-oriented structure and the model proposes the body. Edit the result, verify every fact and citation, complete placeholders, and obtain the required approval before issue.</Instruction>
+              <Instruction number="6" title="Review before use">The application supplies the CSMOP-oriented document structure and asks the model to draft the body from the Ministry&apos;s perspective. Edit the result, verify every fact and citation, complete placeholders and obtain the required approval before issue.</Instruction>
             </ol>
             <div className="mt-5 flex gap-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-3 text-sm leading-6 text-amber-950"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" /><p>AI output is a drafting aid, not an official decision. The responsible officer remains accountable for factual accuracy, authority, tone, classification and approval.</p></div>
           </HelpSection>
 
           <HelpSection id="local-ai" icon={HardDrive} title="Using a Local LLM" tone="emerald">
+            <GuideLocation link="/settings" label="Open Settings">Settings &gt; Local AI</GuideLocation>
             <p className="text-sm leading-6 text-slate-700">Local AI is available now. The model runs through LM Studio on the user&apos;s own laptop; the hosted application does not run or pay for the model.</p>
             <div className="mt-4 rounded-md border border-slate-200 bg-slate-950 px-4 py-3 font-mono text-sm text-slate-100">
               <div>lms server stop</div>
               <div>lms server start --cors</div>
             </div>
             <GuideRows className="mt-4" rows={[
-              ['Connect', 'Open Settings → Local AI, use http://127.0.0.1:1234, test the connection and select a loaded model.'],
+              ['Connect', 'Open Settings > Local AI, use http://127.0.0.1:1234, test the connection and select a loaded model.'],
               ['Browser permission', 'When using the hosted application, allow localhost or local-network access if the browser asks.'],
               ['Model choice', 'A stronger instruct model generally follows official drafting constraints better. Small models should be used with conservative drafting and close review.'],
               ['Privacy boundary', 'Selected context is sent to LM Studio on that laptop. Stop the local server when it is not needed and do not expose it to the wider network without authentication.'],
             ]} />
           </HelpSection>
 
+          <HelpSection id="admin" icon={UserRoundCog} title="Administration" tone="amber">
+            <GuideLocation link="/admin" label="Open Administration">Main navigation &gt; Administration (platform administrators only)</GuideLocation>
+            <GuideRows rows={[
+              ['Approve registration', 'Activate a pending account after verifying the user. Approval also adds the user to the current workspace as an Officer.'],
+              ['Workspace access', 'Choose Officer, Workspace admin or No workspace access. Removing workspace access prevents the user from opening that workspace while keeping the account available for later reassignment.'],
+              ['Suspend an account', 'Suspension blocks cloud access for that profile. Use it when a user should no longer access official workspaces.'],
+              ['Protect the administrator', 'The signed-in administrator cannot remove or suspend their own access from the Administration page. Keep at least one verified platform administrator available.'],
+            ]} />
+            <div className="mt-4 flex gap-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-3 text-sm leading-6 text-amber-950"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" /><p>Account approval and workspace membership are separate controls. A user needs both an active account and active workspace access to open the official register.</p></div>
+          </HelpSection>
+
+          <HelpSection id="data" icon={Database} title="Data, cloud sync and backup" tone="rose">
+            <GuideLocation link="/settings" label="Open Settings">Settings &gt; Data and backup</GuideLocation>
+            <GuideRows rows={[
+              ['Cloud-synced now', 'Core Issue details and the saved officer directory sync through Neon for approved members of the same workspace. This includes title, stage, allocation, deadlines, recurrence and archive state.'],
+              ['Local working copy', 'The browser keeps an IndexedDB copy so the interface remains responsive. When connected, newer cloud and local changes are reconciled in the background.'],
+              ['Local-only records', 'Milestones, running summaries, communications, references, office profile, Local AI configuration and other settings remain in the current browser at this stage. They do not yet appear automatically on another laptop.'],
+              ['Sync status', 'The cloud control in the application header shows the latest sync result. Select it to retry after reconnecting or when you want to check for recent workspace changes.'],
+              ['JSON backup', 'Export a backup regularly from Settings. Import replaces the current local database, so confirm that the selected file is the intended backup before proceeding.'],
+              ['Hosted and localhost', 'The hosted application and a localhost development copy use separate browser storage. Use export and import when local-only records must move between those addresses.'],
+            ]} />
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <Choice title="Shared workspace data" status="Cloud synced" icon={Cloud}>Issue register details and officers are shared with approved workspace members and protected by account and workspace access rules.</Choice>
+              <Choice title="Detailed working record" status="Local backup required" icon={HardDrive}>Communications, references, milestones, summaries and AI settings still depend on the browser copy and exported backups.</Choice>
+            </div>
+          </HelpSection>
+
           <HelpSection id="api" icon={Cloud} title="Cloud API support" tone="slate" badge="Planned">
+            <GuideLocation>Not available in the current application</GuideLocation>
             <p className="text-sm leading-6 text-slate-700">A future release will allow users to choose between a Local LLM and a supported cloud AI API. API drafting is not available in the application yet.</p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <Choice title="Local LLM" status="Available now" icon={HardDrive}>Runs on the user&apos;s computer through LM Studio. There is no per-request API charge, but capability depends on the local model and hardware.</Choice>
-              <Choice title="Cloud API" status="Planned · Paid" icon={Cloud}>Will use a configured provider and API credential. Provider usage charges will apply, and selected drafting context will leave the laptop for processing.</Choice>
+              <Choice title="Cloud API" status="Planned - Paid" icon={Cloud}>Will use a configured provider and API credential. Provider usage charges will apply, and selected drafting context will leave the laptop for processing.</Choice>
             </div>
-            <p className="mt-4 text-xs leading-5 text-slate-500">API support will require explicit provider configuration, cost visibility and clear consent before any Issue context is transmitted.</p>
-          </HelpSection>
-
-          <HelpSection id="data" icon={ArchiveRestore} title="Local data and backup" tone="rose">
-            <GuideRows rows={[
-              ['Local storage', 'Issues and settings are stored in IndexedDB for the current browser and website address. There is no central account or automatic cloud sync.'],
-              ['Different laptop or browser', 'Data does not move automatically. Export a JSON backup from the old browser and import it into the new one.'],
-              ['Regular backup', 'Use Settings → Data and backup regularly. Import replaces the current local database, so review the confirmation carefully.'],
-              ['Hosted and local copies', 'The localhost application and GitHub Pages application use separate browser storage. Transfer data between them through JSON export and import.'],
-            ]} />
+            <p className="mt-4 text-xs leading-5 text-slate-500">API support will require explicit provider configuration, cost visibility and clear consent before any Issue context is transmitted. Provider credentials will be handled by protected backend services rather than exposed in the browser.</p>
           </HelpSection>
         </div>
       </div>
@@ -146,4 +212,13 @@ function Instruction({ number, title, children }) {
 
 function Choice({ title, status, icon: Icon, children }) {
   return <div className="rounded-md border border-slate-200 bg-slate-50 p-3"><div className="flex items-center gap-2"><Icon className="h-4 w-4 text-slate-700" /><h3 className="text-sm font-semibold text-slate-900">{title}</h3></div><div className="mt-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{status}</div><p className="mt-2 text-sm leading-6 text-slate-600">{children}</p></div>;
+}
+
+function GuideLocation({ link, label, children }) {
+  return (
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+      <span><strong className="font-semibold text-slate-800">Where to find it:</strong> {children}</span>
+      {link && <Link to={link} className="inline-flex items-center gap-1 font-semibold text-teal-700 hover:text-teal-900">{label}<ArrowRight className="h-3.5 w-3.5" /></Link>}
+    </div>
+  );
 }
