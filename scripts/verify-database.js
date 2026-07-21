@@ -5,12 +5,12 @@ if (!process.env.DATABASE_URL) {
 }
 
 const sql = neon(process.env.DATABASE_URL);
-const [tables, policies, functions, migrations] = await Promise.all([
+const [tables, policies, functions, migrations, workspaces, memberships] = await Promise.all([
   sql`
     SELECT count(*)::int AS count
     FROM information_schema.tables
     WHERE table_schema = 'public'
-      AND table_name IN ('profiles', 'workspaces', 'workspace_members', 'audit_events')
+      AND table_name IN ('profiles', 'workspaces', 'workspace_members', 'audit_events', 'cloud_issues', 'cloud_officers')
   `,
   sql`SELECT count(*)::int AS count FROM pg_policies WHERE schemaname = 'public'`,
   sql`
@@ -18,13 +18,29 @@ const [tables, policies, functions, migrations] = await Promise.all([
     FROM pg_proc p
     JOIN pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname = 'public'
-      AND p.proname IN ('is_platform_admin', 'is_active_workspace_member', 'admin_update_profile')
+      AND p.proname IN (
+        'is_platform_admin',
+        'is_active_workspace_member',
+        'is_workspace_admin',
+        'can_edit_workspace',
+        'admin_update_profile',
+        'ensure_platform_workspace',
+        'admin_set_workspace_member'
+      )
   `,
   sql`
     SELECT count(*)::int AS count
     FROM public.swm_migrations
-    WHERE name = '001_identity_and_access.sql'
+    WHERE name IN (
+      '001_identity_and_access.sql',
+      '002_workspaces_and_cloud_issues.sql',
+      '003_require_active_profile_for_workspace.sql',
+      '004_workspace_editor_permissions.sql',
+      '005_cloud_officer_directory.sql'
+    )
   `,
+  sql`SELECT count(*)::int AS count FROM public.workspaces WHERE is_active = true`,
+  sql`SELECT count(*)::int AS count FROM public.workspace_members WHERE status = 'active'`,
 ]);
 
 const result = {
@@ -32,9 +48,11 @@ const result = {
   policies: policies[0].count,
   functions: functions[0].count,
   migrationRecords: migrations[0].count,
+  activeWorkspaces: workspaces[0].count,
+  activeMemberships: memberships[0].count,
 };
 
-const expected = { tables: 4, policies: 8, functions: 3, migrationRecords: 1 };
+const expected = { tables: 6, policies: 16, functions: 7, migrationRecords: 5 };
 const valid = Object.entries(expected).every(([key, value]) => result[key] === value);
 
 console.log(JSON.stringify(result, null, 2));

@@ -1,5 +1,6 @@
 import { db } from './database';
 import { normalizeOfficer, validateOfficer } from '../utils/officerUtils';
+import { queueCloudOfficerUpsert } from '../features/cloud/cloudOfficerSync';
 
 function requireValidOfficer(input) {
   const officer = normalizeOfficer(input);
@@ -34,6 +35,7 @@ export async function saveOfficer(input) {
     updatedAt: now,
   });
   await db.officers.put(officer);
+  queueCloudOfficerUpsert(officer);
   return officer;
 }
 

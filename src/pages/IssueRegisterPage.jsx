@@ -41,6 +41,9 @@ export default function IssueRegisterPage() {
 
   useEffect(() => {
     load();
+    const handleSync = () => load();
+    window.addEventListener('swm:issues-synced', handleSync);
+    return () => window.removeEventListener('swm:issues-synced', handleSync);
   }, []);
 
   const summary = useMemo(() => {

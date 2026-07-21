@@ -2,7 +2,7 @@ import { Outlet } from 'react-router-dom';
 import { APP_NAME } from '../constants/issueConstants';
 import Sidebar from '../components/layout/Sidebar';
 import MobileNavigation from '../components/layout/MobileNavigation';
-import { LogOut, ShieldCheck } from 'lucide-react';
+import { Cloud, CloudOff, LogOut, RefreshCw, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../features/auth/AuthContext';
 
 export default function AppShell() {
@@ -17,7 +17,7 @@ export default function AppShell() {
               <div className="truncate text-sm font-semibold text-[#17333b] md:hidden">{APP_NAME}</div>
               <div className="hidden items-center gap-2 text-sm font-medium text-slate-600 md:flex">
                 <span className="h-2 w-2 rounded-full bg-teal-500" aria-hidden="true" />
-                Issue tracking
+                <span className="max-w-56 truncate">{auth.workspace?.name || 'Issue tracking'}</span>
               </div>
             </div>
             <div className="flex min-w-0 items-center gap-2">
@@ -25,6 +25,7 @@ export default function AppShell() {
                 <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">Local mode</span>
               ) : (
                 <>
+                  <button type="button" title={auth.syncState?.status === 'error' ? auth.syncState.error : auth.syncState?.status === 'syncing' ? 'Synchronizing Issues' : 'Issues synchronized'} aria-label="Synchronize Issues" onClick={() => auth.syncNow()} disabled={auth.syncState?.status === 'syncing'} className={`flex h-8 w-8 items-center justify-center rounded-md border bg-white ${auth.syncState?.status === 'error' ? 'border-red-200 text-red-700' : 'border-slate-200 text-slate-600 hover:text-slate-900'}`}>{auth.syncState?.status === 'error' ? <CloudOff className="h-4 w-4" /> : auth.syncState?.status === 'syncing' ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Cloud className="h-4 w-4" />}</button>
                   {auth.isAdmin && <span title="Platform administrator" className="hidden rounded-full bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800 sm:inline-flex sm:items-center sm:gap-1"><ShieldCheck className="h-3.5 w-3.5" />Admin</span>}
                   <span className="hidden max-w-44 truncate text-xs font-medium text-slate-600 sm:block">{auth.profile?.display_name || auth.user?.email}</span>
                   <button type="button" title="Sign out" aria-label="Sign out" onClick={() => auth.signOut()} className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 hover:text-slate-900"><LogOut className="h-4 w-4" /></button>

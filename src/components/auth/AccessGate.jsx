@@ -19,6 +19,9 @@ export default function AccessGate({ children }) {
   if (auth.profile?.status !== 'active') {
     return <AccessMessage icon={CloudOff} title="Access not configured" description="No active access profile is available for this account." action={<SignOutButton />} />;
   }
+  if (!auth.workspace) {
+    return <AccessMessage icon={ShieldAlert} title="Workspace access pending" description="Your account is active, but it has not yet been assigned to an official workspace. An administrator can add you from Administration." action={<div className="flex flex-wrap justify-center gap-2"><button type="button" onClick={() => auth.refreshWorkspaces()} className="rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white">Check again</button><SignOutButton /></div>} />;
+  }
 
   return children;
 }
