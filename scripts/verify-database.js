@@ -10,7 +10,7 @@ const [tables, policies, functions, migrations, workspaces, memberships] = await
     SELECT count(*)::int AS count
     FROM information_schema.tables
     WHERE table_schema = 'public'
-      AND table_name IN ('profiles', 'workspaces', 'workspace_members', 'audit_events', 'cloud_issues', 'cloud_officers')
+      AND table_name IN ('profiles', 'workspaces', 'workspace_members', 'audit_events', 'cloud_issues', 'cloud_officers', 'cloud_issue_items', 'cloud_workspace_settings', 'cloud_user_settings')
   `,
   sql`SELECT count(*)::int AS count FROM pg_policies WHERE schemaname = 'public'`,
   sql`
@@ -36,7 +36,8 @@ const [tables, policies, functions, migrations, workspaces, memberships] = await
       '002_workspaces_and_cloud_issues.sql',
       '003_require_active_profile_for_workspace.sql',
       '004_workspace_editor_permissions.sql',
-      '005_cloud_officer_directory.sql'
+      '005_cloud_officer_directory.sql',
+      '006_complete_workspace_sync.sql'
     )
   `,
   sql`SELECT count(*)::int AS count FROM public.workspaces WHERE is_active = true`,
@@ -52,7 +53,7 @@ const result = {
   activeMemberships: memberships[0].count,
 };
 
-const expected = { tables: 6, policies: 16, functions: 7, migrationRecords: 5 };
+const expected = { tables: 9, policies: 27, functions: 7, migrationRecords: 6 };
 const valid = Object.entries(expected).every(([key, value]) => result[key] === value);
 
 console.log(JSON.stringify(result, null, 2));

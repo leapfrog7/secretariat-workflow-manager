@@ -1,5 +1,6 @@
 import { db } from './database';
 import { normalizeReference, validateReference } from '../utils/referenceUtils';
+import { queueCloudIssueItemDelete, queueCloudIssueItemUpsert } from '../features/cloud/cloudIssueItemSync';
 
 function requireValidReference(input) {
   const reference = normalizeReference(input);
@@ -30,9 +31,11 @@ export async function saveReference(input) {
     updatedAt: now,
   });
   await db.references.put(reference);
+  queueCloudIssueItemUpsert('reference', reference);
   return reference;
 }
 
 export async function deleteReference(id) {
   await db.references.delete(id);
+  queueCloudIssueItemDelete('reference', id);
 }

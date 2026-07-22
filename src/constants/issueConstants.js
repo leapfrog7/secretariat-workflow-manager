@@ -1,6 +1,6 @@
 export const APP_NAME = 'Secretariat Workflow Manager';
 export const DB_NAME = 'secretariatWorkflowManagerIssues';
-export const DB_VERSION = 10;
+export const DB_VERSION = 11;
 
 export const ISSUE_RECURRENCE_TYPES = ['One-time', 'Weekly', 'Monthly'];
 
@@ -140,6 +140,8 @@ export const DEFAULT_SETTINGS = {
   categories: DEFAULT_CATEGORIES,
   localAI: DEFAULT_LOCAL_AI_SETTINGS,
   officeProfile: DEFAULT_OFFICE_PROFILE,
+  workspaceSettingsUpdatedAt: '',
+  userSettingsUpdatedAt: '',
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
 };

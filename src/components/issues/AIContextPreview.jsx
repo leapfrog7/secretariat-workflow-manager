@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BookOpen, Check, CheckCheck, Clipboard, LoaderCircle, MessageSquareText, ShieldCheck, Sparkles, Square, X } from 'lucide-react';
+import { BookOpen, Check, CheckCheck, Clipboard, History, LoaderCircle, MessageSquareText, Save, ShieldCheck, Sparkles, Square, X } from 'lucide-react';
 import { buildAIContext } from '../../utils/aiContextUtils';
 import { formatDisplayDate } from '../../utils/dateUtils';
 import { getSettings } from '../../db/database';
 import { COMMUNICATION_TYPES, generateLocalDraft, normalizeLocalAISettings } from '../../services/lmStudioClient';
 import { normalizeOfficeProfile, RECIPIENT_RELATIONSHIPS } from '../../utils/governmentDraftUtils';
+import { getDraftsByIssue, saveDraft } from '../../db/draftRepository';
 
 const RECIPIENT_REQUIRED_TYPES = new Set(['Letter', 'D.O. Letter', 'Office Memorandum', 'Inter-Departmental Note', 'Notification', 'Press Communique / Note', 'Endorsement']);
 
@@ -24,8 +25,11 @@ export default function AIContextPreview({ issue, assignedOfficer, officers, sum
   const [documentDetails, setDocumentDetails] = useState({ subject: issue.shortTitle || '', fileNumber: issue.eFileNumber || '', issueDate: '', salutation: '', copyTo: '' });
   const [useDetailedContext, setUseDetailedContext] = useState(false);
   const [instruction, setInstruction] = useState('');
-  const [generation, setGeneration] = useState({ status: 'idle', text: '', error: '', model: '', stats: {} });
+  const [generation, setGeneration] = useState({ status: 'idle', text: '', error: '', model: '', stats: {}, draftId: '' });
   const [draftCopyStatus, setDraftCopyStatus] = useState('idle');
+  const [draftSaveStatus, setDraftSaveStatus] = useState('idle');
+  const [drafts, setDrafts] = useState([]);
+  const [selectedDraftId, setSelectedDraftId] = useState('');
   const generationController = useRef(null);
 
   useEffect(() => {
@@ -33,12 +37,27 @@ export default function AIContextPreview({ issue, assignedOfficer, officers, sum
     setSelectedReferenceIds([]);
     setOptions({ issueDetails: true, currentPosition: true, summary: true });
     setCopyStatus('idle');
-    setGeneration({ status: 'idle', text: '', error: '', model: '', stats: {} });
+    setGeneration({ status: 'idle', text: '', error: '', model: '', stats: {}, draftId: '' });
     setDraftCopyStatus('idle');
+    setDraftSaveStatus('idle');
+    setSelectedDraftId('');
     setRecipient({ name: '', designation: '', organization: '', address: '' });
     setRecipientRelationship(RECIPIENT_RELATIONSHIPS[0]);
     setDocumentDetails({ subject: issue.shortTitle || '', fileNumber: issue.eFileNumber || '', issueDate: '', salutation: '', copyTo: '' });
     setUseDetailedContext(false);
+  }, [issue.id]);
+
+  useEffect(() => {
+    let active = true;
+    const loadDrafts = () => getDraftsByIssue(issue.id).then((items) => {
+      if (active) setDrafts(items);
+    });
+    loadDrafts();
+    window.addEventListener('swm:workspace-synced', loadDrafts);
+    return () => {
+      active = false;
+      window.removeEventListener('swm:workspace-synced', loadDrafts);
+    };
   }, [issue.id]);
 
   useEffect(() => {
@@ -82,8 +101,7 @@ export default function AIContextPreview({ issue, assignedOfficer, officers, sum
   }), [issue, assignedOfficer, summary, selectedCommunications, selectedReferences, options]);
 
   useEffect(() => {
-    generationController.current?.abort();
-    setGeneration((current) => current.status === 'idle' ? current : { status: 'idle', text: '', error: '', model: '', stats: {} });
+    if (generation.status === 'generating') generationController.current?.abort();
   }, [context.text, communicationType, signatoryId, recipient, recipientRelationship, documentDetails, useDetailedContext, instruction]);
 
   const updateRecipient = (field, value) => setRecipient((current) => ({ ...current, [field]: value }));
@@ -127,7 +145,8 @@ export default function AIContextPreview({ issue, assignedOfficer, officers, sum
     }
     const controller = new AbortController();
     generationController.current = controller;
-    setGeneration({ status: 'generating', text: '', error: '', model: '', stats: {} });
+    setGeneration({ status: 'generating', text: '', error: '', model: '', stats: {}, draftId: '' });
+    setDraftSaveStatus('idle');
     try {
       const result = await generateLocalDraft({
         settings: aiSettings,
@@ -142,10 +161,27 @@ export default function AIContextPreview({ issue, assignedOfficer, officers, sum
         instruction,
         signal: controller.signal,
       });
-      setGeneration({ status: 'complete', text: result.text, error: '', model: result.model, stats: result.stats });
+      const saved = await saveDraft({
+        issueId: issue.id,
+        communicationType,
+        signatoryId: signatory.id,
+        signatoryName: signatory.name,
+        recipientRelationship,
+        recipient,
+        documentDetails,
+        instruction,
+        content: result.text,
+        model: result.model,
+        selectedCommunicationIds,
+        selectedReferenceIds,
+      });
+      setGeneration({ status: 'complete', text: result.text, error: '', model: result.model, stats: result.stats, draftId: saved.id });
+      setDrafts((current) => [saved, ...current.filter((item) => item.id !== saved.id)]);
+      setSelectedDraftId(saved.id);
+      setDraftSaveStatus('saved');
     } catch (error) {
-      if (error.name === 'AbortError') setGeneration({ status: 'idle', text: '', error: '', model: '', stats: {} });
-      else setGeneration({ status: 'error', text: '', error: error.message || 'Unable to generate a local draft.', model: '', stats: {} });
+      if (error.name === 'AbortError') setGeneration({ status: 'idle', text: '', error: '', model: '', stats: {}, draftId: '' });
+      else setGeneration({ status: 'error', text: '', error: error.message || 'Unable to generate or save the local draft.', model: '', stats: {}, draftId: '' });
     } finally {
       generationController.current = null;
     }
@@ -159,6 +195,51 @@ export default function AIContextPreview({ issue, assignedOfficer, officers, sum
       setDraftCopyStatus('error');
     }
     window.setTimeout(() => setDraftCopyStatus('idle'), 1400);
+  };
+
+  const saveDraftChanges = async () => {
+    try {
+      setDraftSaveStatus('saving');
+      const saved = await saveDraft({
+        id: generation.draftId || undefined,
+        issueId: issue.id,
+        communicationType,
+        signatoryId: signatory?.id || '',
+        signatoryName: signatory?.name || '',
+        recipientRelationship,
+        recipient,
+        documentDetails,
+        instruction,
+        content: generation.text,
+        model: generation.model,
+        selectedCommunicationIds,
+        selectedReferenceIds,
+      });
+      setGeneration((current) => ({ ...current, draftId: saved.id }));
+      setDrafts((current) => [saved, ...current.filter((item) => item.id !== saved.id)]);
+      setSelectedDraftId(saved.id);
+      setDraftSaveStatus('saved');
+      window.setTimeout(() => setDraftSaveStatus('idle'), 1400);
+    } catch (error) {
+      setDraftSaveStatus('error');
+      setGeneration((current) => ({ ...current, error: error.validationErrors?.content || error.message || 'Unable to save draft.' }));
+    }
+  };
+
+  const loadSavedDraft = (draftId) => {
+    setSelectedDraftId(draftId);
+    const draft = drafts.find((item) => item.id === draftId);
+    if (!draft) return;
+    setCommunicationType(draft.communicationType || COMMUNICATION_TYPES[0]);
+    setSignatoryId(draft.signatoryId || '');
+    setRecipient(draft.recipient || { name: '', designation: '', organization: '', address: '' });
+    setRecipientRelationship(draft.recipientRelationship || RECIPIENT_RELATIONSHIPS[0]);
+    setDocumentDetails(draft.documentDetails || { subject: issue.shortTitle || '', fileNumber: issue.eFileNumber || '', issueDate: '', salutation: '', copyTo: '' });
+    setInstruction(draft.instruction || '');
+    setSelectedCommunicationIds(draft.selectedCommunicationIds || []);
+    setSelectedReferenceIds(draft.selectedReferenceIds || []);
+    setGeneration({ status: 'complete', text: draft.content, error: '', model: draft.model, stats: {}, draftId: draft.id });
+    setDraftSaveStatus('idle');
   };
 
   return (
@@ -226,10 +307,19 @@ export default function AIContextPreview({ issue, assignedOfficer, officers, sum
         <div className="flex flex-wrap items-start justify-between gap-3 bg-[#f7faf9] px-4 py-4 sm:px-5">
           <div>
             <div className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-cyan-700" /><h3 className="text-sm font-semibold text-[#17333b]">Generate with local model</h3></div>
-            <p className="mt-1 text-xs text-slate-500">Selected context is sent only to the configured LM Studio server.</p>
+            <p className="mt-1 text-xs text-slate-500">Selected context is sent only to LM Studio. A successful generated draft is saved to the workspace.</p>
           </div>
           <Link to="/settings" className="text-xs font-semibold text-teal-700 hover:underline">Drafting and Local AI settings</Link>
         </div>
+        {drafts.length > 0 && (
+          <div className="flex flex-wrap items-center gap-3 border-t border-[#e3ebe9] bg-white px-4 py-3 sm:px-5">
+            <div className="flex items-center gap-2 text-xs font-semibold text-slate-700"><History className="h-4 w-4 text-cyan-700" />Saved drafts</div>
+            <select aria-label="Saved drafts" value={selectedDraftId} onChange={(event) => loadSavedDraft(event.target.value)} className="h-9 min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-3 text-xs text-slate-700 sm:max-w-md">
+              <option value="">Select a draft</option>
+              {drafts.map((draft) => <option key={draft.id} value={draft.id}>Version {draft.version} - {draft.communicationType || 'Communication'} - {new Date(draft.updatedAt || draft.createdAt).toLocaleString()}</option>)}
+            </select>
+          </div>
+        )}
         <div className="grid gap-3 border-t border-[#e3ebe9] px-4 py-4 sm:grid-cols-2 sm:px-5">
           <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Communication type</span><select value={communicationType} onChange={(event) => setCommunicationType(event.target.value)} disabled={generation.status === 'generating'} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-100">{COMMUNICATION_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}</select></label>
           <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Authorized signatory</span><select value={signatoryId} onChange={(event) => setSignatoryId(event.target.value)} disabled={generation.status === 'generating' || !authorizedSignatories.length} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-100"><option value="">Select signatory</option>{authorizedSignatories.map((officer) => <option key={officer.id} value={officer.id}>{officer.name}{officer.designation ? ` - ${officer.designation}` : ''}</option>)}</select></label>
@@ -268,10 +358,13 @@ export default function AIContextPreview({ issue, assignedOfficer, officers, sum
           <div className="border-t border-[#e3ebe9] px-4 py-4 sm:px-5">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <div><h3 className="text-sm font-semibold text-[#17333b]">Generated draft</h3><p className="mt-1 text-xs text-slate-500">{generation.model}{generation.stats.tokens_per_second ? ` - ${generation.stats.tokens_per_second.toFixed(1)} tokens/second` : ''}</p></div>
-              <button type="button" onClick={copyDraft} className={`inline-flex h-9 min-w-28 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold text-white ${draftCopyStatus === 'copied' ? 'bg-emerald-700' : draftCopyStatus === 'error' ? 'bg-red-700' : 'bg-teal-700 hover:bg-teal-800'}`}>{draftCopyStatus === 'copied' ? <Check className="h-4 w-4" /> : draftCopyStatus === 'error' ? <X className="h-4 w-4" /> : <Clipboard className="h-4 w-4" />}{draftCopyStatus === 'copied' ? 'Copied' : draftCopyStatus === 'error' ? 'Copy failed' : 'Copy draft'}</button>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={saveDraftChanges} disabled={!generation.text.trim() || draftSaveStatus === 'saving'} className={`inline-flex h-9 min-w-28 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold text-white disabled:bg-slate-300 ${draftSaveStatus === 'saved' ? 'bg-emerald-700' : draftSaveStatus === 'error' ? 'bg-red-700' : 'bg-cyan-700 hover:bg-cyan-800'}`}><Save className="h-4 w-4" />{draftSaveStatus === 'saving' ? 'Saving...' : draftSaveStatus === 'saved' ? 'Saved' : draftSaveStatus === 'error' ? 'Save failed' : 'Save changes'}</button>
+                <button type="button" onClick={copyDraft} className={`inline-flex h-9 min-w-28 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold text-white ${draftCopyStatus === 'copied' ? 'bg-emerald-700' : draftCopyStatus === 'error' ? 'bg-red-700' : 'bg-teal-700 hover:bg-teal-800'}`}>{draftCopyStatus === 'copied' ? <Check className="h-4 w-4" /> : draftCopyStatus === 'error' ? <X className="h-4 w-4" /> : <Clipboard className="h-4 w-4" />}{draftCopyStatus === 'copied' ? 'Copied' : draftCopyStatus === 'error' ? 'Copy failed' : 'Copy draft'}</button>
+              </div>
             </div>
-            <textarea value={generation.text} onChange={(event) => setGeneration((current) => ({ ...current, text: event.target.value }))} rows={28} aria-label="Editable generated draft" className="w-full resize-y rounded-md border border-slate-300 bg-white px-5 py-5 font-serif text-sm leading-7 text-slate-900 shadow-inner" />
-            <p className="mt-2 text-xs text-slate-500">The standard structure is assembled by the application. This copy is editable before use.</p>
+            <textarea value={generation.text} onChange={(event) => { setGeneration((current) => ({ ...current, text: event.target.value })); setDraftSaveStatus('dirty'); }} rows={28} aria-label="Editable generated draft" className="w-full resize-y rounded-md border border-slate-300 bg-white px-5 py-5 font-serif text-sm leading-7 text-slate-900 shadow-inner" />
+            <p className="mt-2 text-xs text-slate-500">New generations are saved automatically. Save changes after editing this copy.</p>
           </div>
         )}
       </div>

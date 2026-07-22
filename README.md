@@ -4,7 +4,7 @@ Secretariat Workflow Manager is a React application for tracking government-secr
 
 **Live application:** [leapfrog7.github.io/secretariat-workflow-manager](https://leapfrog7.github.io/secretariat-workflow-manager/)
 
-The project is currently a working multi-user proof of concept. Neon provides authentication, workspace access and selected cloud data, while IndexedDB remains the local working store for detailed Issue records.
+The project is currently a working multi-user proof of concept. Neon provides authentication, workspace access and complete operational workspace synchronisation, while IndexedDB remains the responsive local cache and backup source.
 
 ## Implemented Features
 
@@ -70,13 +70,14 @@ There is no traditional Express controller/router backend in the current archite
 | Accounts, profiles and workspace memberships | Neon |
 | Core Issue details, stage, assignment, deadlines, recurrence and archive state | Neon plus local IndexedDB cache |
 | Officer directory | Neon plus local IndexedDB cache |
-| Milestones and running-summary versions | IndexedDB only |
-| Communications, eReceipt metadata and references | IndexedDB only |
-| Office profile, authorised-signatory selection and Local AI settings | IndexedDB only |
+| Milestones and running-summary versions | Neon plus local IndexedDB cache |
+| Communications, eReceipt metadata and references | Neon plus local IndexedDB cache |
+| Office profile and authorised-signatory selection | Neon workspace settings plus local cache |
+| Local AI settings | Neon user settings plus local cache |
 | Uploaded PDFs | Not stored |
-| Generated drafts | Editable in the current screen; not persisted as draft records |
+| Generated drafts | Versioned Issue records in Neon plus local cache |
 
-The cloud control in the application header reconciles supported workspace data. For records that are still local-only, use JSON export regularly and import the backup when moving to another browser or site origin.
+The cloud control in the application header reconciles the complete Issue workspace. IndexedDB remains the responsive local working copy, and JSON export remains available for recovery and portability.
 
 ## Technology
 
@@ -231,10 +232,9 @@ src/services/              LM Studio client and drafting requests
 
 ## Current Limitations and Next Work
 
-- Detailed Issue history is not yet cloud-synchronised.
 - Scheduled Issues are reactivated when the application reads the register; there is no server-side scheduler or email notification service yet.
 - Cloud AI providers, protected API-key handling, usage limits and cost controls are not implemented.
-- Generated drafts do not yet have saved versions, approval states or document export.
+- Generated drafts have saved versions, but approval states and document export are not implemented yet.
 - Workspace creation and delegated Workspace Administrator controls are not fully exposed in the UI.
 - Operational Issue changes do not yet have a complete actor-attributed cloud audit trail.
 - Automated test coverage and production monitoring still need to be added.

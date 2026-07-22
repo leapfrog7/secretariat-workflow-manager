@@ -183,6 +183,25 @@ db.version(10).stores({
   settings: 'id',
 });
 
+db.version(11).stores({
+  issues:
+    'id, eFileNumber, subjectType, assignedOfficerId, organisation, category, priority, status, nextDeadline, nextAppearanceDate, dateOpened, isArchived, isDemo, createdAt, updatedAt',
+  records:
+    'id, issueId, recordNumber, recordType, direction, organisation, recordDate, receivedDate, isArchived, createdAt, updatedAt',
+  actions:
+    'id, issueId, recordId, assignedOfficerId, assignedByOfficerId, reviewStatus, status, priority, assignedTo, pendingWith, dueDate, reminderDate, escalationDate, isArchived, completedAt, assignedOn, submittedOn, lastProgressUpdatedAt, createdAt, updatedAt',
+  communications: 'id, issueId, communicationDate, communicationType, createdAt, updatedAt',
+  references: 'id, issueId, referenceDate, createdAt, updatedAt',
+  issueMilestones: 'id, issueId, recordedAt, createdAt',
+  issueSummaries: 'id, issueId, version, createdAt',
+  drafts: 'id, issueId, version, communicationType, status, createdAt, updatedAt',
+  syncTombstones: 'id, entityType, itemId, deletedAt',
+  officers: 'id, name, designation, section, role, isActive, createdAt, updatedAt',
+  chronology:
+    'id, issueId, recordId, actionId, eventType, eventDate, createdAt',
+  settings: 'id',
+});
+
 export async function getSettings() {
   const settings = await db.settings.get(SETTINGS_ID);
   if (settings) return {
@@ -201,6 +220,10 @@ export async function getSettings() {
 }
 
 export async function saveSettings(settings) {
+  const existing = await db.settings.get(SETTINGS_ID);
+  const now = new Date().toISOString();
+  const workspaceChanged = JSON.stringify({ categories: existing?.categories, officeProfile: existing?.officeProfile }) !== JSON.stringify({ categories: settings.categories, officeProfile: settings.officeProfile });
+  const userChanged = JSON.stringify(existing?.localAI) !== JSON.stringify(settings.localAI);
   const updated = {
     ...DEFAULT_SETTINGS,
     ...settings,
@@ -211,7 +234,9 @@ export async function saveSettings(settings) {
       authorizedSignatoryIds: Array.isArray(settings.officeProfile?.authorizedSignatoryIds) ? settings.officeProfile.authorizedSignatoryIds : [],
     },
     id: SETTINGS_ID,
-    updatedAt: new Date().toISOString(),
+    workspaceSettingsUpdatedAt: workspaceChanged ? now : existing?.workspaceSettingsUpdatedAt || settings.workspaceSettingsUpdatedAt || '',
+    userSettingsUpdatedAt: userChanged ? now : existing?.userSettingsUpdatedAt || settings.userSettingsUpdatedAt || '',
+    updatedAt: now,
   };
   await db.settings.put(updated);
   return updated;
