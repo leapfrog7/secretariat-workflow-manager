@@ -27,6 +27,7 @@ import { formatDateTime } from '../utils/dateUtils';
 import { getSettings, saveSettings } from '../db/database';
 import { listLMStudioModels, normalizeLocalAISettings } from '../services/lmStudioClient';
 import { normalizeOfficeProfile } from '../utils/governmentDraftUtils';
+import { queueCloudSettingsUpsert } from '../features/cloud/cloudSettingsSync';
 
 export default function SettingsPage() {
   const fileRef = useRef(null);
@@ -80,6 +81,8 @@ export default function SettingsPage() {
 
   useEffect(() => {
     load();
+    window.addEventListener('swm:workspace-synced', load);
+    return () => window.removeEventListener('swm:workspace-synced', load);
   }, []);
 
   const exportData = async () => {
@@ -200,6 +203,7 @@ export default function SettingsPage() {
       setState((current) => ({ ...current, busy: 'ai-save' }));
       const settings = await getSettings();
       const saved = await saveSettings({ ...settings, localAI: normalizeLocalAISettings(state.aiSettings) });
+      queueCloudSettingsUpsert(saved, 'user');
       setState((current) => ({ ...current, busy: '', aiSettings: saved.localAI }));
       showToast('Local AI settings saved.');
     } catch (error) {
@@ -230,6 +234,7 @@ export default function SettingsPage() {
       setState((current) => ({ ...current, busy: 'profile-save' }));
       const settings = await getSettings();
       const saved = await saveSettings({ ...settings, officeProfile: normalizeOfficeProfile(state.officeProfile) });
+      queueCloudSettingsUpsert(saved, 'workspace');
       setState((current) => ({ ...current, busy: '', officeProfile: saved.officeProfile }));
       showToast('Official drafting profile saved.');
     } catch (error) {
@@ -246,7 +251,7 @@ export default function SettingsPage() {
 
   return (
     <>
-      <PageHeader title="Settings" description="Manage officers and local data." />
+      <PageHeader title="Settings" description="Manage officers, the official drafting profile, Local AI and application data." />
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="surface rounded-md border-t-4 border-t-teal-600 p-4 lg:col-span-2">
           <div className="flex flex-wrap items-start justify-between gap-3">

@@ -1,5 +1,6 @@
 import { db } from './database';
 import { normalizeIssueSummary, summariesMatch, validateIssueSummary } from '../utils/summaryUtils';
+import { queueCloudIssueItemUpsert } from '../features/cloud/cloudIssueItemSync';
 
 export async function getSummaryVersions(issueId) {
   const summaries = await db.issueSummaries.where('issueId').equals(issueId).toArray();
@@ -18,7 +19,7 @@ export async function countSummaryVersions(issueId) {
 }
 
 export async function saveSummaryVersion(input) {
-  return db.transaction('rw', db.issueSummaries, async () => {
+  const result = await db.transaction('rw', db.issueSummaries, async () => {
     const latest = await getLatestSummary(input.issueId);
     const summary = normalizeIssueSummary({
       ...input,
@@ -36,4 +37,6 @@ export async function saveSummaryVersion(input) {
     await db.issueSummaries.add(summary);
     return summary;
   });
+  queueCloudIssueItemUpsert('summary', result);
+  return result;
 }

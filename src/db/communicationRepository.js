@@ -1,5 +1,6 @@
 import { db } from './database';
 import { normalizeCommunication, validateCommunication } from '../utils/communicationUtils';
+import { queueCloudIssueItemDelete, queueCloudIssueItemUpsert } from '../features/cloud/cloudIssueItemSync';
 
 function requireValidCommunication(input) {
   const communication = normalizeCommunication(input);
@@ -37,9 +38,11 @@ export async function saveCommunication(input) {
     updatedAt: now,
   });
   await db.communications.put(communication);
+  queueCloudIssueItemUpsert('communication', communication);
   return communication;
 }
 
 export async function deleteCommunication(id) {
   await db.communications.delete(id);
+  queueCloudIssueItemDelete('communication', id);
 }

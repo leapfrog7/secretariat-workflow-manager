@@ -74,7 +74,7 @@ export default function HelpPage() {
               ['Create an account', 'Register with your email address and password. A new account remains in Approval pending until a platform administrator activates it.'],
               ['Workspace access', 'After account approval, the user must also belong to an official workspace. The workspace name in the header identifies the shared register currently in use.'],
               ['Check again', 'Use Check again on an approval or workspace-access screen after an administrator has changed your access. There is no need to create a second account.'],
-              ['Across laptops', 'Sign in to the same account and workspace on another laptop to receive cloud-synced Issues and the shared officer directory. Local-only records are explained under Data and sync below.'],
+              ['Across laptops', 'Sign in to the same account and workspace on another laptop to receive the complete Issue workspace, shared officer directory and saved drafting context.'],
               ['Sign out', 'Use the account control in the header when leaving a shared computer. Signing out does not delete locally cached work.'],
             ]} />
           </HelpSection>
@@ -161,16 +161,17 @@ export default function HelpPage() {
           <HelpSection id="data" icon={Database} title="Data, cloud sync and backup" tone="rose">
             <GuideLocation link="/settings" label="Open Settings">Settings &gt; Data and backup</GuideLocation>
             <GuideRows rows={[
-              ['Cloud-synced now', 'Core Issue details and the saved officer directory sync through Neon for approved members of the same workspace. This includes title, stage, allocation, deadlines, recurrence and archive state.'],
+              ['Cloud-synced now', 'Issue details, officers, communications, eReceipts, references, milestones, summary versions and saved drafts sync through Neon for approved workspace members.'],
               ['Local working copy', 'The browser keeps an IndexedDB copy so the interface remains responsive. When connected, newer cloud and local changes are reconciled in the background.'],
-              ['Local-only records', 'Milestones, running summaries, communications, references, office profile, Local AI configuration and other settings remain in the current browser at this stage. They do not yet appear automatically on another laptop.'],
-              ['Sync status', 'The cloud control in the application header shows the latest sync result. Select it to retry after reconnecting or when you want to check for recent workspace changes.'],
+              ['Drafting settings', 'The official office profile and authorised signatories are shared with the workspace. LM Studio preferences follow the signed-in user.'],
+              ['Saved drafts', 'A successful generation is saved automatically. Later edits must be saved with Save changes; saved versions are available from the AI Context workspace on another laptop.'],
+              ['Sync status', 'The cloud control in the application header shows the latest workspace sync result. Select it to retry after reconnecting or check for recent changes.'],
               ['JSON backup', 'Export a backup regularly from Settings. Import replaces the current local database, so confirm that the selected file is the intended backup before proceeding.'],
-              ['Hosted and localhost', 'The hosted application and a localhost development copy use separate browser storage. Use export and import when local-only records must move between those addresses.'],
+              ['Hosted and localhost', 'The hosted application and localhost use separate browser caches. When both use the same cloud account and workspace they reconcile through Neon; a localhost build in Local mode requires export and import.'],
             ]} />
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <Choice title="Shared workspace data" status="Cloud synced" icon={Cloud}>Issue register details and officers are shared with approved workspace members and protected by account and workspace access rules.</Choice>
-              <Choice title="Detailed working record" status="Local backup required" icon={HardDrive}>Communications, references, milestones, summaries and AI settings still depend on the browser copy and exported backups.</Choice>
+              <Choice title="Shared workspace data" status="Cloud synced" icon={Cloud}>The complete Issue workspace, official profile, officers and saved drafts are shared subject to account and workspace access rules.</Choice>
+              <Choice title="Local resilience" status="Backup still recommended" icon={HardDrive}>IndexedDB keeps a local working copy. JSON backup remains useful for recovery and data portability even though operational records synchronize.</Choice>
             </div>
           </HelpSection>
 

@@ -23,16 +23,33 @@ export function queueCloudIssueUpsert(issue) {
 
 export function queueCloudIssueDelete(issueId) {
   const current = runtime;
-  if (!current || current.canEdit === false || !issueId) return;
+  if (!issueId) return;
   const deletedAt = new Date().toISOString();
+  const tombstone = { id: `issue:${issueId}`, entityType: 'issue', itemId: issueId, deletedAt };
+  const persist = db.syncTombstones.put(tombstone);
+  if (!current || current.canEdit === false) {
+    persist.catch(() => {});
+    return;
+  }
   report('syncing');
-  markCloudIssueDeleted({ workspaceId: current.workspaceId, userId: current.userId, issueId, deletedAt })
+  persist
+    .then(() => markCloudIssueDeleted({ workspaceId: current.workspaceId, userId: current.userId, issueId, deletedAt }))
+    .then(() => db.syncTombstones.delete(tombstone.id))
     .then(() => report('synced', { syncedAt: deletedAt }))
     .catch((error) => report('error', { error: error.message || 'Unable to sync Issue deletion.' }));
 }
 
+async function flushIssueTombstones({ workspaceId, userId, canEdit }) {
+  if (!canEdit) return;
+  const tombstones = (await db.syncTombstones.toArray()).filter((item) => item.entityType === 'issue');
+  for (const tombstone of tombstones) {
+    await markCloudIssueDeleted({ workspaceId, userId, issueId: tombstone.itemId, deletedAt: tombstone.deletedAt });
+    await db.syncTombstones.delete(tombstone.id);
+  }
+}
+
 async function deleteLocalIssueGraph(issueId) {
-  await db.transaction('rw', db.issues, db.records, db.actions, db.communications, db.references, db.issueMilestones, db.issueSummaries, db.chronology, async () => {
+  await db.transaction('rw', db.issues, db.records, db.actions, db.communications, db.references, db.issueMilestones, db.issueSummaries, db.drafts, db.chronology, async () => {
     await Promise.all([
       db.records.where('issueId').equals(issueId).delete(),
       db.actions.where('issueId').equals(issueId).delete(),
@@ -40,6 +57,7 @@ async function deleteLocalIssueGraph(issueId) {
       db.references.where('issueId').equals(issueId).delete(),
       db.issueMilestones.where('issueId').equals(issueId).delete(),
       db.issueSummaries.where('issueId').equals(issueId).delete(),
+      db.drafts.where('issueId').equals(issueId).delete(),
       db.chronology.where('issueId').equals(issueId).delete(),
       db.issues.delete(issueId),
     ]);
@@ -51,6 +69,7 @@ export async function syncWorkspaceIssues({ workspaceId, userId, canEdit = true,
   report('syncing');
 
   try {
+    await flushIssueTombstones({ workspaceId, userId, canEdit });
     const [cloudRows, localRows] = await Promise.all([
       listCloudIssueRows(workspaceId),
       db.issues.toArray(),

@@ -96,6 +96,8 @@ export default function IssueWorkspacePage() {
 
   useEffect(() => {
     load();
+    window.addEventListener('swm:workspace-synced', load);
+    return () => window.removeEventListener('swm:workspace-synced', load);
   }, [issueId]);
 
   const updateDraft = (field, value) => {

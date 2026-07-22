@@ -4,7 +4,19 @@ import { AuthContext } from './AuthContext';
 import { cloudClient } from './cloudClient';
 import { configureCloudIssueSync, syncWorkspaceIssues } from '../cloud/cloudIssueSync';
 import { configureCloudOfficerSync, syncWorkspaceOfficers } from '../cloud/cloudOfficerSync';
+import { configureCloudIssueItemSync, syncWorkspaceIssueItems } from '../cloud/cloudIssueItemSync';
+import { configureCloudSettingsSync, syncWorkspaceSettings } from '../cloud/cloudSettingsSync';
 import { ensurePlatformWorkspace, listMyWorkspaces } from '../cloud/workspaceApi';
+
+async function synchronizeWorkspace(configuration) {
+  const officers = await syncWorkspaceOfficers(configuration);
+  const issues = await syncWorkspaceIssues(configuration);
+  const items = await syncWorkspaceIssueItems(configuration);
+  const settings = await syncWorkspaceSettings(configuration);
+  const result = { officers, issues, items, settings, syncedAt: new Date().toISOString() };
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('swm:workspace-synced', { detail: result }));
+  return result;
+}
 
 export default function ConfiguredAuthProvider({ children }) {
   const session = cloudClient.auth.useSession();
@@ -45,6 +57,8 @@ export default function ConfiguredAuthProvider({ children }) {
     if (!userId || profile?.status !== 'active') {
       configureCloudIssueSync(null);
       configureCloudOfficerSync(null);
+      configureCloudIssueItemSync(null);
+      configureCloudSettingsSync(null);
       setWorkspaceState({ userId: '', workspaces: [], workspace: null, loading: false, error: '', syncState: { status: 'idle', error: '', syncedAt: '' } });
       return undefined;
     }
@@ -66,14 +80,7 @@ export default function ConfiguredAuthProvider({ children }) {
           const onStatus = (syncState) => {
             if (active) setWorkspaceState((current) => ({ ...current, syncState: { error: '', syncedAt: '', ...syncState } }));
           };
-          await syncWorkspaceOfficers({ workspaceId: workspace.id, userId, canEdit, onStatus });
-          if (!active) return;
-          await syncWorkspaceIssues({
-            workspaceId: workspace.id,
-            userId,
-            canEdit,
-            onStatus,
-          });
+          await synchronizeWorkspace({ workspaceId: workspace.id, userId, canEdit, onStatus });
           if (!active) return;
         }
         if (active) setWorkspaceState((current) => ({ ...current, userId, workspaces, workspace, loading: false, error: '' }));
@@ -87,6 +94,8 @@ export default function ConfiguredAuthProvider({ children }) {
       active = false;
       configureCloudIssueSync(null);
       configureCloudOfficerSync(null);
+      configureCloudIssueItemSync(null);
+      configureCloudSettingsSync(null);
     };
   }, [profileState.profile, profileState.userId, userId]);
 
@@ -106,6 +115,8 @@ export default function ConfiguredAuthProvider({ children }) {
       const configuration = { workspaceId: workspace.id, userId, canEdit: workspace.membership?.role !== 'viewer', onStatus: (syncState) => setWorkspaceState((current) => ({ ...current, syncState: { error: '', syncedAt: '', ...syncState } })) };
       configureCloudIssueSync(configuration);
       configureCloudOfficerSync(configuration);
+      configureCloudIssueItemSync(configuration);
+      configureCloudSettingsSync(configuration);
     }
     return workspaces;
   }
@@ -119,8 +130,7 @@ export default function ConfiguredAuthProvider({ children }) {
       canEdit: workspace.membership?.role !== 'viewer',
       onStatus: (syncState) => setWorkspaceState((current) => ({ ...current, syncState: { error: '', syncedAt: '', ...syncState } })),
     };
-    await syncWorkspaceOfficers(configuration);
-    return syncWorkspaceIssues(configuration);
+    return synchronizeWorkspace(configuration);
   }
 
   const value = useMemo(() => ({
