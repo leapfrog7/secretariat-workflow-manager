@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import {
   ArrowRight,
+  BellRing,
   Bot,
   CalendarClock,
   CheckCircle2,
@@ -26,11 +27,12 @@ const sections = [
   ['Issues register', 'issues'],
   ['Issue workspace', 'workspace'],
   ['Periodic work', 'periodic'],
+  ['Reminders', 'reminders'],
   ['AI drafting', 'ai'],
   ['Local LLM', 'local-ai'],
   ['Administration', 'admin'],
   ['Data and sync', 'data'],
-  ['Future API', 'api'],
+  ['Cloud AI', 'api'],
 ];
 
 export default function HelpPage() {
@@ -96,6 +98,8 @@ export default function HelpPage() {
               ['Dashboard indicators', 'Total, Pending, Overdue, In Progress and Awaiting Discussion show the current workload at a glance.'],
               ['Search', 'Searches Issue titles as well as recorded eReceipt and source-document details, including receipt number, subject and source.'],
               ['Current register', 'Shows active work, its current stage, assigned officer, age and deadline position.'],
+              ['Register views', 'Use Current for active work, Scheduled for Issues waiting to return and Archived for retained inactive matters.'],
+              ['Row actions', 'Use the archive icon to move an Issue out of the current register, the restore icon to bring it back and the delete icon only when the complete Issue record should be permanently removed.'],
               ['Deadline position', 'The table shows how many days have passed since creation and whether the matter is due on a future date or already overdue.'],
               ['Scheduled', 'Contains completed periodic Issues waiting for their next appearance date.'],
               ['Archive', 'Retains completed or inactive Issues outside the current register. Restore an archived Issue when fresh work or a new receipt arrives.'],
@@ -116,7 +120,18 @@ export default function HelpPage() {
           <HelpSection id="periodic" icon={CalendarClock} title="Periodic and returning work" tone="cyan">
             <GuideLocation link="/issues" label="Choose an Issue">Issue workspace &gt; Current Position &gt; Schedule return</GuideLocation>
             <p className="text-sm leading-6 text-slate-700">For weekly, monthly or one-time future work, open <strong>Schedule return</strong> in Current Position and select the pattern and next appearance date. When the current cycle is completed, the Issue moves to Scheduled and returns to the current register as Pending on that date.</p>
-            <p className="mt-3 text-sm leading-6 text-slate-600">Use this for periodic returns, recurring reports and matters that should remain out of the active register until a known future date.</p>
+            <p className="mt-3 text-sm leading-6 text-slate-600">A protected daily background job checks scheduled dates even when nobody has the application open. Use this for periodic returns, recurring reports and matters that should remain out of the active register until a known future date.</p>
+          </HelpSection>
+
+          <HelpSection id="reminders" icon={BellRing} title="Reminders and digests" tone="rose">
+            <GuideLocation link="/settings" label="Open Settings">Settings &gt; Reminders and digests</GuideLocation>
+            <GuideRows rows={[
+              ['Notification inbox', 'The bell in the application header shows scheduled returns, upcoming deadlines, matters due today, overdue matters and workload digests. Open an Issue notification to go directly to it.'],
+              ['Upcoming window', 'Choose how many days before a deadline the first upcoming reminder should be created. Due-today and overdue notices are handled separately.'],
+              ['Digest', 'Choose a weekly digest, a monthly digest or no digest. The digest gives a short count of current, overdue, due-today and upcoming Issues.'],
+              ['Email', 'Email is optional. It works only after the deployment administrator configures the protected email service; in-app notifications do not require email setup.'],
+              ['Personal preferences', 'Reminder choices follow the signed-in user and do not change the notification preferences of other workspace members.'],
+            ]} />
           </HelpSection>
 
           <HelpSection id="ai" icon={Bot} title="Preparing an AI-assisted draft" tone="violet">
@@ -133,14 +148,14 @@ export default function HelpPage() {
           </HelpSection>
 
           <HelpSection id="local-ai" icon={HardDrive} title="Using a Local LLM" tone="emerald">
-            <GuideLocation link="/settings" label="Open Settings">Settings &gt; Local AI</GuideLocation>
+            <GuideLocation link="/settings" label="Open Settings">Settings &gt; AI drafting</GuideLocation>
             <p className="text-sm leading-6 text-slate-700">Local AI is available now. The model runs through LM Studio on the user&apos;s own laptop; the hosted application does not run or pay for the model.</p>
             <div className="mt-4 rounded-md border border-slate-200 bg-slate-950 px-4 py-3 font-mono text-sm text-slate-100">
               <div>lms server stop</div>
               <div>lms server start --cors</div>
             </div>
             <GuideRows className="mt-4" rows={[
-              ['Connect', 'Open Settings > Local AI, use http://127.0.0.1:1234, test the connection and select a loaded model.'],
+              ['Connect', 'Open Settings > AI drafting, choose Local LLM, use http://127.0.0.1:1234, test the connection and select a loaded model.'],
               ['Browser permission', 'When using the hosted application, allow localhost or local-network access if the browser asks.'],
               ['Model choice', 'A stronger instruct model generally follows official drafting constraints better. Small models should be used with conservative drafting and close review.'],
               ['Privacy boundary', 'Selected context is sent to LM Studio on that laptop. Stop the local server when it is not needed and do not expose it to the wider network without authentication.'],
@@ -152,6 +167,7 @@ export default function HelpPage() {
             <GuideRows rows={[
               ['Approve registration', 'Activate a pending account after verifying the user. Approval also adds the user to the current workspace as an Officer.'],
               ['Workspace access', 'Choose Officer, Workspace admin or No workspace access. Removing workspace access prevents the user from opening that workspace while keeping the account available for later reassignment.'],
+              ['Cloud AI policy', 'Enable OpenAI or Gemini, select the model, set daily and monthly limits, optionally set a budget and current per-token rates, and override access for individual users when needed.'],
               ['Suspend an account', 'Suspension blocks cloud access for that profile. Use it when a user should no longer access official workspaces.'],
               ['Protect the administrator', 'The signed-in administrator cannot remove or suspend their own access from the Administration page. Keep at least one verified platform administrator available.'],
             ]} />
@@ -164,7 +180,9 @@ export default function HelpPage() {
               ['Cloud-synced now', 'Issue details, officers, communications, eReceipts, references, milestones, summary versions and saved drafts sync through Neon for approved workspace members.'],
               ['Local working copy', 'The browser keeps an IndexedDB copy so the interface remains responsive. When connected, newer cloud and local changes are reconciled in the background.'],
               ['Drafting settings', 'The official office profile and authorised signatories are shared with the workspace. LM Studio preferences follow the signed-in user.'],
-              ['Saved drafts', 'A successful generation is saved automatically. Later edits must be saved with Save changes; saved versions are available from the AI Context workspace on another laptop.'],
+              ['Saved drafts', 'Generation remains temporary until Save version is selected. Up to five versions are retained per Issue; version six replaces the oldest slot. Saved versions are available on another laptop after cloud sync.'],
+              ['Draft tools', 'Open a saved version from the history, export the current text as an editable Word-compatible RTF file, or select one paragraph and regenerate only that passage. Review every replacement before saving it as a new version.'],
+              ['Record outgoing', 'After saving the final version, use Record outgoing to add it to the communication chronology with its communication type, draft version and authorised signatory.'],
               ['Sync status', 'The cloud control in the application header shows the latest workspace sync result. Select it to retry after reconnecting or check for recent changes.'],
               ['JSON backup', 'Export a backup regularly from Settings. Import replaces the current local database, so confirm that the selected file is the intended backup before proceeding.'],
               ['Hosted and localhost', 'The hosted application and localhost use separate browser caches. When both use the same cloud account and workspace they reconcile through Neon; a localhost build in Local mode requires export and import.'],
@@ -175,14 +193,19 @@ export default function HelpPage() {
             </div>
           </HelpSection>
 
-          <HelpSection id="api" icon={Cloud} title="Cloud API support" tone="slate" badge="Planned">
-            <GuideLocation>Not available in the current application</GuideLocation>
-            <p className="text-sm leading-6 text-slate-700">A future release will allow users to choose between a Local LLM and a supported cloud AI API. API drafting is not available in the application yet.</p>
+          <HelpSection id="api" icon={Cloud} title="Cloud AI" tone="slate" badge="Paid provider">
+            <GuideLocation link="/settings" label="Choose an AI provider">Settings &gt; AI drafting &gt; Cloud API</GuideLocation>
+            <p className="text-sm leading-6 text-slate-700">Approved workspace users can draft through OpenAI or Gemini after an administrator enables the provider and the server has its API key. Provider usage charges may apply.</p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <Choice title="Local LLM" status="Available now" icon={HardDrive}>Runs on the user&apos;s computer through LM Studio. There is no per-request API charge, but capability depends on the local model and hardware.</Choice>
-              <Choice title="Cloud API" status="Planned - Paid" icon={Cloud}>Will use a configured provider and API credential. Provider usage charges will apply, and selected drafting context will leave the laptop for processing.</Choice>
+              <Choice title="Cloud API" status="Administrator controlled" icon={Cloud}>Uses a protected server-side provider credential. Before every request, the application identifies the provider and asks for confirmation that the selected official context may be transmitted.</Choice>
             </div>
-            <p className="mt-4 text-xs leading-5 text-slate-500">API support will require explicit provider configuration, cost visibility and clear consent before any Issue context is transmitted. Provider credentials will be handled by protected backend services rather than exposed in the browser.</p>
+            <GuideRows className="mt-4" rows={[
+              ['What is transmitted', 'For a new draft: the drafting brief and selected Issue context. For paragraph regeneration: the selected passage, surrounding draft, brief and relevant context.'],
+              ['What is logged', 'Provider, model, operation, status, token counts, estimated cost and character counts. The AI log does not store the official prompt or generated text.'],
+              ['Limits', 'Workspace policy and individual overrides determine access. Daily user limits, monthly request limits and an optional workspace budget are checked before provider contact.'],
+              ['API keys', 'Keys remain in protected Vercel environment variables. They are never stored in browser settings, Neon user settings or VITE_ variables.'],
+            ]} />
           </HelpSection>
         </div>
       </div>

@@ -1,22 +1,29 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BookOpen, Check, CheckCheck, Clipboard, History, LoaderCircle, MessageSquareText, Save, ShieldCheck, Sparkles, Square, X } from 'lucide-react';
+import { BookOpen, Check, CheckCheck, Clipboard, Download, FileOutput, History, LoaderCircle, MessageSquareText, RefreshCw, Save, ShieldCheck, Sparkles, Square, X } from 'lucide-react';
 import { buildAIContext } from '../../utils/aiContextUtils';
-import { formatDisplayDate } from '../../utils/dateUtils';
+import { formatDisplayDate, todayISO } from '../../utils/dateUtils';
 import { getSettings } from '../../db/database';
-import { COMMUNICATION_TYPES, generateLocalDraft, normalizeLocalAISettings } from '../../services/lmStudioClient';
+import { COMMUNICATION_TYPES, generateLocalDraft, normalizeLocalAISettings, regenerateLocalParagraph } from '../../services/lmStudioClient';
+import { generateCloudDraft, regenerateCloudParagraph } from '../../services/cloudAIClient';
 import { normalizeOfficeProfile, RECIPIENT_RELATIONSHIPS } from '../../utils/governmentDraftUtils';
-import { getDraftsByIssue, saveDraft } from '../../db/draftRepository';
+import { getDraftsByIssue, MAX_DRAFTS_PER_ISSUE, saveDraft } from '../../db/draftRepository';
+import { downloadDraftAsRtf } from '../../utils/draftExportUtils';
+import { DEFAULT_AI_PREFERENCES } from '../../constants/issueConstants';
+import { useAuth } from '../../features/auth/AuthContext';
+import ConfirmDialog from '../common/ConfirmDialog';
 
 const RECIPIENT_REQUIRED_TYPES = new Set(['Letter', 'D.O. Letter', 'Office Memorandum', 'Inter-Departmental Note', 'Notification', 'Press Communique / Note', 'Endorsement']);
 
-export default function AIContextPreview({ issue, assignedOfficer, officers, summary, communications, references }) {
+export default function AIContextPreview({ issue, assignedOfficer, officers, summary, communications, references, onSaveCommunication }) {
+  const auth = useAuth();
   const [sourceTab, setSourceTab] = useState('Communications');
   const [selectedCommunicationIds, setSelectedCommunicationIds] = useState([]);
   const [selectedReferenceIds, setSelectedReferenceIds] = useState([]);
   const [options, setOptions] = useState({ issueDetails: true, currentPosition: true, summary: true });
   const [copyStatus, setCopyStatus] = useState('idle');
   const [aiSettings, setAISettings] = useState(null);
+  const [aiPreferences, setAIPreferences] = useState(DEFAULT_AI_PREFERENCES);
   const [officeProfile, setOfficeProfile] = useState(null);
   const [communicationType, setCommunicationType] = useState(COMMUNICATION_TYPES[0]);
   const [signatoryId, setSignatoryId] = useState('');
@@ -30,7 +37,12 @@ export default function AIContextPreview({ issue, assignedOfficer, officers, sum
   const [draftSaveStatus, setDraftSaveStatus] = useState('idle');
   const [drafts, setDrafts] = useState([]);
   const [selectedDraftId, setSelectedDraftId] = useState('');
+  const [selection, setSelection] = useState({ start: 0, end: 0 });
+  const [paragraphStatus, setParagraphStatus] = useState({ status: 'idle', error: '' });
+  const [recordStatus, setRecordStatus] = useState('idle');
+  const [cloudConsent, setCloudConsent] = useState('');
   const generationController = useRef(null);
+  const draftTextareaRef = useRef(null);
 
   useEffect(() => {
     setSelectedCommunicationIds([]);
@@ -41,6 +53,9 @@ export default function AIContextPreview({ issue, assignedOfficer, officers, sum
     setDraftCopyStatus('idle');
     setDraftSaveStatus('idle');
     setSelectedDraftId('');
+    setSelection({ start: 0, end: 0 });
+    setParagraphStatus({ status: 'idle', error: '' });
+    setRecordStatus('idle');
     setRecipient({ name: '', designation: '', organization: '', address: '' });
     setRecipientRelationship(RECIPIENT_RELATIONSHIPS[0]);
     setDocumentDetails({ subject: issue.shortTitle || '', fileNumber: issue.eFileNumber || '', issueDate: '', salutation: '', copyTo: '' });
@@ -67,6 +82,7 @@ export default function AIContextPreview({ issue, assignedOfficer, officers, sum
         if (active) {
           const profile = normalizeOfficeProfile(settings.officeProfile);
           setAISettings(normalizeLocalAISettings(settings.localAI));
+          setAIPreferences({ ...DEFAULT_AI_PREFERENCES, ...(settings.aiPreferences || {}) });
           setOfficeProfile(profile);
           const firstAuthorized = officers.find((officer) => officer.isActive && profile.authorizedSignatoryIds.includes(officer.id));
           setSignatoryId((current) => current || firstAuthorized?.id || '');
@@ -104,8 +120,12 @@ export default function AIContextPreview({ issue, assignedOfficer, officers, sum
     if (generation.status === 'generating') generationController.current?.abort();
   }, [context.text, communicationType, signatoryId, recipient, recipientRelationship, documentDetails, useDetailedContext, instruction]);
 
-  const updateRecipient = (field, value) => setRecipient((current) => ({ ...current, [field]: value }));
-  const updateDocumentDetails = (field, value) => setDocumentDetails((current) => ({ ...current, [field]: value }));
+  const markDraftDirty = () => {
+    if (generation.status === 'complete') setDraftSaveStatus('dirty');
+    setRecordStatus('idle');
+  };
+  const updateRecipient = (field, value) => { setRecipient((current) => ({ ...current, [field]: value })); markDraftDirty(); };
+  const updateDocumentDetails = (field, value) => { setDocumentDetails((current) => ({ ...current, [field]: value })); markDraftDirty(); };
 
   const toggleId = (setter, id) => setter((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
   const copyContext = async () => {
@@ -118,7 +138,7 @@ export default function AIContextPreview({ issue, assignedOfficer, officers, sum
     window.setTimeout(() => setCopyStatus('idle'), 1400);
   };
 
-  const generateDraft = async () => {
+  const generateDraft = async (cloudConfirmed = false) => {
     if (!aiSettings || !officeProfile) {
       setGeneration({ status: 'error', text: '', error: 'Drafting settings are still loading. Please try again.', model: '', stats: {} });
       return;
@@ -143,13 +163,24 @@ export default function AIContextPreview({ issue, assignedOfficer, officers, sum
       setGeneration({ status: 'error', text: '', error: 'Select some Issue context before generating a draft.', model: '', stats: {} });
       return;
     }
+    if (aiPreferences.mode === 'cloud' && !cloudConfirmed) {
+      if (!auth.workspace?.id) {
+        setGeneration({ status: 'error', text: '', error: 'Sign in to an active workspace before using Cloud AI.', model: '', stats: {}, draftId: '' });
+        return;
+      }
+      setCloudConsent('draft');
+      return;
+    }
     const controller = new AbortController();
     generationController.current = controller;
     setGeneration({ status: 'generating', text: '', error: '', model: '', stats: {}, draftId: '' });
     setDraftSaveStatus('idle');
     try {
-      const result = await generateLocalDraft({
-        settings: aiSettings,
+      const generator = aiPreferences.mode === 'cloud' ? generateCloudDraft : generateLocalDraft;
+      const result = await generator({
+        ...(aiPreferences.mode === 'cloud'
+          ? { workspaceId: auth.workspace.id, issueId: issue.id, provider: aiPreferences.cloudProvider }
+          : { settings: aiSettings }),
         context: useDetailedContext ? context.text : `Issue subject: ${documentDetails.subject || issue.shortTitle}`,
         communicationType,
         officeProfile,
@@ -161,27 +192,13 @@ export default function AIContextPreview({ issue, assignedOfficer, officers, sum
         instruction,
         signal: controller.signal,
       });
-      const saved = await saveDraft({
-        issueId: issue.id,
-        communicationType,
-        signatoryId: signatory.id,
-        signatoryName: signatory.name,
-        recipientRelationship,
-        recipient,
-        documentDetails,
-        instruction,
-        content: result.text,
-        model: result.model,
-        selectedCommunicationIds,
-        selectedReferenceIds,
-      });
-      setGeneration({ status: 'complete', text: result.text, error: '', model: result.model, stats: result.stats, draftId: saved.id });
-      setDrafts((current) => [saved, ...current.filter((item) => item.id !== saved.id)]);
-      setSelectedDraftId(saved.id);
-      setDraftSaveStatus('saved');
+      setGeneration({ status: 'complete', text: result.text, error: '', model: result.model, stats: result.stats, draftId: '' });
+      setSelectedDraftId('');
+      setDraftSaveStatus('unsaved');
+      setRecordStatus('idle');
     } catch (error) {
       if (error.name === 'AbortError') setGeneration({ status: 'idle', text: '', error: '', model: '', stats: {}, draftId: '' });
-      else setGeneration({ status: 'error', text: '', error: error.message || 'Unable to generate or save the local draft.', model: '', stats: {}, draftId: '' });
+      else setGeneration({ status: 'error', text: '', error: error.message || 'Unable to generate the draft.', model: '', stats: {}, draftId: '' });
     } finally {
       generationController.current = null;
     }
@@ -201,7 +218,6 @@ export default function AIContextPreview({ issue, assignedOfficer, officers, sum
     try {
       setDraftSaveStatus('saving');
       const saved = await saveDraft({
-        id: generation.draftId || undefined,
         issueId: issue.id,
         communicationType,
         signatoryId: signatory?.id || '',
@@ -216,10 +232,10 @@ export default function AIContextPreview({ issue, assignedOfficer, officers, sum
         selectedReferenceIds,
       });
       setGeneration((current) => ({ ...current, draftId: saved.id }));
-      setDrafts((current) => [saved, ...current.filter((item) => item.id !== saved.id)]);
+      setDrafts((current) => [saved, ...current.filter((item) => item.id !== saved.id)].sort((a, b) => b.version - a.version).slice(0, MAX_DRAFTS_PER_ISSUE));
       setSelectedDraftId(saved.id);
       setDraftSaveStatus('saved');
-      window.setTimeout(() => setDraftSaveStatus('idle'), 1400);
+      setRecordStatus('idle');
     } catch (error) {
       setDraftSaveStatus('error');
       setGeneration((current) => ({ ...current, error: error.validationErrors?.content || error.message || 'Unable to save draft.' }));
@@ -239,17 +255,113 @@ export default function AIContextPreview({ issue, assignedOfficer, officers, sum
     setSelectedCommunicationIds(draft.selectedCommunicationIds || []);
     setSelectedReferenceIds(draft.selectedReferenceIds || []);
     setGeneration({ status: 'complete', text: draft.content, error: '', model: draft.model, stats: {}, draftId: draft.id });
-    setDraftSaveStatus('idle');
+    setDraftSaveStatus('saved');
+    setRecordStatus('idle');
+    setParagraphStatus({ status: 'idle', error: '' });
   };
 
+  const currentSavedDraft = drafts.find((draft) => draft.id === generation.draftId) || null;
+  const recordedCommunication = generation.draftId ? communications.find((item) => item.draftId === generation.draftId) : null;
+
+  const exportDraft = () => {
+    try {
+      downloadDraftAsRtf({ content: generation.text, title: documentDetails.subject || issue.shortTitle, version: currentSavedDraft?.version });
+    } catch (error) {
+      setGeneration((current) => ({ ...current, error: error.message || 'Unable to export draft.' }));
+    }
+  };
+
+  const regenerateSelection = async (cloudConfirmed = false) => {
+    const selectedText = generation.text.slice(selection.start, selection.end);
+    if (!selectedText.trim()) {
+      setParagraphStatus({ status: 'error', error: 'Select one paragraph in the draft before regenerating it.' });
+      draftTextareaRef.current?.focus();
+      return;
+    }
+    if (aiPreferences.mode === 'cloud' && !cloudConfirmed) {
+      if (!auth.workspace?.id) {
+        setParagraphStatus({ status: 'error', error: 'Sign in to an active workspace before using Cloud AI.' });
+        return;
+      }
+      setCloudConsent('paragraph');
+      return;
+    }
+    const controller = new AbortController();
+    generationController.current = controller;
+    setParagraphStatus({ status: 'regenerating', error: '' });
+    try {
+      const regenerator = aiPreferences.mode === 'cloud' ? regenerateCloudParagraph : regenerateLocalParagraph;
+      const result = await regenerator({
+        ...(aiPreferences.mode === 'cloud'
+          ? { workspaceId: auth.workspace.id, issueId: issue.id, provider: aiPreferences.cloudProvider }
+          : { settings: aiSettings }),
+        fullDraft: generation.text,
+        selectedText,
+        context: useDetailedContext ? context.text : `Issue subject: ${documentDetails.subject || issue.shortTitle}`,
+        communicationType,
+        instruction,
+        signal: controller.signal,
+      });
+      const nextText = `${generation.text.slice(0, selection.start)}${result.text}${generation.text.slice(selection.end)}`;
+      const nextEnd = selection.start + result.text.length;
+      setGeneration((current) => ({ ...current, text: nextText, model: result.model || current.model }));
+      setDraftSaveStatus('dirty');
+      setRecordStatus('idle');
+      setSelection({ start: selection.start, end: nextEnd });
+      setParagraphStatus({ status: 'complete', error: '' });
+      window.requestAnimationFrame(() => {
+        draftTextareaRef.current?.focus();
+        draftTextareaRef.current?.setSelectionRange(selection.start, nextEnd);
+      });
+    } catch (error) {
+      setParagraphStatus(error.name === 'AbortError' ? { status: 'idle', error: '' } : { status: 'error', error: error.message || 'Unable to regenerate the selected paragraph.' });
+    } finally {
+      generationController.current = null;
+    }
+  };
+
+  const recordOutgoingCommunication = async () => {
+    if (!currentSavedDraft || draftSaveStatus === 'dirty') {
+      setRecordStatus('error');
+      return;
+    }
+    try {
+      setRecordStatus('saving');
+      const savedRecipient = currentSavedDraft.recipient || {};
+      const savedDocumentDetails = currentSavedDraft.documentDetails || {};
+      const savedCommunicationType = currentSavedDraft.communicationType || communicationType;
+      const correspondent = [savedRecipient.name, savedRecipient.organization].filter(Boolean).join(', ') || 'Recipient not specified';
+      await onSaveCommunication({
+        communicationDate: savedDocumentDetails.issueDate || todayISO(),
+        communicationType: 'Letter issued',
+        correspondent,
+        details: `${savedCommunicationType} recorded as outgoing communication${currentSavedDraft.signatoryName ? ` and signed by ${currentSavedDraft.signatoryName}` : ''}.`,
+        documentDate: savedDocumentDetails.issueDate || todayISO(),
+        sourceSubject: savedDocumentDetails.subject || issue.shortTitle,
+        sourceDigest: `Prepared from saved draft version ${currentSavedDraft.version}. The editable draft remains available in AI Context.`,
+        draftId: currentSavedDraft.id,
+        draftVersion: currentSavedDraft.version,
+        officialCommunicationType: savedCommunicationType,
+        signatoryId: currentSavedDraft.signatoryId,
+        signatoryName: currentSavedDraft.signatoryName,
+      });
+      setRecordStatus('recorded');
+    } catch {
+      setRecordStatus('error');
+    }
+  };
+
+  const providerLabel = aiPreferences.cloudProvider === 'openai' ? 'OpenAI' : 'Gemini';
+
   return (
+    <>
     <section className="surface overflow-hidden rounded-md">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#dce6e4] px-4 py-4 sm:px-5">
         <div>
           <div className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-teal-700" /><h2 className="text-base font-semibold text-[#17333b]">AI context preview</h2></div>
           <p className="mt-1 text-sm text-slate-600">Review the exact Issue context before using it for drafting.</p>
         </div>
-        <div className="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-800">Local preview only</div>
+        <div className={`rounded-md border px-2.5 py-1.5 text-xs font-semibold ${aiPreferences.mode === 'cloud' ? 'border-cyan-200 bg-cyan-50 text-cyan-900' : 'border-emerald-200 bg-emerald-50 text-emerald-800'}`}>{aiPreferences.mode === 'cloud' ? `Cloud API - ${providerLabel}` : 'Local preview only'}</div>
       </div>
 
       <div className="grid lg:grid-cols-[360px_minmax(0,1fr)]">
@@ -306,26 +418,26 @@ export default function AIContextPreview({ issue, assignedOfficer, officers, sum
       <div className="border-t border-[#dce6e4]">
         <div className="flex flex-wrap items-start justify-between gap-3 bg-[#f7faf9] px-4 py-4 sm:px-5">
           <div>
-            <div className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-cyan-700" /><h3 className="text-sm font-semibold text-[#17333b]">Generate with local model</h3></div>
-            <p className="mt-1 text-xs text-slate-500">Selected context is sent only to LM Studio. A successful generated draft is saved to the workspace.</p>
+            <div className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-cyan-700" /><h3 className="text-sm font-semibold text-[#17333b]">Generate with {aiPreferences.mode === 'cloud' ? providerLabel : 'local model'}</h3></div>
+            <p className="mt-1 text-xs text-slate-500">{aiPreferences.mode === 'cloud' ? 'You will review and confirm before selected official context leaves the workspace.' : 'Selected context is sent only to LM Studio. Saving a generated draft is optional.'}</p>
           </div>
           <Link to="/settings" className="text-xs font-semibold text-teal-700 hover:underline">Drafting and Local AI settings</Link>
         </div>
         {drafts.length > 0 && (
           <div className="flex flex-wrap items-center gap-3 border-t border-[#e3ebe9] bg-white px-4 py-3 sm:px-5">
-            <div className="flex items-center gap-2 text-xs font-semibold text-slate-700"><History className="h-4 w-4 text-cyan-700" />Saved drafts</div>
+            <div className="flex items-center gap-2 text-xs font-semibold text-slate-700"><History className="h-4 w-4 text-cyan-700" />Saved drafts <span className="font-normal text-slate-500">({drafts.length}/{MAX_DRAFTS_PER_ISSUE})</span></div>
             <select aria-label="Saved drafts" value={selectedDraftId} onChange={(event) => loadSavedDraft(event.target.value)} className="h-9 min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-3 text-xs text-slate-700 sm:max-w-md">
-              <option value="">Select a draft</option>
+              <option value="" disabled>Select a draft</option>
               {drafts.map((draft) => <option key={draft.id} value={draft.id}>Version {draft.version} - {draft.communicationType || 'Communication'} - {new Date(draft.updatedAt || draft.createdAt).toLocaleString()}</option>)}
             </select>
           </div>
         )}
         <div className="grid gap-3 border-t border-[#e3ebe9] px-4 py-4 sm:grid-cols-2 sm:px-5">
-          <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Communication type</span><select value={communicationType} onChange={(event) => setCommunicationType(event.target.value)} disabled={generation.status === 'generating'} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-100">{COMMUNICATION_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}</select></label>
-          <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Authorized signatory</span><select value={signatoryId} onChange={(event) => setSignatoryId(event.target.value)} disabled={generation.status === 'generating' || !authorizedSignatories.length} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-100"><option value="">Select signatory</option>{authorizedSignatories.map((officer) => <option key={officer.id} value={officer.id}>{officer.name}{officer.designation ? ` - ${officer.designation}` : ''}</option>)}</select></label>
-          <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Recipient relationship</span><select value={recipientRelationship} onChange={(event) => setRecipientRelationship(event.target.value)} disabled={generation.status === 'generating'} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-100">{RECIPIENT_RELATIONSHIPS.map((relationship) => <option key={relationship} value={relationship}>{relationship}</option>)}</select></label>
+          <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Communication type</span><select value={communicationType} onChange={(event) => { setCommunicationType(event.target.value); markDraftDirty(); }} disabled={generation.status === 'generating'} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-100">{COMMUNICATION_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}</select></label>
+          <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Authorized signatory</span><select value={signatoryId} onChange={(event) => { setSignatoryId(event.target.value); markDraftDirty(); }} disabled={generation.status === 'generating' || !authorizedSignatories.length} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-100"><option value="">Select signatory</option>{authorizedSignatories.map((officer) => <option key={officer.id} value={officer.id}>{officer.name}{officer.designation ? ` - ${officer.designation}` : ''}</option>)}</select></label>
+          <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Recipient relationship</span><select value={recipientRelationship} onChange={(event) => { setRecipientRelationship(event.target.value); markDraftDirty(); }} disabled={generation.status === 'generating'} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-100">{RECIPIENT_RELATIONSHIPS.map((relationship) => <option key={relationship} value={relationship}>{relationship}</option>)}</select></label>
           <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Recipient organization {RECIPIENT_REQUIRED_TYPES.has(communicationType) && <span className="text-red-700">*</span>}</span><input value={recipient.organization} onChange={(event) => updateRecipient('organization', event.target.value)} disabled={generation.status === 'generating'} placeholder="Example: Department of Legal Affairs" className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-100" /></label>
-          <label className="block sm:col-span-2"><span className="mb-1 block text-sm font-medium text-slate-700">Purpose / requested action <span className="text-red-700">*</span></span><textarea rows={3} value={instruction} onChange={(event) => setInstruction(event.target.value)} disabled={generation.status === 'generating'} placeholder="Example: Request comments on the proposed scheme by 31 July 2026, referring to eReceipt 12345." className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm leading-5 text-slate-900 disabled:bg-slate-100" /><span className="mt-1 block text-xs text-slate-500">State who should do what, and by when. This is the model's primary drafting brief.</span></label>
+          <label className="block sm:col-span-2"><span className="mb-1 block text-sm font-medium text-slate-700">Purpose / requested action <span className="text-red-700">*</span></span><textarea rows={3} value={instruction} onChange={(event) => { setInstruction(event.target.value); markDraftDirty(); }} disabled={generation.status === 'generating'} placeholder="Example: Request comments on the proposed scheme by 31 July 2026, referring to eReceipt 12345." className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm leading-5 text-slate-900 disabled:bg-slate-100" /><span className="mt-1 block text-xs text-slate-500">State who should do what, and by when. This is the model's primary drafting brief.</span></label>
           <label className="flex items-start gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700 sm:col-span-2"><input type="checkbox" checked={useDetailedContext} onChange={(event) => setUseDetailedContext(event.target.checked)} disabled={generation.status === 'generating'} className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-teal-700" /><span><span className="block font-medium">Use selected Issue context in the body</span><span className="mt-0.5 block text-xs leading-5 text-slate-500">Leave off for a concise purpose-led draft. Enable when the communication must draw facts from the running summary, communications, or references selected above.</span></span></label>
           <details className="rounded-md border border-slate-200 bg-slate-50 sm:col-span-2">
             <summary className="cursor-pointer px-3 py-3 text-sm font-semibold text-slate-700">Document and addressee details <span className="font-normal text-slate-500">(optional)</span></summary>
@@ -343,32 +455,59 @@ export default function AIContextPreview({ issue, assignedOfficer, officers, sum
           {!authorizedSignatories.length && <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 sm:col-span-2">Choose authorized signatories in <Link to="/settings" className="font-semibold underline">Settings</Link> before generating official communication.</div>}
           {authorizedSignatories.length > 0 && !signatory && <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 sm:col-span-2">Select the officer who will sign this communication.</div>}
           <div className="flex flex-wrap items-center justify-between gap-3 lg:col-span-2">
-            <span className="text-xs text-slate-500">Model: <span className="font-semibold text-slate-700">{aiSettings?.model || 'Loading settings...'}</span></span>
+            <span className="text-xs text-slate-500">Provider: <span className="font-semibold text-slate-700">{aiPreferences.mode === 'cloud' ? providerLabel : aiSettings?.model || 'Loading settings...'}</span></span>
             {generation.status === 'generating' ? (
               <button type="button" onClick={() => generationController.current?.abort()} className="inline-flex h-10 items-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 text-sm font-semibold text-red-800 hover:bg-red-100"><Square className="h-4 w-4" />Stop generation</button>
             ) : (
-              <button type="button" onClick={generateDraft} className="inline-flex h-10 min-w-36 items-center justify-center gap-2 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-teal-800"><Sparkles className="h-4 w-4" />Generate draft</button>
+              <button type="button" onClick={() => generateDraft()} className="inline-flex h-10 min-w-36 items-center justify-center gap-2 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-teal-800"><Sparkles className="h-4 w-4" />Generate draft</button>
             )}
           </div>
         </div>
 
-        {generation.status === 'generating' && <div className="flex min-h-36 items-center justify-center gap-3 border-t border-[#e3ebe9] px-4 py-8 text-sm font-medium text-slate-600"><LoaderCircle className="h-5 w-5 animate-spin text-cyan-700" />Generating locally. The first request may include model loading time.</div>}
+        {generation.status === 'generating' && <div className="flex min-h-36 items-center justify-center gap-3 border-t border-[#e3ebe9] px-4 py-8 text-sm font-medium text-slate-600"><LoaderCircle className="h-5 w-5 animate-spin text-cyan-700" />{aiPreferences.mode === 'cloud' ? `Generating through ${providerLabel}.` : 'Generating locally. The first request may include model loading time.'}</div>}
         {generation.status === 'error' && <div className="border-t border-red-200 bg-red-50 px-4 py-4 text-sm text-red-800 sm:px-5">{generation.error}</div>}
         {generation.status === 'complete' && (
           <div className="border-t border-[#e3ebe9] px-4 py-4 sm:px-5">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <div><h3 className="text-sm font-semibold text-[#17333b]">Generated draft</h3><p className="mt-1 text-xs text-slate-500">{generation.model}{generation.stats.tokens_per_second ? ` - ${generation.stats.tokens_per_second.toFixed(1)} tokens/second` : ''}</p></div>
               <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={saveDraftChanges} disabled={!generation.text.trim() || draftSaveStatus === 'saving'} className={`inline-flex h-9 min-w-28 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold text-white disabled:bg-slate-300 ${draftSaveStatus === 'saved' ? 'bg-emerald-700' : draftSaveStatus === 'error' ? 'bg-red-700' : 'bg-cyan-700 hover:bg-cyan-800'}`}><Save className="h-4 w-4" />{draftSaveStatus === 'saving' ? 'Saving...' : draftSaveStatus === 'saved' ? 'Saved' : draftSaveStatus === 'error' ? 'Save failed' : 'Save changes'}</button>
+                <button type="button" onClick={saveDraftChanges} disabled={!generation.text.trim() || draftSaveStatus === 'saving' || draftSaveStatus === 'saved'} className={`inline-flex h-9 min-w-28 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold text-white disabled:bg-slate-300 ${draftSaveStatus === 'saved' ? 'bg-emerald-700' : draftSaveStatus === 'error' ? 'bg-red-700' : 'bg-cyan-700 hover:bg-cyan-800'}`}><Save className="h-4 w-4" />{draftSaveStatus === 'saving' ? 'Saving...' : draftSaveStatus === 'saved' ? `Saved v${currentSavedDraft?.version || ''}` : draftSaveStatus === 'error' ? 'Save failed' : 'Save version'}</button>
+                <button type="button" onClick={exportDraft} className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"><Download className="h-4 w-4" />Word-compatible</button>
                 <button type="button" onClick={copyDraft} className={`inline-flex h-9 min-w-28 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold text-white ${draftCopyStatus === 'copied' ? 'bg-emerald-700' : draftCopyStatus === 'error' ? 'bg-red-700' : 'bg-teal-700 hover:bg-teal-800'}`}>{draftCopyStatus === 'copied' ? <Check className="h-4 w-4" /> : draftCopyStatus === 'error' ? <X className="h-4 w-4" /> : <Clipboard className="h-4 w-4" />}{draftCopyStatus === 'copied' ? 'Copied' : draftCopyStatus === 'error' ? 'Copy failed' : 'Copy draft'}</button>
               </div>
             </div>
-            <textarea value={generation.text} onChange={(event) => { setGeneration((current) => ({ ...current, text: event.target.value })); setDraftSaveStatus('dirty'); }} rows={28} aria-label="Editable generated draft" className="w-full resize-y rounded-md border border-slate-300 bg-white px-5 py-5 font-serif text-sm leading-7 text-slate-900 shadow-inner" />
-            <p className="mt-2 text-xs text-slate-500">New generations are saved automatically. Save changes after editing this copy.</p>
+            <textarea ref={draftTextareaRef} value={generation.text} onSelect={(event) => setSelection({ start: event.currentTarget.selectionStart, end: event.currentTarget.selectionEnd })} onChange={(event) => { setGeneration((current) => ({ ...current, text: event.target.value })); setDraftSaveStatus('dirty'); setRecordStatus('idle'); }} rows={28} aria-label="Editable generated draft" className="w-full resize-y rounded-md border border-slate-300 bg-white px-5 py-5 font-serif text-sm leading-7 text-slate-900 shadow-inner" />
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
+              <div><p className="text-xs font-semibold text-slate-700">Draft tools</p><p className="mt-0.5 text-xs text-slate-500">Select one paragraph before regenerating. Save the final text before recording it as outgoing.</p></div>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={() => regenerateSelection()} disabled={paragraphStatus.status === 'regenerating' || selection.start === selection.end} className="inline-flex h-9 items-center gap-2 rounded-md border border-cyan-200 bg-cyan-50 px-3 text-xs font-semibold text-cyan-900 hover:bg-cyan-100 disabled:cursor-not-allowed disabled:opacity-50">{paragraphStatus.status === 'regenerating' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}{paragraphStatus.status === 'regenerating' ? 'Regenerating...' : 'Regenerate selection'}</button>
+                <button type="button" onClick={recordOutgoingCommunication} disabled={!currentSavedDraft || draftSaveStatus === 'dirty' || recordStatus === 'saving' || Boolean(recordedCommunication) || recordStatus === 'recorded'} className="inline-flex h-9 items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 text-xs font-semibold text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50">{recordStatus === 'saving' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <FileOutput className="h-4 w-4" />}{recordedCommunication || recordStatus === 'recorded' ? 'Recorded outgoing' : recordStatus === 'saving' ? 'Recording...' : 'Record outgoing'}</button>
+              </div>
+            </div>
+            {paragraphStatus.error && <p className="mt-2 text-xs text-red-700">{paragraphStatus.error}</p>}
+            {paragraphStatus.status === 'complete' && <p className="mt-2 text-xs text-emerald-700">Selected passage regenerated. Review it and save a new version if required.</p>}
+            {recordStatus === 'error' && <p className="mt-2 text-xs text-red-700">Save the current draft version before recording the outgoing communication.</p>}
+            <p className="mt-2 text-xs text-slate-500">Only saved versions sync to the workspace. The five most recent versions are retained; saving version six replaces the oldest slot.</p>
           </div>
         )}
       </div>
     </section>
+    <ConfirmDialog
+      open={Boolean(cloudConsent)}
+      title={`Send official context to ${providerLabel}?`}
+      description={cloudConsent === 'paragraph'
+        ? `The selected passage, surrounding draft, drafting brief and relevant Issue context will be sent to ${providerLabel}. Usage and status are logged, but the AI log does not store the prompt or generated text.`
+        : `The drafting brief and Issue context currently selected in this preview will be sent to ${providerLabel}. Usage and status are logged, but the AI log does not store the prompt or generated text.`}
+      confirmLabel="Send and generate"
+      onCancel={() => setCloudConsent('')}
+      onConfirm={() => {
+        const action = cloudConsent;
+        setCloudConsent('');
+        if (action === 'paragraph') regenerateSelection(true);
+        else generateDraft(true);
+      }}
+    />
+    </>
   );
 }
 

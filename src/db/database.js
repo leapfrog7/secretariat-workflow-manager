@@ -1,5 +1,5 @@
 import Dexie from 'dexie';
-import { DB_NAME, DB_VERSION, DEFAULT_LOCAL_AI_SETTINGS, DEFAULT_OFFICE_PROFILE, DEFAULT_SETTINGS, SETTINGS_ID } from '../constants/issueConstants';
+import { DB_NAME, DB_VERSION, DEFAULT_LOCAL_AI_SETTINGS, DEFAULT_OFFICE_PROFILE, DEFAULT_REMINDER_SETTINGS, DEFAULT_SETTINGS, SETTINGS_ID } from '../constants/issueConstants';
 
 export const db = new Dexie(DB_NAME);
 
@@ -209,6 +209,7 @@ export async function getSettings() {
     ...settings,
     categories: Array.isArray(settings.categories) ? settings.categories : DEFAULT_SETTINGS.categories,
     localAI: { ...DEFAULT_LOCAL_AI_SETTINGS, ...(settings.localAI || {}) },
+    reminders: { ...DEFAULT_REMINDER_SETTINGS, ...(settings.reminders || {}) },
     officeProfile: {
       ...DEFAULT_OFFICE_PROFILE,
       ...(settings.officeProfile || {}),
@@ -223,11 +224,12 @@ export async function saveSettings(settings) {
   const existing = await db.settings.get(SETTINGS_ID);
   const now = new Date().toISOString();
   const workspaceChanged = JSON.stringify({ categories: existing?.categories, officeProfile: existing?.officeProfile }) !== JSON.stringify({ categories: settings.categories, officeProfile: settings.officeProfile });
-  const userChanged = JSON.stringify(existing?.localAI) !== JSON.stringify(settings.localAI);
+  const userChanged = JSON.stringify({ localAI: existing?.localAI, reminders: existing?.reminders }) !== JSON.stringify({ localAI: settings.localAI, reminders: settings.reminders });
   const updated = {
     ...DEFAULT_SETTINGS,
     ...settings,
     localAI: { ...DEFAULT_LOCAL_AI_SETTINGS, ...(settings.localAI || {}) },
+    reminders: { ...DEFAULT_REMINDER_SETTINGS, ...(settings.reminders || {}) },
     officeProfile: {
       ...DEFAULT_OFFICE_PROFILE,
       ...(settings.officeProfile || {}),

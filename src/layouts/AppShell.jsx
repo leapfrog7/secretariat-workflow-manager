@@ -4,6 +4,7 @@ import Sidebar from '../components/layout/Sidebar';
 import MobileNavigation from '../components/layout/MobileNavigation';
 import { Cloud, CloudOff, LogOut, RefreshCw, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../features/auth/AuthContext';
+import NotificationCenter from '../components/notifications/NotificationCenter';
 
 export default function AppShell() {
   const auth = useAuth();
@@ -25,6 +26,7 @@ export default function AppShell() {
                 <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">Local mode</span>
               ) : (
                 <>
+                  <NotificationCenter />
                   <button type="button" title={auth.syncState?.status === 'error' ? auth.syncState.error : auth.syncState?.status === 'syncing' ? 'Synchronizing workspace' : 'Workspace synchronized'} aria-label="Synchronize workspace" onClick={() => auth.syncNow()} disabled={auth.syncState?.status === 'syncing'} className={`flex h-8 w-8 items-center justify-center rounded-md border bg-white ${auth.syncState?.status === 'error' ? 'border-red-200 text-red-700' : 'border-slate-200 text-slate-600 hover:text-slate-900'}`}>{auth.syncState?.status === 'error' ? <CloudOff className="h-4 w-4" /> : auth.syncState?.status === 'syncing' ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Cloud className="h-4 w-4" />}</button>
                   {auth.isAdmin && <span title="Platform administrator" className="hidden rounded-full bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800 sm:inline-flex sm:items-center sm:gap-1"><ShieldCheck className="h-3.5 w-3.5" />Admin</span>}
                   <span className="hidden max-w-44 truncate text-xs font-medium text-slate-600 sm:block">{auth.profile?.display_name || auth.user?.email}</span>

@@ -121,6 +121,18 @@ export const DEFAULT_LOCAL_AI_SETTINGS = {
   model: 'llama-3.2-3b-instruct',
 };
 
+export const DEFAULT_AI_PREFERENCES = {
+  mode: 'local',
+  cloudProvider: 'gemini',
+};
+
+export const DEFAULT_REMINDER_SETTINGS = {
+  inAppEnabled: true,
+  emailEnabled: false,
+  upcomingDays: 7,
+  digestFrequency: 'weekly',
+};
+
 export const DEFAULT_OFFICE_PROFILE = {
   governmentName: 'Government of India',
   governmentHindiName: 'Bharat Sarkar',
@@ -139,6 +151,8 @@ export const DEFAULT_SETTINGS = {
   id: SETTINGS_ID,
   categories: DEFAULT_CATEGORIES,
   localAI: DEFAULT_LOCAL_AI_SETTINGS,
+  aiPreferences: DEFAULT_AI_PREFERENCES,
+  reminders: DEFAULT_REMINDER_SETTINGS,
   officeProfile: DEFAULT_OFFICE_PROFILE,
   workspaceSettingsUpdatedAt: '',
   userSettingsUpdatedAt: '',
