@@ -10,7 +10,7 @@ const [tables, policies, functions, migrations, workspaces, memberships] = await
     SELECT count(*)::int AS count
     FROM information_schema.tables
     WHERE table_schema = 'public'
-      AND table_name IN ('profiles', 'workspaces', 'workspace_members', 'audit_events', 'cloud_issues', 'cloud_officers', 'cloud_issue_items', 'cloud_workspace_settings', 'cloud_user_settings')
+      AND table_name IN ('profiles', 'workspaces', 'workspace_members', 'audit_events', 'cloud_issues', 'cloud_officers', 'cloud_issue_items', 'cloud_workspace_settings', 'cloud_user_settings', 'cloud_notifications', 'automation_runs', 'cloud_ai_provider_settings', 'cloud_ai_user_permissions', 'cloud_ai_generation_logs')
   `,
   sql`SELECT count(*)::int AS count FROM pg_policies WHERE schemaname = 'public'`,
   sql`
@@ -25,7 +25,8 @@ const [tables, policies, functions, migrations, workspaces, memberships] = await
         'can_edit_workspace',
         'admin_update_profile',
         'ensure_platform_workspace',
-        'admin_set_workspace_member'
+        'admin_set_workspace_member',
+        'authorize_cloud_ai_request'
       )
   `,
   sql`
@@ -37,7 +38,9 @@ const [tables, policies, functions, migrations, workspaces, memberships] = await
       '003_require_active_profile_for_workspace.sql',
       '004_workspace_editor_permissions.sql',
       '005_cloud_officer_directory.sql',
-      '006_complete_workspace_sync.sql'
+      '006_complete_workspace_sync.sql',
+      '007_background_reminders.sql',
+      '008_cloud_ai.sql'
     )
   `,
   sql`SELECT count(*)::int AS count FROM public.workspaces WHERE is_active = true`,
@@ -53,7 +56,7 @@ const result = {
   activeMemberships: memberships[0].count,
 };
 
-const expected = { tables: 9, policies: 27, functions: 7, migrationRecords: 6 };
+const expected = { tables: 14, policies: 37, functions: 8, migrationRecords: 8 };
 const valid = Object.entries(expected).every(([key, value]) => result[key] === value);
 
 console.log(JSON.stringify(result, null, 2));

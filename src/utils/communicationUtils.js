@@ -28,6 +28,11 @@ export function normalizeCommunication(input = {}) {
     relevantPages: input.relevantPages || '',
     sourceDigest: input.sourceDigest || '',
     keyFacts: input.keyFacts || '',
+    draftId: input.draftId || '',
+    draftVersion: Number(input.draftVersion) || 0,
+    officialCommunicationType: input.officialCommunicationType || '',
+    signatoryId: input.signatoryId || '',
+    signatoryName: input.signatoryName || '',
     createdAt: input.createdAt,
     updatedAt: input.updatedAt,
   };

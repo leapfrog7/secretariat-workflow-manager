@@ -1,0 +1,16 @@
+{
+  "functions": {
+    "api/cron/daily.js": {
+      "maxDuration": 60
+    },
+    "api/ai/generate.js": {
+      "maxDuration": 60
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/daily",
+      "schedule": "30 0 * * *"
+    }
+  ]
+}

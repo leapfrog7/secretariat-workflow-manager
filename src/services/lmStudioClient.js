@@ -3,6 +3,9 @@ import { buildGovernmentDraftPrompt, COMMUNICATION_TYPES, constrainConservativeB
 
 export { COMMUNICATION_TYPES };
 
+export const GOVERNMENT_DRAFT_SYSTEM_PROMPT = 'Draft only the substantive body of an outgoing Government of India official communication for human review. The configured Ministry or Department is the sender and the named organization is the recipient; never reverse them. Every factual phrase must come from the supplied input. Prefer omission over elaboration, use the fewest necessary sentences, and state each request once. Never invent or infer facts, dates, recipients, rules, authorities, decisions, approvals, rationale, protocols, enclosures, availability, report contents, contact instructions, urgency, or distribution lists. Preserve eReceipt numbers and citations exactly. Output body paragraphs only. Do not output headings, labels, subject, salutation, close, signature, recipient, Markdown, preface, explanation, or drafting commentary.';
+export const PARAGRAPH_REWRITE_SYSTEM_PROMPT = 'Rewrite only the selected passage from an outgoing Government of India communication. Preserve its meaning, factual content, dates, names, eReceipt numbers, citations, sender, recipient and level of formality. Do not add facts, headings, signatures, explanations, Markdown or surrounding paragraphs. Return only the replacement passage.';
+
 export function normalizeLocalAISettings(input = {}) {
   return {
     baseUrl: String(input.baseUrl || DEFAULT_LOCAL_AI_SETTINGS.baseUrl).trim().replace(/\/$/, ''),
@@ -77,7 +80,7 @@ export async function generateLocalDraft({ settings, context, communicationType,
     signal,
     body: JSON.stringify({
       model: config.model,
-      system_prompt: 'Draft only the substantive body of an outgoing Government of India official communication for human review. The configured Ministry or Department is the sender and the named organization is the recipient; never reverse them. Every factual phrase must come from the supplied input. Prefer omission over elaboration, use the fewest necessary sentences, and state each request once. Never invent or infer facts, dates, recipients, rules, authorities, decisions, approvals, rationale, protocols, enclosures, availability, report contents, contact instructions, urgency, or distribution lists. Preserve eReceipt numbers and citations exactly. Output body paragraphs only. Do not output headings, labels, subject, salutation, close, signature, recipient, Markdown, preface, explanation, or drafting commentary.',
+      system_prompt: GOVERNMENT_DRAFT_SYSTEM_PROMPT,
       input,
       temperature: 0.1,
       stream: false,
@@ -95,4 +98,37 @@ export async function generateLocalDraft({ settings, context, communicationType,
     model: payload.model_instance_id || config.model,
     stats: payload.stats || {},
   };
+}
+
+export async function regenerateLocalParagraph({ settings, fullDraft, selectedText, context, communicationType, instruction, signal }) {
+  const config = normalizeLocalAISettings(settings);
+  if (!config.model) throw new Error('Select a local model in Settings.');
+  if (!selectedText?.trim()) throw new Error('Select one paragraph in the draft first.');
+  const payload = await request(config.baseUrl, '/api/v1/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    signal,
+    body: JSON.stringify({
+      model: config.model,
+      system_prompt: PARAGRAPH_REWRITE_SYSTEM_PROMPT,
+      input: [
+        `COMMUNICATION TYPE\n${communicationType}`,
+        `ORIGINAL DRAFT FOR CONTEXT\n${fullDraft}`,
+        `SELECTED PASSAGE TO REWRITE\n${selectedText}`,
+        `ORIGINAL DRAFTING BRIEF\n${instruction || 'No additional brief.'}`,
+        `RELEVANT ISSUE CONTEXT\n${context || 'No additional context supplied.'}`,
+      ].join('\n\n'),
+      temperature: 0.1,
+      stream: false,
+      store: false,
+    }),
+  });
+  const text = (payload.output || [])
+    .filter((item) => item.type === 'message' && item.content)
+    .map((item) => item.content)
+    .join('\n\n')
+    .replace(/```(?:text)?/gi, '')
+    .trim();
+  if (!text) throw new Error('LM Studio returned no replacement paragraph.');
+  return { text, model: payload.model_instance_id || config.model, stats: payload.stats || {} };
 }

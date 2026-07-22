@@ -1,16 +1,15 @@
 import { Link } from 'react-router-dom';
-import { LoaderCircle, RotateCcw } from 'lucide-react';
+import { Archive, LoaderCircle, RotateCcw, Trash2 } from 'lucide-react';
 import StatusBadge from '../common/StatusBadge';
 import DeadlineIndicator from '../common/DeadlineIndicator';
 import { formatDisplayDate, getIssueAgeDays } from '../../utils/dateUtils';
 import { isScheduledIssue } from '../../utils/scheduleUtils';
 import SourceSearchMatch from './SourceSearchMatch';
 
-export default function IssueCard({ issue, officers = [], registerMode = 'Current', working = false, onRestore, onBringBack }) {
+export default function IssueCard({ issue, officers = [], working = false, onRestore, onBringBack, onArchive, onDelete }) {
   const officer = officers.find((item) => item.id === issue.assignedOfficerId);
   const ageDays = getIssueAgeDays(issue);
   const scheduled = isScheduledIssue(issue);
-  const showAction = registerMode !== 'Current';
   return (
     <article className={`surface rounded-md border-l-4 p-4 ${issue.isArchived ? 'border-l-slate-400' : scheduled ? 'border-l-cyan-600' : 'border-l-teal-600'}`}>
       <div className="flex items-start justify-between gap-3">
@@ -44,14 +43,18 @@ export default function IssueCard({ issue, officers = [], registerMode = 'Curren
         </div>
         {scheduled && <div><dt className="font-medium text-slate-500">Returns</dt><dd>{formatDisplayDate(issue.nextAppearanceDate)}</dd></div>}
       </dl>
-      {showAction && (issue.isArchived || scheduled) && (
-        <div className="mt-4 border-t border-[#e3ebe9] pt-3">
-          <button type="button" disabled={working} onClick={() => issue.isArchived ? onRestore(issue) : onBringBack(issue)} className={`inline-flex h-9 items-center gap-1.5 rounded-md border px-3 text-xs font-semibold disabled:opacity-60 ${scheduled ? 'border-cyan-200 bg-cyan-50 text-cyan-900 hover:bg-cyan-100' : 'border-teal-200 bg-teal-50 text-teal-800 hover:bg-teal-100'}`}>
-            {working ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />}
-            {working ? (scheduled ? 'Returning...' : 'Restoring...') : scheduled ? 'Bring back now' : 'Restore to current Issues'}
-          </button>
-        </div>
-      )}
+      <div className="mt-4 flex items-center justify-end gap-1 border-t border-[#e3ebe9] pt-3">
+        {working ? <LoaderCircle className="h-4 w-4 animate-spin text-slate-500" /> : <>
+          {issue.isArchived && <CardAction label="Restore Issue" onClick={() => onRestore(issue)}><RotateCcw className="h-4 w-4" /></CardAction>}
+          {scheduled && <CardAction label="Bring back now" onClick={() => onBringBack(issue)}><RotateCcw className="h-4 w-4" /></CardAction>}
+          {!issue.isArchived && <CardAction label="Archive Issue" onClick={() => onArchive(issue)}><Archive className="h-4 w-4" /></CardAction>}
+          <CardAction label="Delete Issue permanently" danger onClick={() => onDelete(issue)}><Trash2 className="h-4 w-4" /></CardAction>
+        </>}
+      </div>
     </article>
   );
+}
+
+function CardAction({ label, danger = false, onClick, children }) {
+  return <button type="button" title={label} aria-label={label} onClick={onClick} className={`flex h-9 w-9 items-center justify-center rounded-md border ${danger ? 'border-transparent text-slate-400 hover:border-red-200 hover:bg-red-50 hover:text-red-700' : 'border-slate-200 bg-white text-slate-600 hover:border-teal-200 hover:bg-teal-50 hover:text-teal-800'}`}>{children}</button>;
 }

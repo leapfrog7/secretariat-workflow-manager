@@ -1,5 +1,5 @@
 import { db, getSettings } from '../../db/database';
-import { DEFAULT_LOCAL_AI_SETTINGS, DEFAULT_OFFICE_PROFILE, DEFAULT_SETTINGS, SETTINGS_ID } from '../../constants/issueConstants';
+import { DEFAULT_AI_PREFERENCES, DEFAULT_LOCAL_AI_SETTINGS, DEFAULT_OFFICE_PROFILE, DEFAULT_REMINDER_SETTINGS, DEFAULT_SETTINGS, SETTINGS_ID } from '../../constants/issueConstants';
 import { getCloudUserSettings, getCloudWorkspaceSettings, upsertCloudUserSettings, upsertCloudWorkspaceSettings } from './cloudSettingsApi';
 
 let runtime = null;
@@ -13,7 +13,7 @@ function workspacePayload(settings) {
 }
 
 function userPayload(settings) {
-  return { localAI: settings.localAI };
+  return { localAI: settings.localAI, aiPreferences: settings.aiPreferences, reminders: settings.reminders };
 }
 
 export function queueCloudSettingsUpsert(settings, scope = 'all') {
@@ -75,6 +75,8 @@ export async function syncWorkspaceSettings({ workspaceId, userId, canEdit = tru
       merged = {
         ...merged,
         localAI: { ...DEFAULT_LOCAL_AI_SETTINGS, ...(cloudUser.payload?.localAI || {}) },
+        aiPreferences: { ...DEFAULT_AI_PREFERENCES, ...(cloudUser.payload?.aiPreferences || {}) },
+        reminders: { ...DEFAULT_REMINDER_SETTINGS, ...(cloudUser.payload?.reminders || {}) },
         userSettingsUpdatedAt: cloudUser.updated_at,
       };
     } else if (!cloudUser || localUserAt > cloudUserAt) {

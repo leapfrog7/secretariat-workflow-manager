@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, Bot, Building2, CheckCircle2, Database, Download, HardDrive, LoaderCircle, Pencil, Plus, RefreshCw, Save, ShieldCheck, Trash2, Upload } from 'lucide-react';
+import { AlertTriangle, BellRing, Bot, Building2, CheckCircle2, Cloud, Database, Download, HardDrive, LoaderCircle, Pencil, Plus, RefreshCw, Save, ShieldCheck, Trash2, Upload } from 'lucide-react';
 import PageHeader from '../components/common/PageHeader';
 import LoadingState from '../components/common/LoadingState';
 import ErrorState from '../components/common/ErrorState';
@@ -7,7 +7,7 @@ import ConfirmDialog from '../components/common/ConfirmDialog';
 import DisclosureSection from '../components/common/DisclosureSection';
 import OfficerForm from '../components/officers/OfficerForm';
 import { useToast } from '../components/common/ToastProvider';
-import { APP_NAME, DB_NAME, DB_VERSION, DEFAULT_LOCAL_AI_SETTINGS, DEFAULT_OFFICE_PROFILE } from '../constants/issueConstants';
+import { APP_NAME, DB_NAME, DB_VERSION, DEFAULT_AI_PREFERENCES, DEFAULT_LOCAL_AI_SETTINGS, DEFAULT_OFFICE_PROFILE, DEFAULT_REMINDER_SETTINGS } from '../constants/issueConstants';
 import { getIssueStatistics } from '../db/issueRepository';
 import {
   buildBackupPayload,
@@ -28,10 +28,13 @@ import { getSettings, saveSettings } from '../db/database';
 import { listLMStudioModels, normalizeLocalAISettings } from '../services/lmStudioClient';
 import { normalizeOfficeProfile } from '../utils/governmentDraftUtils';
 import { queueCloudSettingsUpsert } from '../features/cloud/cloudSettingsSync';
+import { useAuth } from '../features/auth/AuthContext';
+import { getCloudAIStatus } from '../services/cloudAIClient';
 
 export default function SettingsPage() {
   const fileRef = useRef(null);
   const { showToast } = useToast();
+  const auth = useAuth();
   const [state, setState] = useState({
     loading: true,
     busy: '',
@@ -46,6 +49,9 @@ export default function SettingsPage() {
     officerForm: null,
     officeProfile: DEFAULT_OFFICE_PROFILE,
     aiSettings: DEFAULT_LOCAL_AI_SETTINGS,
+    aiPreferences: DEFAULT_AI_PREFERENCES,
+    cloudProviders: [],
+    reminderSettings: DEFAULT_REMINDER_SETTINGS,
     aiModels: [],
     aiStatus: 'idle',
     aiMessage: '',
@@ -72,6 +78,8 @@ export default function SettingsPage() {
         backupStatus,
         fileSystemAccessSupported: typeof window !== 'undefined' && 'showSaveFilePicker' in window,
         aiSettings: normalizeLocalAISettings(settings.localAI),
+        aiPreferences: { ...DEFAULT_AI_PREFERENCES, ...(settings.aiPreferences || {}) },
+        reminderSettings: { ...DEFAULT_REMINDER_SETTINGS, ...(settings.reminders || {}) },
         officeProfile: normalizeOfficeProfile(settings.officeProfile),
       }));
     } catch (error) {
@@ -84,6 +92,13 @@ export default function SettingsPage() {
     window.addEventListener('swm:workspace-synced', load);
     return () => window.removeEventListener('swm:workspace-synced', load);
   }, []);
+
+  useEffect(() => {
+    if (!auth.workspace?.id) return;
+    getCloudAIStatus(auth.workspace.id)
+      .then(({ providers }) => setState((current) => ({ ...current, cloudProviders: providers || [] })))
+      .catch(() => setState((current) => ({ ...current, cloudProviders: [] })));
+  }, [auth.workspace?.id]);
 
   const exportData = async () => {
     try {
@@ -198,17 +213,40 @@ export default function SettingsPage() {
     }
   };
 
-  const saveLocalAI = async () => {
+  const saveAISettings = async () => {
     try {
       setState((current) => ({ ...current, busy: 'ai-save' }));
       const settings = await getSettings();
-      const saved = await saveSettings({ ...settings, localAI: normalizeLocalAISettings(state.aiSettings) });
+      const saved = await saveSettings({
+        ...settings,
+        localAI: normalizeLocalAISettings(state.aiSettings),
+        aiPreferences: { ...DEFAULT_AI_PREFERENCES, ...state.aiPreferences },
+      });
       queueCloudSettingsUpsert(saved, 'user');
-      setState((current) => ({ ...current, busy: '', aiSettings: saved.localAI }));
-      showToast('Local AI settings saved.');
+      setState((current) => ({ ...current, busy: '', aiSettings: saved.localAI, aiPreferences: saved.aiPreferences }));
+      showToast('AI preferences saved.');
     } catch (error) {
       setState((current) => ({ ...current, busy: '' }));
-      showToast(error.message || 'Unable to save Local AI settings.', 'error');
+      showToast(error.message || 'Unable to save AI preferences.', 'error');
+    }
+  };
+
+  const saveReminders = async () => {
+    try {
+      setState((current) => ({ ...current, busy: 'reminders-save' }));
+      const settings = await getSettings();
+      const reminders = {
+        ...DEFAULT_REMINDER_SETTINGS,
+        ...state.reminderSettings,
+        upcomingDays: Math.min(30, Math.max(1, Number(state.reminderSettings.upcomingDays) || 7)),
+      };
+      const saved = await saveSettings({ ...settings, reminders });
+      queueCloudSettingsUpsert(saved, 'user');
+      setState((current) => ({ ...current, busy: '', reminderSettings: saved.reminders }));
+      showToast('Reminder preferences saved.');
+    } catch (error) {
+      setState((current) => ({ ...current, busy: '' }));
+      showToast(error.message || 'Unable to save reminder preferences.', 'error');
     }
   };
 
@@ -324,21 +362,51 @@ export default function SettingsPage() {
         <section className="surface rounded-md border-t-4 border-t-cyan-600 p-4 lg:col-span-2">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <div className="flex items-center gap-2"><Bot className="h-5 w-5 text-cyan-700" /><h2 className="text-sm font-semibold text-slate-950">Local AI</h2></div>
-              <p className="mt-1 text-sm text-slate-600">LM Studio connection used by the AI Context workspace.</p>
+              <div className="flex items-center gap-2"><Bot className="h-5 w-5 text-cyan-700" /><h2 className="text-sm font-semibold text-slate-950">AI drafting</h2></div>
+              <p className="mt-1 text-sm text-slate-600">Choose whether drafting runs on this computer or through an approved workspace provider.</p>
             </div>
-            <AIStatus status={state.aiStatus} />
+            {state.aiPreferences.mode === 'local' && <AIStatus status={state.aiStatus} />}
+          </div>
+          <div className="mt-4 inline-flex rounded-md border border-slate-300 bg-white p-1" aria-label="AI processing location">
+            <button type="button" onClick={() => setState((current) => ({ ...current, aiPreferences: { ...current.aiPreferences, mode: 'local' } }))} className={`inline-flex h-9 items-center gap-2 rounded px-3 text-xs font-semibold ${state.aiPreferences.mode === 'local' ? 'bg-[#17333b] text-white' : 'text-slate-600 hover:bg-slate-100'}`}><Bot className="h-4 w-4" />Local LLM</button>
+            <button type="button" disabled={!auth.workspace} onClick={() => setState((current) => ({ ...current, aiPreferences: { ...current.aiPreferences, mode: 'cloud' } }))} className={`inline-flex h-9 items-center gap-2 rounded px-3 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${state.aiPreferences.mode === 'cloud' ? 'bg-[#17333b] text-white' : 'text-slate-600 hover:bg-slate-100'}`}><Cloud className="h-4 w-4" />Cloud API</button>
+          </div>
+
+          {state.aiPreferences.mode === 'local' ? <>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Server connection</span><input value={state.aiSettings.baseUrl} onChange={(event) => setState((current) => ({ ...current, aiStatus: 'idle', aiMessage: '', aiSettings: { ...current.aiSettings, baseUrl: event.target.value } }))} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900" /></label>
+              <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Model</span><select value={state.aiSettings.model} onChange={(event) => setState((current) => ({ ...current, aiSettings: { ...current.aiSettings, model: event.target.value } }))} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900"><option value={state.aiSettings.model}>{state.aiModels.find((model) => model.id === state.aiSettings.model)?.name || state.aiSettings.model}</option>{state.aiModels.filter((model) => model.id !== state.aiSettings.model).map((model) => <option key={model.id} value={model.id}>{model.name}{model.params ? ` (${model.params})` : ''}{model.loaded ? ' - loaded' : ''}</option>)}</select></label>
+            </div>
+            {state.aiMessage && <p className={`mt-3 text-sm ${state.aiStatus === 'error' ? 'text-red-700' : 'text-emerald-700'}`}>{state.aiMessage}</p>}
+            {typeof window !== 'undefined' && window.location.hostname.endsWith('github.io') && <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">On the hosted app, start LM Studio locally with <code className="font-mono font-semibold">lms server start --cors</code>, load a model, then test this connection. Your browser may ask for permission to access localhost.</p>}
+          </> : <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {['gemini', 'openai'].map((providerId) => {
+              const provider = state.cloudProviders.find((item) => item.provider === providerId);
+              const selected = state.aiPreferences.cloudProvider === providerId;
+              return <button key={providerId} type="button" disabled={!provider?.enabled || !provider?.keyConfigured} onClick={() => setState((current) => ({ ...current, aiPreferences: { ...current.aiPreferences, cloudProvider: providerId } }))} className={`flex min-h-20 items-center justify-between gap-3 rounded-md border px-4 py-3 text-left disabled:cursor-not-allowed disabled:opacity-55 ${selected ? 'border-cyan-500 bg-cyan-50' : 'border-slate-200 bg-white'}`}><span><span className="block text-sm font-semibold text-slate-900">{providerId === 'gemini' ? 'Gemini' : 'OpenAI'}</span><span className="mt-1 block text-xs text-slate-500">{provider?.model || 'Not configured by an administrator'}</span></span><span className={`text-xs font-semibold ${provider?.enabled && provider?.keyConfigured ? 'text-emerald-700' : 'text-slate-500'}`}>{provider?.enabled && provider?.keyConfigured ? 'Available' : 'Unavailable'}</span></button>;
+            })}
+            <p className="text-xs leading-5 text-slate-500 sm:col-span-2">Cloud providers are controlled by the workspace administrator. The provider API key remains on the server and is never sent to this browser.</p>
+          </div>}
+          <div className="mt-4 flex flex-wrap gap-2">
+            {state.aiPreferences.mode === 'local' && <button type="button" onClick={testLocalAI} disabled={state.busy === 'ai-test'} className="inline-flex h-10 items-center gap-2 rounded-md border border-cyan-200 bg-cyan-50 px-3 text-sm font-semibold text-cyan-900 hover:bg-cyan-100 disabled:opacity-60">{state.busy === 'ai-test' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}{state.busy === 'ai-test' ? 'Testing...' : 'Test connection'}</button>}
+            <button type="button" onClick={saveAISettings} disabled={state.busy === 'ai-save'} className="inline-flex h-10 items-center gap-2 rounded-md bg-teal-700 px-3 text-sm font-semibold text-white hover:bg-teal-800 disabled:bg-slate-400">{state.busy === 'ai-save' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{state.busy === 'ai-save' ? 'Saving...' : 'Save AI preference'}</button>
+          </div>
+        </section>
+
+        <section className="surface rounded-md border-t-4 border-t-rose-600 p-4 lg:col-span-2">
+          <div className="flex items-start gap-2">
+            <BellRing className="mt-0.5 h-5 w-5 text-rose-700" aria-hidden="true" />
+            <div><h2 className="text-sm font-semibold text-slate-950">Reminders and digests</h2><p className="mt-1 text-sm text-slate-600">Choose how this account is notified about scheduled returns and deadlines.</p></div>
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Server connection</span><input value={state.aiSettings.baseUrl} onChange={(event) => setState((current) => ({ ...current, aiStatus: 'idle', aiMessage: '', aiSettings: { ...current.aiSettings, baseUrl: event.target.value } }))} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900" /></label>
-            <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Model</span><select value={state.aiSettings.model} onChange={(event) => setState((current) => ({ ...current, aiSettings: { ...current.aiSettings, model: event.target.value } }))} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900"><option value={state.aiSettings.model}>{state.aiModels.find((model) => model.id === state.aiSettings.model)?.name || state.aiSettings.model}</option>{state.aiModels.filter((model) => model.id !== state.aiSettings.model).map((model) => <option key={model.id} value={model.id}>{model.name}{model.params ? ` (${model.params})` : ''}{model.loaded ? ' - loaded' : ''}</option>)}</select></label>
+            <ReminderToggle label="In-app notifications" description="Show reminders in the notification inbox." checked={state.reminderSettings.inAppEnabled} onChange={(value) => setState((current) => ({ ...current, reminderSettings: { ...current.reminderSettings, inAppEnabled: value } }))} />
+            <ReminderToggle label="Email notifications" description="Send reminders to the signed-in email when server email delivery is configured." checked={state.reminderSettings.emailEnabled} onChange={(value) => setState((current) => ({ ...current, reminderSettings: { ...current.reminderSettings, emailEnabled: value } }))} />
           </div>
-          {state.aiMessage && <p className={`mt-3 text-sm ${state.aiStatus === 'error' ? 'text-red-700' : 'text-emerald-700'}`}>{state.aiMessage}</p>}
-          {typeof window !== 'undefined' && window.location.hostname.endsWith('github.io') && <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">On the hosted app, start LM Studio locally with <code className="font-mono font-semibold">lms server start --cors</code>, load a model, then test this connection. Your browser may ask for permission to access localhost.</p>}
-          <div className="mt-4 flex flex-wrap gap-2">
-            <button type="button" onClick={testLocalAI} disabled={state.busy === 'ai-test'} className="inline-flex h-10 items-center gap-2 rounded-md border border-cyan-200 bg-cyan-50 px-3 text-sm font-semibold text-cyan-900 hover:bg-cyan-100 disabled:opacity-60">{state.busy === 'ai-test' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}{state.busy === 'ai-test' ? 'Testing...' : 'Test connection'}</button>
-            <button type="button" onClick={saveLocalAI} disabled={state.busy === 'ai-save'} className="inline-flex h-10 items-center gap-2 rounded-md bg-teal-700 px-3 text-sm font-semibold text-white hover:bg-teal-800 disabled:bg-slate-400">{state.busy === 'ai-save' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{state.busy === 'ai-save' ? 'Saving...' : 'Save AI settings'}</button>
+          <div className="mt-4 grid gap-4 border-t border-slate-200 pt-4 sm:grid-cols-2">
+            <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Upcoming deadline window</span><div className="flex items-center gap-2"><input type="number" min="1" max="30" value={state.reminderSettings.upcomingDays} onChange={(event) => setState((current) => ({ ...current, reminderSettings: { ...current.reminderSettings, upcomingDays: event.target.value } }))} className="h-10 w-24 rounded-md border border-slate-300 bg-white px-3 text-sm tabular-nums text-slate-900" /><span className="text-sm text-slate-500">days</span></div></label>
+            <fieldset><legend className="mb-1 text-sm font-medium text-slate-700">Workload digest</legend><div className="inline-flex rounded-md border border-slate-300 bg-white p-1">{[['none', 'None'], ['weekly', 'Weekly'], ['monthly', 'Monthly']].map(([value, label]) => <button key={value} type="button" onClick={() => setState((current) => ({ ...current, reminderSettings: { ...current.reminderSettings, digestFrequency: value } }))} className={`h-8 rounded px-3 text-xs font-semibold ${state.reminderSettings.digestFrequency === value ? 'bg-[#17333b] text-white' : 'text-slate-600 hover:bg-slate-100'}`}>{label}</button>)}</div></fieldset>
           </div>
+          <div className="mt-4 flex justify-end"><button type="button" onClick={saveReminders} disabled={state.busy === 'reminders-save'} className="inline-flex h-10 items-center gap-2 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800 disabled:bg-slate-400">{state.busy === 'reminders-save' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{state.busy === 'reminders-save' ? 'Saving...' : 'Save reminders'}</button></div>
         </section>
 
         <DisclosureSection title="Data and backup" description="Storage, backup, restore and demo data." className="lg:col-span-2">
@@ -501,6 +569,15 @@ function Info({ label, value }) {
 
 function ProfileInput({ label, value, onChange }) {
   return <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">{label}</span><input value={value || ''} onChange={(event) => onChange(event.target.value)} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900" /></label>;
+}
+
+function ReminderToggle({ label, description, checked, onChange }) {
+  return (
+    <div className="flex items-start justify-between gap-4 rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
+      <div><div className="text-sm font-semibold text-slate-900">{label}</div><p className="mt-1 text-xs leading-5 text-slate-500">{description}</p></div>
+      <button type="button" role="switch" aria-checked={checked} aria-label={label} onClick={() => onChange(!checked)} className={`relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition-colors ${checked ? 'bg-teal-700' : 'bg-slate-300'}`}><span className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${checked ? 'translate-x-6' : 'translate-x-1'}`} /></button>
+    </div>
+  );
 }
 
 function AIStatus({ status }) {
