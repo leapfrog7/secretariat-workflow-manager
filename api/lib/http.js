@@ -28,6 +28,6 @@ export function requireBearerToken(request) {
 
 export function sendError(response, error) {
   const status = Number(error.status) || 500;
-  const safeMessage = status >= 500 ? 'Cloud AI could not complete this request.' : error.message;
+  const safeMessage = error.publicMessage || (status >= 500 ? 'Cloud AI could not complete this request.' : error.message);
   return response.status(status).json({ error: safeMessage, code: error.code || 'cloud_ai_error' });
 }
