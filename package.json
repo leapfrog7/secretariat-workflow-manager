@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "api:dev": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.vercel.local scripts/local-api-server.js",
     "db:migrate": "node --env-file-if-exists=.env.local scripts/migrate.js",
     "db:verify": "node --env-file-if-exists=.env.local scripts/verify-database.js",
     "auth:trust-origin": "node --env-file-if-exists=.env.local scripts/trust-auth-origin.js",
