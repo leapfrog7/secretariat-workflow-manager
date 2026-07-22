@@ -20,6 +20,7 @@
     "date-fns": "latest",
     "dexie": "latest",
     "lucide-react": "0.555.0",
+    "pg": "^8.22.0",
     "react": "latest",
     "react-dom": "latest",
     "react-router-dom": "latest",
