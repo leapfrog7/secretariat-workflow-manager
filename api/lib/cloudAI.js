@@ -86,18 +86,38 @@ async function callOpenAI({ model, instructions, input }) {
 async function callGemini({ model, instructions, input }) {
   const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (!key) throw Object.assign(new Error('Gemini is not configured on the server.'), { status: 503, code: 'provider_not_configured' });
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+  const request = {
     method: 'POST',
     headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
-    signal: AbortSignal.timeout(55000),
     body: JSON.stringify({
       system_instruction: { parts: [{ text: instructions }] },
       contents: [{ role: 'user', parts: [{ text: input }] }],
       generationConfig: { temperature: 0.1, maxOutputTokens: 4096 },
     }),
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw Object.assign(new Error(payload.error?.message || 'Gemini rejected the request.'), { status: 502, code: 'provider_request_failed' });
+  };
+  let response;
+  let payload;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+      ...request,
+      signal: AbortSignal.timeout(50000),
+    });
+    payload = await response.json().catch(() => ({}));
+    if (response.ok) break;
+
+    const temporarilyUnavailable = response.status === 429 || response.status >= 500;
+    if (!temporarilyUnavailable || attempt === 2) {
+      const busyMessage = temporarilyUnavailable
+        ? 'Gemini is currently busy. Please try again in a few minutes.'
+        : undefined;
+      throw Object.assign(new Error(payload.error?.message || 'Gemini rejected the request.'), {
+        status: temporarilyUnavailable ? 503 : 502,
+        code: temporarilyUnavailable ? 'provider_busy' : 'provider_request_failed',
+        publicMessage: busyMessage,
+      });
+    }
+    await new Promise((resolve) => setTimeout(resolve, 750 * (attempt + 1)));
+  }
   const text = (payload.candidates?.[0]?.content?.parts || []).map((part) => part.text || '').join('\n').trim();
   return {
     text,
