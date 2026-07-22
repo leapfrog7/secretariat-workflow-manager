@@ -39,6 +39,14 @@ export default async function handler(request, response) {
       requestId,
     });
   } catch (error) {
+    console.error('Cloud AI generation failed.', {
+      requestId: requestId || undefined,
+      provider: String(request.body?.provider || ''),
+      operation: String(request.body?.operation || ''),
+      code: error.code || 'cloud_ai_error',
+      status: Number(error.status) || 500,
+      message: error.message,
+    });
     if (requestId) await failGenerationLog({ requestId, code: error.code, fingerprint }).catch(() => {});
     return sendError(response, error);
   }
