@@ -9,10 +9,14 @@ function apiUrl(path) {
 
 async function authToken() {
   if (!cloudClient) throw new Error('Sign in to use Cloud AI.');
-  const result = await cloudClient.auth.token();
-  const token = result?.data?.token;
-  if (!token) throw new Error(result?.error?.message || 'Your cloud session has expired. Sign in again.');
-  return token;
+  const sessionResult = await cloudClient.auth.getSession({ query: { disableCookieCache: true } });
+  const sessionToken = sessionResult?.data?.session?.token;
+  if (sessionToken && sessionToken.split('.').length === 3) return sessionToken;
+
+  const tokenResult = await cloudClient.auth.token();
+  const token = tokenResult?.data?.token;
+  if (token) return token;
+  throw new Error(sessionResult?.error?.message || tokenResult?.error?.message || 'Your cloud session has expired. Sign in again.');
 }
 
 async function cloudRequest(path, options = {}) {
