@@ -12,6 +12,11 @@ export default async function handler(request, response) {
     const providers = await listAccessibleProviders({ token, workspaceId });
     return response.status(200).json({ providers: providers.map((provider) => ({ ...provider, keyConfigured: providerKeyConfigured(provider.provider) })) });
   } catch (error) {
+    console.error('Cloud AI status lookup failed.', {
+      code: error.code || 'cloud_ai_error',
+      status: Number(error.status) || 500,
+      message: error.message,
+    });
     return sendError(response, error);
   }
 }
