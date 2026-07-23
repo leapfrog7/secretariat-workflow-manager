@@ -5,7 +5,15 @@ const PROVIDERS = new Set(['openai', 'gemini']);
 const OPERATIONS = new Set(['draft', 'paragraph']);
 
 function dataApiUrl() {
-  const value = process.env.NEON_DATA_API_URL || process.env.VITE_NEON_DATA_API_URL;
+  const value = [process.env.NEON_DATA_API_URL, process.env.VITE_NEON_DATA_API_URL]
+    .map((candidate) => String(candidate || '').trim())
+    .find((candidate) => {
+      try {
+        return ['http:', 'https:'].includes(new URL(candidate).protocol);
+      } catch {
+        return false;
+      }
+    });
   if (!value) throw Object.assign(new Error('Cloud data access is not configured.'), { status: 503, code: 'data_api_not_configured' });
   return value.replace(/\/$/, '');
 }
