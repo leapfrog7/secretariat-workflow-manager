@@ -162,6 +162,15 @@ npm run dev:web
 npm run api:dev
 ```
 
+### Development Cloud AI route
+
+`VITE_API_BASE_URL` decides where the browser sends Cloud AI requests:
+
+- Use `https://secretariat-workflow-manager.vercel.app` to run the React frontend locally while using the deployed protected API. In this mode, `npm run dev:web` is sufficient.
+- Use `http://127.0.0.1:3000` only when intentionally testing the API functions locally with real server-side `GEMINI_API_KEY`, `NEON_DATA_API_URL` and `DATABASE_URL` values. Start both processes with `npm run dev`.
+
+Values shown as `[SENSITIVE]` in a downloaded Vercel environment file are redacted placeholders and cannot be used by the local API process.
+
 ## Database Setup
 
 The ordered SQL migrations live in `db/migrations`. The migration runner records applied files in `public.swm_migrations` and skips them on later runs.
