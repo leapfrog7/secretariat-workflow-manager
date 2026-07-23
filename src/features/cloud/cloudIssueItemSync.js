@@ -74,7 +74,16 @@ async function flushItemTombstones({ workspaceId, userId, canEdit }) {
   }
 }
 
-export async function syncWorkspaceIssueItems({ workspaceId, userId, canEdit = true, onStatus }) {
+function remapOfficerReferences(type, item, officerIdMap) {
+  const field = type === 'milestone' ? 'assignedOfficerId' : ['communication', 'draft'].includes(type) ? 'signatoryId' : '';
+  if (!field || !item[field] || !officerIdMap[item[field]]) return { item, changed: false };
+  return {
+    item: { ...item, [field]: officerIdMap[item[field]], updatedAt: new Date().toISOString() },
+    changed: true,
+  };
+}
+
+export async function syncWorkspaceIssueItems({ workspaceId, userId, canEdit = true, officerIdMap = {}, onStatus }) {
   configureCloudIssueItemSync({ workspaceId, userId, canEdit, onStatus });
   report('syncing');
   try {
@@ -102,7 +111,13 @@ export async function syncWorkspaceIssueItems({ workspaceId, userId, canEdit = t
           deleted += 1;
         }
       } else if (!local || cloudUpdatedAt > itemTimestamp(local)) {
-        await table.put(config.normalize(row.payload));
+        const normalized = config.normalize(row.payload);
+        const remapped = remapOfficerReferences(row.item_type, normalized, officerIdMap);
+        const downloadedItem = config.normalize(remapped.item);
+        await table.put(downloadedItem);
+        if (remapped.changed && canEdit) {
+          await upsertCloudIssueItem({ workspaceId, userId, itemType: row.item_type, item: downloadedItem });
+        }
         downloaded += 1;
       }
     }

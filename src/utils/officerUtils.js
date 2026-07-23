@@ -1,4 +1,5 @@
 import { OFFICER_ROLES } from '../constants/issueConstants';
+export { getOfficerIdentityKey } from './officerIdentity';
 
 export function normalizeOfficer(input = {}) {
   return {

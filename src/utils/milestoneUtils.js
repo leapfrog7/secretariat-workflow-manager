@@ -8,5 +8,6 @@ export function normalizeMilestone(input = {}) {
     note: input.note || '',
     recordedAt: input.recordedAt || input.createdAt || new Date().toISOString(),
     createdAt: input.createdAt || input.recordedAt || new Date().toISOString(),
+    updatedAt: input.updatedAt || input.createdAt || input.recordedAt || new Date().toISOString(),
   };
 }

@@ -64,7 +64,7 @@ async function deleteLocalIssueGraph(issueId) {
   });
 }
 
-export async function syncWorkspaceIssues({ workspaceId, userId, canEdit = true, onStatus }) {
+export async function syncWorkspaceIssues({ workspaceId, userId, canEdit = true, officerIdMap = {}, onStatus }) {
   configureCloudIssueSync({ workspaceId, userId, canEdit, onStatus });
   report('syncing');
 
@@ -94,7 +94,12 @@ export async function syncWorkspaceIssues({ workspaceId, userId, canEdit = true,
       }
 
       if (!local || cloudUpdatedAt > localUpdatedAt) {
-        await db.issues.put(normalizeIssue(row.payload));
+        const issue = normalizeIssue(row.payload);
+        const assignedOfficerId = officerIdMap[issue.assignedOfficerId] || issue.assignedOfficerId;
+        const remapped = assignedOfficerId !== issue.assignedOfficerId;
+        const downloadedIssue = remapped ? { ...issue, assignedOfficerId, updatedAt: new Date().toISOString() } : issue;
+        await db.issues.put(downloadedIssue);
+        if (remapped && canEdit) await upsertCloudIssue({ workspaceId, userId, issue: downloadedIssue });
         downloaded += 1;
       }
     }
