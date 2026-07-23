@@ -193,7 +193,7 @@ export default function HelpPage() {
             </div>
           </HelpSection>
 
-          <HelpSection id="api" icon={Cloud} title="Cloud AI" tone="slate" badge="Paid provider">
+          <HelpSection id="api" icon={Cloud} title="Cloud AI" tone="slate" badge="Provider account">
             <GuideLocation link="/settings" label="Choose an AI provider">Settings &gt; AI drafting &gt; Cloud API</GuideLocation>
             <p className="text-sm leading-6 text-slate-700">Approved workspace users can draft through OpenAI or Gemini after an administrator enables the provider and the server has its API key. Provider usage charges may apply.</p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -202,6 +202,7 @@ export default function HelpPage() {
             </div>
             <GuideRows className="mt-4" rows={[
               ['What is transmitted', 'For a new draft: the drafting brief and selected Issue context. For paragraph regeneration: the selected passage, surrounding draft, brief and relevant context.'],
+              ['Gemini task choice', 'Simple uses the fastest model for routine work, Moderate is the default for most official drafting, and Hard uses stronger reasoning for complex matters. Hard may take longer and cost more when paid billing is enabled.'],
               ['What is logged', 'Provider, model, operation, status, token counts, estimated cost and character counts. The AI log does not store the official prompt or generated text.'],
               ['Limits', 'Workspace policy and individual overrides determine access. Daily user limits, monthly request limits and an optional workspace budget are checked before provider contact.'],
               ['API keys', 'Keys remain in protected Vercel environment variables. They are never stored in browser settings, Neon user settings or VITE_ variables.'],

@@ -124,6 +124,7 @@ export const DEFAULT_LOCAL_AI_SETTINGS = {
 export const DEFAULT_AI_PREFERENCES = {
   mode: 'local',
   cloudProvider: 'gemini',
+  geminiTaskLevel: 'moderate',
 };
 
 export const DEFAULT_REMINDER_SETTINGS = {

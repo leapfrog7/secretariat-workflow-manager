@@ -12,6 +12,8 @@ import { downloadDraftAsRtf } from '../../utils/draftExportUtils';
 import { DEFAULT_AI_PREFERENCES } from '../../constants/issueConstants';
 import { useAuth } from '../../features/auth/AuthContext';
 import ConfirmDialog from '../common/ConfirmDialog';
+import GeminiTaskLevelControl from '../ai/GeminiTaskLevelControl';
+import { getGeminiTaskLevel } from '../../../shared/cloudAIModels';
 
 const RECIPIENT_REQUIRED_TYPES = new Set(['Letter', 'D.O. Letter', 'Office Memorandum', 'Inter-Departmental Note', 'Notification', 'Press Communique / Note', 'Endorsement']);
 
@@ -179,7 +181,7 @@ export default function AIContextPreview({ issue, assignedOfficer, officers, sum
       const generator = aiPreferences.mode === 'cloud' ? generateCloudDraft : generateLocalDraft;
       const result = await generator({
         ...(aiPreferences.mode === 'cloud'
-          ? { workspaceId: auth.workspace.id, issueId: issue.id, provider: aiPreferences.cloudProvider }
+          ? { workspaceId: auth.workspace.id, issueId: issue.id, provider: aiPreferences.cloudProvider, taskLevel: aiPreferences.geminiTaskLevel }
           : { settings: aiSettings }),
         context: useDetailedContext ? context.text : `Issue subject: ${documentDetails.subject || issue.shortTitle}`,
         communicationType,
@@ -293,7 +295,7 @@ export default function AIContextPreview({ issue, assignedOfficer, officers, sum
       const regenerator = aiPreferences.mode === 'cloud' ? regenerateCloudParagraph : regenerateLocalParagraph;
       const result = await regenerator({
         ...(aiPreferences.mode === 'cloud'
-          ? { workspaceId: auth.workspace.id, issueId: issue.id, provider: aiPreferences.cloudProvider }
+          ? { workspaceId: auth.workspace.id, issueId: issue.id, provider: aiPreferences.cloudProvider, taskLevel: aiPreferences.geminiTaskLevel }
           : { settings: aiSettings }),
         fullDraft: generation.text,
         selectedText,
@@ -352,6 +354,7 @@ export default function AIContextPreview({ issue, assignedOfficer, officers, sum
   };
 
   const providerLabel = aiPreferences.cloudProvider === 'openai' ? 'OpenAI' : 'Gemini';
+  const geminiTask = getGeminiTaskLevel(aiPreferences.geminiTaskLevel);
 
   return (
     <>
@@ -454,24 +457,39 @@ export default function AIContextPreview({ issue, assignedOfficer, officers, sum
           </details>
           {!authorizedSignatories.length && <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 sm:col-span-2">Choose authorized signatories in <Link to="/settings" className="font-semibold underline">Settings</Link> before generating official communication.</div>}
           {authorizedSignatories.length > 0 && !signatory && <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 sm:col-span-2">Select the officer who will sign this communication.</div>}
+          {aiPreferences.mode === 'cloud' && aiPreferences.cloudProvider === 'gemini' && (
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-3 sm:col-span-2">
+              <GeminiTaskLevelControl
+                value={aiPreferences.geminiTaskLevel}
+                onChange={(value) => {
+                  setAIPreferences((current) => ({ ...current, geminiTaskLevel: value }));
+                  markDraftDirty();
+                }}
+                disabled={generation.status === 'generating'}
+              />
+            </div>
+          )}
           <div className="flex flex-wrap items-center justify-between gap-3 lg:col-span-2">
-            <span className="text-xs text-slate-500">Provider: <span className="font-semibold text-slate-700">{aiPreferences.mode === 'cloud' ? providerLabel : aiSettings?.model || 'Loading settings...'}</span></span>
+            <span className="text-xs text-slate-500">Provider: <span className="font-semibold text-slate-700">{aiPreferences.mode === 'cloud' ? `${providerLabel}${aiPreferences.cloudProvider === 'gemini' ? ` · ${geminiTask.label}` : ''}` : aiSettings?.model || 'Loading settings...'}</span></span>
             {generation.status === 'generating' ? (
-              <button type="button" onClick={() => generationController.current?.abort()} className="inline-flex h-10 items-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 text-sm font-semibold text-red-800 hover:bg-red-100"><Square className="h-4 w-4" />Stop generation</button>
+              <div className="flex w-full gap-2 sm:w-auto">
+                <button type="button" disabled className="inline-flex h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-md bg-cyan-700 px-4 text-sm font-semibold text-white sm:min-w-40"><LoaderCircle className="h-4 w-4 animate-spin" />Generating...</button>
+                <button type="button" title="Stop generation" onClick={() => generationController.current?.abort()} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-red-200 bg-red-50 text-red-800 hover:bg-red-100"><Square className="h-4 w-4" /><span className="sr-only">Stop generation</span></button>
+              </div>
             ) : (
-              <button type="button" onClick={() => generateDraft()} className="inline-flex h-10 min-w-36 items-center justify-center gap-2 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-teal-800"><Sparkles className="h-4 w-4" />Generate draft</button>
+              <button type="button" onClick={() => generateDraft()} className="inline-flex h-11 w-full min-w-36 items-center justify-center gap-2 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-teal-800 sm:w-auto"><Sparkles className="h-4 w-4" />Generate draft</button>
             )}
           </div>
         </div>
 
-        {generation.status === 'generating' && <div className="flex min-h-36 items-center justify-center gap-3 border-t border-[#e3ebe9] px-4 py-8 text-sm font-medium text-slate-600"><LoaderCircle className="h-5 w-5 animate-spin text-cyan-700" />{aiPreferences.mode === 'cloud' ? `Generating through ${providerLabel}.` : 'Generating locally. The first request may include model loading time.'}</div>}
+        {generation.status === 'generating' && <div className="flex min-h-36 items-center justify-center gap-3 border-t border-[#e3ebe9] px-4 py-8 text-center text-sm font-medium text-slate-600"><LoaderCircle className="h-5 w-5 shrink-0 animate-spin text-cyan-700" />{aiPreferences.mode === 'cloud' ? `Generating through ${providerLabel}${aiPreferences.cloudProvider === 'gemini' ? ` for a ${geminiTask.label.toLowerCase()} task` : ''}.` : 'Generating locally. The first request may include model loading time.'}</div>}
         {generation.status === 'error' && <div className="border-t border-red-200 bg-red-50 px-4 py-4 text-sm text-red-800 sm:px-5">{generation.error}</div>}
         {generation.status === 'complete' && (
           <div className="border-t border-[#e3ebe9] px-4 py-4 sm:px-5">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <div><h3 className="text-sm font-semibold text-[#17333b]">Generated draft</h3><p className="mt-1 text-xs text-slate-500">{generation.model}{generation.stats.tokens_per_second ? ` - ${generation.stats.tokens_per_second.toFixed(1)} tokens/second` : ''}</p></div>
               <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={saveDraftChanges} disabled={!generation.text.trim() || draftSaveStatus === 'saving' || draftSaveStatus === 'saved'} className={`inline-flex h-9 min-w-28 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold text-white disabled:bg-slate-300 ${draftSaveStatus === 'saved' ? 'bg-emerald-700' : draftSaveStatus === 'error' ? 'bg-red-700' : 'bg-cyan-700 hover:bg-cyan-800'}`}><Save className="h-4 w-4" />{draftSaveStatus === 'saving' ? 'Saving...' : draftSaveStatus === 'saved' ? `Saved v${currentSavedDraft?.version || ''}` : draftSaveStatus === 'error' ? 'Save failed' : 'Save version'}</button>
+                <button type="button" onClick={saveDraftChanges} disabled={!generation.text.trim() || draftSaveStatus === 'saving' || draftSaveStatus === 'saved'} className={`inline-flex h-9 min-w-28 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold text-white disabled:bg-slate-300 ${draftSaveStatus === 'saved' ? 'bg-emerald-700' : draftSaveStatus === 'error' ? 'bg-red-700' : 'bg-cyan-700 hover:bg-cyan-800'}`}>{draftSaveStatus === 'saving' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : draftSaveStatus === 'saved' ? <CheckCheck className="h-4 w-4" /> : <Save className="h-4 w-4" />}{draftSaveStatus === 'saving' ? 'Saving...' : draftSaveStatus === 'saved' ? `Saved v${currentSavedDraft?.version || ''}` : draftSaveStatus === 'error' ? 'Save failed' : 'Save version'}</button>
                 <button type="button" onClick={exportDraft} className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"><Download className="h-4 w-4" />Word-compatible</button>
                 <button type="button" onClick={copyDraft} className={`inline-flex h-9 min-w-28 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold text-white ${draftCopyStatus === 'copied' ? 'bg-emerald-700' : draftCopyStatus === 'error' ? 'bg-red-700' : 'bg-teal-700 hover:bg-teal-800'}`}>{draftCopyStatus === 'copied' ? <Check className="h-4 w-4" /> : draftCopyStatus === 'error' ? <X className="h-4 w-4" /> : <Clipboard className="h-4 w-4" />}{draftCopyStatus === 'copied' ? 'Copied' : draftCopyStatus === 'error' ? 'Copy failed' : 'Copy draft'}</button>
               </div>
@@ -495,7 +513,7 @@ export default function AIContextPreview({ issue, assignedOfficer, officers, sum
     <ConfirmDialog
       open={Boolean(cloudConsent)}
       title={`Send official context to ${providerLabel}?`}
-      description={cloudConsent === 'paragraph'
+      message={cloudConsent === 'paragraph'
         ? `The selected passage, surrounding draft, drafting brief and relevant Issue context will be sent to ${providerLabel}. Usage and status are logged, but the AI log does not store the prompt or generated text.`
         : `The drafting brief and Issue context currently selected in this preview will be sent to ${providerLabel}. Usage and status are logged, but the AI log does not store the prompt or generated text.`}
       confirmLabel="Send and generate"
