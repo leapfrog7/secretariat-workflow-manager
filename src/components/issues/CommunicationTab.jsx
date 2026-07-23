@@ -148,9 +148,9 @@ function Field({ label, error, className = '', children }) {
 
 function FormActions({ saveStatus, onCancel }) {
   return (
-    <div className="mt-4 flex justify-end gap-2">
-      <button type="button" onClick={onCancel} className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"><X className="h-4 w-4" />Cancel</button>
-      <button type="submit" disabled={saveStatus !== 'idle'} className={`inline-flex h-10 min-w-28 items-center justify-center gap-2 rounded-md px-3 text-sm font-semibold text-white ${saveStatus === 'saved' ? 'bg-emerald-700' : 'bg-teal-700 hover:bg-teal-800 disabled:bg-slate-400'}`}>
+    <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:justify-end">
+      <button type="button" onClick={onCancel} disabled={saveStatus !== 'idle'} className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 sm:h-10"><X className="h-4 w-4" />Cancel</button>
+      <button type="submit" disabled={saveStatus !== 'idle'} className={`inline-flex h-11 min-w-28 items-center justify-center gap-2 rounded-md px-3 text-sm font-semibold text-white sm:h-10 ${saveStatus === 'saved' ? 'bg-emerald-700' : 'bg-teal-700 hover:bg-teal-800 disabled:bg-slate-400'}`}>
         {saveStatus === 'saving' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : saveStatus === 'saved' ? <CheckCircle2 className="h-4 w-4" /> : <Save className="h-4 w-4" />}
         {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved' : 'Save'}
       </button>

@@ -43,8 +43,8 @@ export default function IssueCard({ issue, officers = [], working = false, onRes
         </div>
         {scheduled && <div><dt className="font-medium text-slate-500">Returns</dt><dd>{formatDisplayDate(issue.nextAppearanceDate)}</dd></div>}
       </dl>
-      <div className="mt-4 flex items-center justify-end gap-1 border-t border-[#e3ebe9] pt-3">
-        {working ? <LoaderCircle className="h-4 w-4 animate-spin text-slate-500" /> : <>
+      <div className="mt-4 flex min-h-10 items-center justify-end gap-1 border-t border-[#e3ebe9] pt-3">
+        {working ? <span className="flex items-center gap-2 text-xs font-semibold text-cyan-800" role="status"><LoaderCircle className="h-4 w-4 animate-spin" />Updating Issue...</span> : <>
           {issue.isArchived && <CardAction label="Restore Issue" onClick={() => onRestore(issue)}><RotateCcw className="h-4 w-4" /></CardAction>}
           {scheduled && <CardAction label="Bring back now" onClick={() => onBringBack(issue)}><RotateCcw className="h-4 w-4" /></CardAction>}
           {!issue.isArchived && <CardAction label="Archive Issue" onClick={() => onArchive(issue)}><Archive className="h-4 w-4" /></CardAction>}

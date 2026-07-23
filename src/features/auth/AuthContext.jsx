@@ -1,4 +1,5 @@
 import { createContext, lazy, Suspense, useContext } from 'react';
+import { LoaderCircle } from 'lucide-react';
 import { cloudConfigured } from './authConfig';
 
 export const AuthContext = createContext(null);
@@ -29,7 +30,7 @@ export function AuthProvider({ children }) {
     );
   }
 
-  return <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-[#eef4f2] text-sm font-medium text-slate-600">Loading secure access...</div>}><ConfiguredAuthProvider>{children}</ConfiguredAuthProvider></Suspense>;
+  return <Suspense fallback={<div className="flex min-h-screen items-center justify-center gap-3 bg-[#eef4f2] px-4 text-sm font-medium text-slate-700" role="status"><LoaderCircle className="h-5 w-5 animate-spin text-teal-700" />Loading secure access...</div>}><ConfiguredAuthProvider>{children}</ConfiguredAuthProvider></Suspense>;
 }
 
 export function useAuth() {
