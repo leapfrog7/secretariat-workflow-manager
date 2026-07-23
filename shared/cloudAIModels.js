@@ -5,19 +5,25 @@ export const GEMINI_TASK_LEVELS = [
     id: 'simple',
     label: 'Simple',
     description: 'Short, routine drafts and straightforward rewrites.',
-    model: 'gemini-2.5-flash-lite',
+    model: 'gemini-3.5-flash-lite',
+    fallbackModel: 'gemini-3.6-flash',
+    thinkingLevel: 'minimal',
   },
   {
     id: 'moderate',
     label: 'Moderate',
     description: 'Most official drafting, summaries and structured replies.',
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3.6-flash',
+    fallbackModel: 'gemini-3.5-flash',
+    thinkingLevel: 'medium',
   },
   {
     id: 'hard',
     label: 'Hard',
     description: 'Complex reasoning, competing references and sensitive drafting.',
-    model: 'gemini-2.5-pro',
+    model: 'gemini-3.6-flash',
+    fallbackModel: 'gemini-3.5-flash',
+    thinkingLevel: 'high',
   },
 ];
 

@@ -31,8 +31,16 @@ export default async function handler(request, response) {
     const authorization = await reserveCloudAIRequest({ token, workspaceId, issueId, provider, operation, requestId, promptCharacters });
     await attachGenerationFingerprint({ requestId, fingerprint });
     const selectedTaskLevel = provider === 'gemini' ? normalizeGeminiTaskLevel(taskLevel) : null;
-    const model = selectedTaskLevel ? getGeminiTaskLevel(selectedTaskLevel).model : authorization.model;
-    const result = await callCloudProvider({ provider, model, instructions, input });
+    const geminiTask = selectedTaskLevel ? getGeminiTaskLevel(selectedTaskLevel) : null;
+    const model = geminiTask?.model || authorization.model;
+    const result = await callCloudProvider({
+      provider,
+      model,
+      fallbackModels: geminiTask?.fallbackModel ? [geminiTask.fallbackModel] : [],
+      thinkingLevel: geminiTask?.thinkingLevel,
+      instructions,
+      input,
+    });
     const estimatedCost = await completeGenerationLog({ requestId, result, authorization, responseCharacters: result.text.length });
     return response.status(200).json({
       text: result.text,

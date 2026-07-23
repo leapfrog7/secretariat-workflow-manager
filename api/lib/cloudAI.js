@@ -91,54 +91,74 @@ async function callOpenAI({ model, instructions, input }) {
   return { text, inputTokens: payload.usage?.input_tokens || 0, outputTokens: payload.usage?.output_tokens || 0, model: payload.model || model };
 }
 
-async function callGemini({ model, instructions, input }) {
-  const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-  if (!key) throw Object.assign(new Error('Gemini is not configured on the server.'), { status: 503, code: 'provider_not_configured' });
-  const request = {
-    method: 'POST',
-    headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      system_instruction: { parts: [{ text: instructions }] },
-      contents: [{ role: 'user', parts: [{ text: input }] }],
-      generationConfig: { temperature: 0.1, maxOutputTokens: 4096 },
-    }),
-  };
-  let response;
-  let payload;
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
-      ...request,
-      signal: AbortSignal.timeout(50000),
-    });
-    payload = await response.json().catch(() => ({}));
-    if (response.ok) break;
-
-    const temporarilyUnavailable = response.status === 429 || response.status >= 500;
-    if (!temporarilyUnavailable || attempt === 2) {
-      const busyMessage = temporarilyUnavailable
-        ? 'Gemini is currently busy. Please try again in a few minutes.'
-        : undefined;
-      throw Object.assign(new Error(payload.error?.message || 'Gemini rejected the request.'), {
-        status: temporarilyUnavailable ? 503 : 502,
-        code: temporarilyUnavailable ? 'provider_busy' : 'provider_request_failed',
-        publicMessage: busyMessage,
-      });
-    }
-    await new Promise((resolve) => setTimeout(resolve, 750 * (attempt + 1)));
-  }
-  const text = (payload.candidates?.[0]?.content?.parts || []).map((part) => part.text || '').join('\n').trim();
-  return {
-    text,
-    inputTokens: payload.usageMetadata?.promptTokenCount || 0,
-    outputTokens: payload.usageMetadata?.candidatesTokenCount || 0,
-    model,
-  };
+function geminiModelUnavailable(response, payload) {
+  const message = String(payload?.error?.message || '');
+  return response.status === 404 || /(?:model.+(?:unavailable|not found|not supported|deprecated)|no longer available)/i.test(message);
 }
 
-export async function callCloudProvider({ provider, model, instructions, input }) {
+async function callGemini({ model, fallbackModels = [], thinkingLevel = 'medium', instructions, input }) {
+  const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+  if (!key) throw Object.assign(new Error('Gemini is not configured on the server.'), { status: 503, code: 'provider_not_configured' });
+  const modelCandidates = [...new Set([model, ...fallbackModels].filter(Boolean))];
+  let payload = {};
+
+  for (let modelIndex = 0; modelIndex < modelCandidates.length; modelIndex += 1) {
+    const candidateModel = modelCandidates[modelIndex];
+    const request = {
+      method: 'POST',
+      headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        system_instruction: { parts: [{ text: instructions }] },
+        contents: [{ role: 'user', parts: [{ text: input }] }],
+        generationConfig: {
+          maxOutputTokens: 4096,
+          thinkingConfig: { thinkingLevel },
+        },
+      }),
+    };
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(candidateModel)}:generateContent`, {
+        ...request,
+        signal: AbortSignal.timeout(50000),
+      });
+      payload = await response.json().catch(() => ({}));
+      if (response.ok) {
+        const text = (payload.candidates?.[0]?.content?.parts || []).map((part) => part.text || '').join('\n').trim();
+        return {
+          text,
+          inputTokens: payload.usageMetadata?.promptTokenCount || 0,
+          outputTokens: payload.usageMetadata?.candidatesTokenCount || 0,
+          model: candidateModel,
+        };
+      }
+
+      if (geminiModelUnavailable(response, payload) && modelIndex < modelCandidates.length - 1) break;
+      const temporarilyUnavailable = response.status === 429 || response.status >= 500;
+      if (!temporarilyUnavailable || attempt === 2) {
+        const busyMessage = temporarilyUnavailable
+          ? 'Gemini is currently busy. Please try again in a few minutes.'
+          : undefined;
+        throw Object.assign(new Error(payload.error?.message || 'Gemini rejected the request.'), {
+          status: temporarilyUnavailable ? 503 : 502,
+          code: geminiModelUnavailable(response, payload) ? 'provider_model_unavailable' : temporarilyUnavailable ? 'provider_busy' : 'provider_request_failed',
+          publicMessage: busyMessage,
+        });
+      }
+      await new Promise((resolve) => setTimeout(resolve, 750 * (attempt + 1)));
+    }
+  }
+
+  throw Object.assign(new Error(payload.error?.message || 'No configured Gemini model is available.'), {
+    status: 502,
+    code: 'provider_model_unavailable',
+  });
+}
+
+export async function callCloudProvider({ provider, model, fallbackModels, thinkingLevel, instructions, input }) {
   const result = provider === 'openai'
     ? await callOpenAI({ model, instructions, input })
-    : await callGemini({ model, instructions, input });
+    : await callGemini({ model, fallbackModels, thinkingLevel, instructions, input });
   if (!result.text) throw Object.assign(new Error('The provider returned no draft text.'), { status: 502, code: 'empty_provider_response' });
   return result;
 }
