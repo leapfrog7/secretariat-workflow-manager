@@ -6,6 +6,7 @@ import ErrorState from '../components/common/ErrorState';
 import ConfirmDialog from '../components/common/ConfirmDialog';
 import DisclosureSection from '../components/common/DisclosureSection';
 import OfficerForm from '../components/officers/OfficerForm';
+import GeminiTaskLevelControl from '../components/ai/GeminiTaskLevelControl';
 import { useToast } from '../components/common/ToastProvider';
 import { APP_NAME, DB_NAME, DB_VERSION, DEFAULT_AI_PREFERENCES, DEFAULT_LOCAL_AI_SETTINGS, DEFAULT_OFFICE_PROFILE, DEFAULT_REMINDER_SETTINGS } from '../constants/issueConstants';
 import { getIssueStatistics } from '../db/issueRepository';
@@ -51,6 +52,7 @@ export default function SettingsPage() {
     aiSettings: DEFAULT_LOCAL_AI_SETTINGS,
     aiPreferences: DEFAULT_AI_PREFERENCES,
     cloudProviders: [],
+    cloudProvidersStatus: 'idle',
     reminderSettings: DEFAULT_REMINDER_SETTINGS,
     aiModels: [],
     aiStatus: 'idle',
@@ -95,9 +97,10 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (!auth.workspace?.id) return;
+    setState((current) => ({ ...current, cloudProvidersStatus: 'loading' }));
     getCloudAIStatus(auth.workspace.id)
-      .then(({ providers }) => setState((current) => ({ ...current, cloudProviders: providers || [] })))
-      .catch(() => setState((current) => ({ ...current, cloudProviders: [] })));
+      .then(({ providers }) => setState((current) => ({ ...current, cloudProviders: providers || [], cloudProvidersStatus: 'ready' })))
+      .catch(() => setState((current) => ({ ...current, cloudProviders: [], cloudProvidersStatus: 'error' })));
   }, [auth.workspace?.id]);
 
   const exportData = async () => {
@@ -380,16 +383,27 @@ export default function SettingsPage() {
             {state.aiMessage && <p className={`mt-3 text-sm ${state.aiStatus === 'error' ? 'text-red-700' : 'text-emerald-700'}`}>{state.aiMessage}</p>}
             {typeof window !== 'undefined' && window.location.hostname.endsWith('github.io') && <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">On the hosted app, start LM Studio locally with <code className="font-mono font-semibold">lms server start --cors</code>, load a model, then test this connection. Your browser may ask for permission to access localhost.</p>}
           </> : <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {state.cloudProvidersStatus === 'loading' && <div className="flex items-center gap-2 rounded-md border border-cyan-200 bg-cyan-50 px-3 py-3 text-sm text-cyan-900 sm:col-span-2"><LoaderCircle className="h-4 w-4 animate-spin" />Checking available cloud providers...</div>}
+            {state.cloudProvidersStatus === 'error' && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-800 sm:col-span-2">Cloud provider availability could not be loaded. Refresh or sign in again.</div>}
             {['gemini', 'openai'].map((providerId) => {
               const provider = state.cloudProviders.find((item) => item.provider === providerId);
               const selected = state.aiPreferences.cloudProvider === providerId;
-              return <button key={providerId} type="button" disabled={!provider?.enabled || !provider?.keyConfigured} onClick={() => setState((current) => ({ ...current, aiPreferences: { ...current.aiPreferences, cloudProvider: providerId } }))} className={`flex min-h-20 items-center justify-between gap-3 rounded-md border px-4 py-3 text-left disabled:cursor-not-allowed disabled:opacity-55 ${selected ? 'border-cyan-500 bg-cyan-50' : 'border-slate-200 bg-white'}`}><span><span className="block text-sm font-semibold text-slate-900">{providerId === 'gemini' ? 'Gemini' : 'OpenAI'}</span><span className="mt-1 block text-xs text-slate-500">{provider?.model || 'Not configured by an administrator'}</span></span><span className={`text-xs font-semibold ${provider?.enabled && provider?.keyConfigured ? 'text-emerald-700' : 'text-slate-500'}`}>{provider?.enabled && provider?.keyConfigured ? 'Available' : 'Unavailable'}</span></button>;
+              return <button key={providerId} type="button" disabled={!provider?.enabled || !provider?.keyConfigured} onClick={() => setState((current) => ({ ...current, aiPreferences: { ...current.aiPreferences, cloudProvider: providerId } }))} className={`flex min-h-20 items-center justify-between gap-3 rounded-md border px-4 py-3 text-left disabled:cursor-not-allowed disabled:opacity-55 ${selected ? 'border-cyan-500 bg-cyan-50' : 'border-slate-200 bg-white'}`}><span><span className="block text-sm font-semibold text-slate-900">{providerId === 'gemini' ? 'Gemini' : 'OpenAI'}</span><span className="mt-1 block text-xs text-slate-500">{providerId === 'gemini' ? 'Choose task complexity below' : provider?.model || 'Not configured by an administrator'}</span></span><span className={`text-xs font-semibold ${provider?.enabled && provider?.keyConfigured ? 'text-emerald-700' : 'text-slate-500'}`}>{provider?.enabled && provider?.keyConfigured ? 'Available' : 'Unavailable'}</span></button>;
             })}
+            {state.aiPreferences.cloudProvider === 'gemini' && (
+              <div className="rounded-md border border-slate-200 bg-slate-50 p-3 sm:col-span-2">
+                <GeminiTaskLevelControl
+                  value={state.aiPreferences.geminiTaskLevel}
+                  onChange={(value) => setState((current) => ({ ...current, aiPreferences: { ...current.aiPreferences, geminiTaskLevel: value } }))}
+                />
+                <p className="mt-2 text-xs leading-5 text-slate-500">Moderate suits most official communication. Simple is faster for routine work; Hard uses stronger reasoning and may take longer or consume more paid tokens later.</p>
+              </div>
+            )}
             <p className="text-xs leading-5 text-slate-500 sm:col-span-2">Cloud providers are controlled by the workspace administrator. The provider API key remains on the server and is never sent to this browser.</p>
           </div>}
-          <div className="mt-4 flex flex-wrap gap-2">
-            {state.aiPreferences.mode === 'local' && <button type="button" onClick={testLocalAI} disabled={state.busy === 'ai-test'} className="inline-flex h-10 items-center gap-2 rounded-md border border-cyan-200 bg-cyan-50 px-3 text-sm font-semibold text-cyan-900 hover:bg-cyan-100 disabled:opacity-60">{state.busy === 'ai-test' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}{state.busy === 'ai-test' ? 'Testing...' : 'Test connection'}</button>}
-            <button type="button" onClick={saveAISettings} disabled={state.busy === 'ai-save'} className="inline-flex h-10 items-center gap-2 rounded-md bg-teal-700 px-3 text-sm font-semibold text-white hover:bg-teal-800 disabled:bg-slate-400">{state.busy === 'ai-save' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{state.busy === 'ai-save' ? 'Saving...' : 'Save AI preference'}</button>
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+            {state.aiPreferences.mode === 'local' && <button type="button" onClick={testLocalAI} disabled={state.busy === 'ai-test'} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-cyan-200 bg-cyan-50 px-3 text-sm font-semibold text-cyan-900 hover:bg-cyan-100 disabled:opacity-60 sm:w-auto">{state.busy === 'ai-test' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}{state.busy === 'ai-test' ? 'Testing...' : 'Test connection'}</button>}
+            <button type="button" onClick={saveAISettings} disabled={state.busy === 'ai-save'} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-teal-700 px-3 text-sm font-semibold text-white hover:bg-teal-800 disabled:bg-slate-400 sm:w-auto">{state.busy === 'ai-save' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{state.busy === 'ai-save' ? 'Saving preference...' : 'Save AI preference'}</button>
           </div>
         </section>
 

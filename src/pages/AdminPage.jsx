@@ -136,7 +136,9 @@ export default function AdminPage() {
             return <div key={provider.provider} className="p-4">
               <div className="flex items-center justify-between gap-3"><div><h3 className="text-sm font-semibold text-slate-900">{label}</h3><p className="mt-1 text-xs text-slate-500">{usage?.requests || 0} requests this month - ${Number(usage?.estimatedCost || 0).toFixed(4)} estimated</p></div><label className="inline-flex items-center gap-2 text-xs font-semibold text-slate-700"><input type="checkbox" checked={provider.enabled} onChange={(event) => updateAIProvider(provider.provider, 'enabled', event.target.checked)} className="h-4 w-4 accent-teal-700" />Enabled</label></div>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <AdminInput label="Model" value={provider.model} onChange={(value) => updateAIProvider(provider.provider, 'model', value)} className="sm:col-span-2" />
+                {provider.provider === 'gemini'
+                  ? <div className="rounded-md border border-cyan-200 bg-cyan-50 px-3 py-2.5 text-xs leading-5 text-cyan-950 sm:col-span-2"><span className="font-semibold">Task-based routing:</span> users choose Simple, Moderate or Hard. The server routes those requests to Gemini 2.5 Flash-Lite, Flash or Pro.</div>
+                  : <AdminInput label="Model" value={provider.model} onChange={(value) => updateAIProvider(provider.provider, 'model', value)} className="sm:col-span-2" />}
                 <AdminInput label="Daily requests per user" type="number" min="1" value={provider.daily_user_request_limit} onChange={(value) => updateAIProvider(provider.provider, 'daily_user_request_limit', value)} />
                 <AdminInput label="Monthly workspace requests" type="number" min="1" value={provider.monthly_workspace_request_limit} onChange={(value) => updateAIProvider(provider.provider, 'monthly_workspace_request_limit', value)} />
                 <AdminInput label="Monthly budget (USD, 0 = off)" type="number" min="0" step="0.01" value={provider.monthly_budget_usd} onChange={(value) => updateAIProvider(provider.provider, 'monthly_budget_usd', value)} />
@@ -144,7 +146,7 @@ export default function AdminPage() {
                 <AdminInput label="Input USD / 1M tokens" type="number" min="0" step="0.000001" value={provider.input_cost_per_million_usd} onChange={(value) => updateAIProvider(provider.provider, 'input_cost_per_million_usd', value)} />
                 <AdminInput label="Output USD / 1M tokens" type="number" min="0" step="0.000001" value={provider.output_cost_per_million_usd} onChange={(value) => updateAIProvider(provider.provider, 'output_cost_per_million_usd', value)} />
               </div>
-              <div className="mt-4 flex items-center justify-between gap-3"><p className="text-xs text-slate-500">Enter current provider rates for cost estimates.</p><button type="button" disabled={saving || !provider.model.trim()} onClick={() => saveProvider(provider.provider)} className="inline-flex h-9 items-center gap-2 rounded-md bg-teal-700 px-3 text-xs font-semibold text-white disabled:bg-slate-400">{saving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}Save</button></div>
+              <div className="mt-4 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs text-slate-500">Enter current provider rates for cost estimates.</p><button type="button" disabled={saving || !provider.model.trim()} onClick={() => saveProvider(provider.provider)} className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-teal-700 px-3 text-xs font-semibold text-white disabled:bg-slate-400 sm:w-auto">{saving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{saving ? 'Saving...' : 'Save policy'}</button></div>
             </div>;
           })}
         </div>

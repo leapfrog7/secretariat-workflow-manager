@@ -9,6 +9,7 @@ import {
   requestFingerprint,
   reserveCloudAIRequest,
 } from '../lib/cloudAI.js';
+import { getGeminiTaskLevel, normalizeGeminiTaskLevel } from '../../shared/cloudAIModels.js';
 
 export default async function handler(request, response) {
   applyCors(request, response);
@@ -19,7 +20,7 @@ export default async function handler(request, response) {
   let fingerprint = '';
   try {
     const token = requireBearerToken(request);
-    const { workspaceId, issueId = null, provider, operation, instructions, input } = request.body || {};
+    const { workspaceId, issueId = null, provider, operation, instructions, input, taskLevel } = request.body || {};
     if (!workspaceId || typeof instructions !== 'string' || typeof input !== 'string') {
       throw Object.assign(new Error('Workspace, instructions and input are required.'), { status: 400, code: 'invalid_request' });
     }
@@ -29,12 +30,15 @@ export default async function handler(request, response) {
     fingerprint = requestFingerprint(instructions, input);
     const authorization = await reserveCloudAIRequest({ token, workspaceId, issueId, provider, operation, requestId, promptCharacters });
     await attachGenerationFingerprint({ requestId, fingerprint });
-    const result = await callCloudProvider({ provider, model: authorization.model, instructions, input });
+    const selectedTaskLevel = provider === 'gemini' ? normalizeGeminiTaskLevel(taskLevel) : null;
+    const model = selectedTaskLevel ? getGeminiTaskLevel(selectedTaskLevel).model : authorization.model;
+    const result = await callCloudProvider({ provider, model, instructions, input });
     const estimatedCost = await completeGenerationLog({ requestId, result, authorization, responseCharacters: result.text.length });
     return response.status(200).json({
       text: result.text,
       model: result.model,
       provider,
+      taskLevel: selectedTaskLevel,
       usage: { inputTokens: result.inputTokens, outputTokens: result.outputTokens, estimatedCost: estimatedCost || 0 },
       requestId,
     });
