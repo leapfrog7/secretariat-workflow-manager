@@ -174,16 +174,30 @@ export default function SettingsPage() {
   };
 
   const loadDemo = async () => {
-    const result = await loadDemoIssues();
-    showToast(result.loaded ? `Loaded ${result.count} demo Issues.` : 'Demo Issues are already loaded.');
-    await load();
+    try {
+      setState((current) => ({ ...current, busy: 'demo-load' }));
+      const result = await loadDemoIssues();
+      showToast(result.loaded ? `Loaded ${result.count} demo Issues.` : 'Demo Issues are already loaded.');
+      await load();
+    } catch (error) {
+      showToast(error.message || 'Unable to load demo Issues.', 'error');
+    } finally {
+      setState((current) => ({ ...current, busy: '' }));
+    }
   };
 
   const clearDemo = async () => {
-    const result = await clearDemoIssues();
-    showToast(`Cleared ${result.count} demo Issues.`);
-    setState((current) => ({ ...current, confirmClearDemo: false }));
-    await load();
+    try {
+      setState((current) => ({ ...current, busy: 'demo-clear' }));
+      const result = await clearDemoIssues();
+      showToast(`Cleared ${result.count} demo Issues.`);
+      setState((current) => ({ ...current, confirmClearDemo: false }));
+      await load();
+    } catch (error) {
+      showToast(error.message || 'Unable to clear demo Issues.', 'error');
+    } finally {
+      setState((current) => ({ ...current, busy: '' }));
+    }
   };
 
   const saveOfficerDetails = async (officer) => {
@@ -194,6 +208,7 @@ export default function SettingsPage() {
       await load();
     } catch (error) {
       showToast(error.message || 'Unable to save officer.', 'error');
+      throw error;
     }
   };
 
@@ -359,7 +374,7 @@ export default function SettingsPage() {
               {!state.officers.some((officer) => officer.isActive) && <p className="text-sm text-slate-500 sm:col-span-2 lg:col-span-3">Add an active officer above before choosing signatories.</p>}
             </div>
           </fieldset>
-          <div className="mt-4 flex justify-end"><button type="button" onClick={saveOfficeProfile} disabled={state.busy === 'profile-save'} className="inline-flex h-10 items-center gap-2 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-teal-800 disabled:bg-slate-400">{state.busy === 'profile-save' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{state.busy === 'profile-save' ? 'Saving...' : 'Save drafting profile'}</button></div>
+          <div className="mt-4 flex justify-end"><button type="button" onClick={saveOfficeProfile} disabled={state.busy === 'profile-save'} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-teal-800 disabled:bg-slate-400 sm:h-10 sm:w-auto">{state.busy === 'profile-save' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{state.busy === 'profile-save' ? 'Saving profile...' : 'Save drafting profile'}</button></div>
         </section>
 
         <section className="surface rounded-md border-t-4 border-t-cyan-600 p-4 lg:col-span-2">
@@ -420,7 +435,7 @@ export default function SettingsPage() {
             <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Upcoming deadline window</span><div className="flex items-center gap-2"><input type="number" min="1" max="30" value={state.reminderSettings.upcomingDays} onChange={(event) => setState((current) => ({ ...current, reminderSettings: { ...current.reminderSettings, upcomingDays: event.target.value } }))} className="h-10 w-24 rounded-md border border-slate-300 bg-white px-3 text-sm tabular-nums text-slate-900" /><span className="text-sm text-slate-500">days</span></div></label>
             <fieldset><legend className="mb-1 text-sm font-medium text-slate-700">Workload digest</legend><div className="inline-flex rounded-md border border-slate-300 bg-white p-1">{[['none', 'None'], ['weekly', 'Weekly'], ['monthly', 'Monthly']].map(([value, label]) => <button key={value} type="button" onClick={() => setState((current) => ({ ...current, reminderSettings: { ...current.reminderSettings, digestFrequency: value } }))} className={`h-8 rounded px-3 text-xs font-semibold ${state.reminderSettings.digestFrequency === value ? 'bg-[#17333b] text-white' : 'text-slate-600 hover:bg-slate-100'}`}>{label}</button>)}</div></fieldset>
           </div>
-          <div className="mt-4 flex justify-end"><button type="button" onClick={saveReminders} disabled={state.busy === 'reminders-save'} className="inline-flex h-10 items-center gap-2 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800 disabled:bg-slate-400">{state.busy === 'reminders-save' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{state.busy === 'reminders-save' ? 'Saving...' : 'Save reminders'}</button></div>
+          <div className="mt-4 flex justify-end"><button type="button" onClick={saveReminders} disabled={state.busy === 'reminders-save'} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800 disabled:bg-slate-400 sm:h-10 sm:w-auto">{state.busy === 'reminders-save' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{state.busy === 'reminders-save' ? 'Saving reminders...' : 'Save reminders'}</button></div>
         </section>
 
         <DisclosureSection title="Data and backup" description="Storage, backup, restore and demo data." className="lg:col-span-2">
@@ -461,8 +476,8 @@ export default function SettingsPage() {
               disabled={!storage?.supported || storage.persisted || state.busy === 'persist'}
               className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <ShieldCheck className="h-4 w-4" aria-hidden="true" />
-              {storage?.persisted ? 'Persistence granted' : 'Request persistence'}
+              {state.busy === 'persist' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" aria-hidden="true" />}
+              {state.busy === 'persist' ? 'Requesting...' : storage?.persisted ? 'Persistence granted' : 'Request persistence'}
             </button>
           </div>
           <p className="mt-3 text-sm text-slate-600">
@@ -499,8 +514,8 @@ export default function SettingsPage() {
               disabled={state.busy === 'export'}
               className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <Download className="h-4 w-4" aria-hidden="true" />
-              Download JSON backup
+              {state.busy === 'export' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" aria-hidden="true" />}
+              {state.busy === 'export' ? 'Preparing backup...' : 'Download JSON backup'}
             </button>
             <button
               type="button"
@@ -508,8 +523,8 @@ export default function SettingsPage() {
               disabled={state.busy === 'save-file'}
               className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <Save className="h-4 w-4" aria-hidden="true" />
-              Save backup to local file
+              {state.busy === 'save-file' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" aria-hidden="true" />}
+              {state.busy === 'save-file' ? 'Saving backup...' : 'Save backup to local file'}
             </button>
             <button type="button" onClick={() => fileRef.current?.click()} className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50">
               <Upload className="h-4 w-4" aria-hidden="true" />
@@ -524,8 +539,8 @@ export default function SettingsPage() {
           <h2 className="text-sm font-semibold text-slate-950">Demo data</h2>
           <p className="mt-1 text-sm text-slate-600">Demo Issues are fictional and loaded only from this page.</p>
           <div className="mt-3 flex flex-wrap gap-2">
-            <button type="button" onClick={loadDemo} className="rounded-md bg-teal-700 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-800">
-              Load demo Issues
+            <button type="button" onClick={loadDemo} disabled={state.busy === 'demo-load'} className="inline-flex items-center justify-center gap-2 rounded-md bg-teal-700 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-wait disabled:opacity-70">
+              {state.busy === 'demo-load' && <LoaderCircle className="h-4 w-4 animate-spin" />}{state.busy === 'demo-load' ? 'Loading demo Issues...' : 'Load demo Issues'}
             </button>
             <button type="button" onClick={() => setState((current) => ({ ...current, confirmClearDemo: true }))} className="inline-flex items-center gap-2 rounded-md border border-red-300 px-3 py-2 text-sm font-medium text-red-800 hover:bg-red-50">
               <Trash2 className="h-4 w-4" aria-hidden="true" />

@@ -5,13 +5,25 @@ import { useAuth } from '../../features/auth/AuthContext';
 
 export default function AccessGate({ children }) {
   const auth = useAuth();
+  const [checking, setChecking] = useState('');
+
+  const checkAgain = async (kind) => {
+    if (checking) return;
+    setChecking(kind);
+    try {
+      if (kind === 'profile') await auth.refreshProfile();
+      else await auth.refreshWorkspaces();
+    } finally {
+      setChecking('');
+    }
+  };
 
   if (auth.mode === 'local') return children;
   if (auth.loading) return <AccessMessage icon={LoaderCircle} spin title="Checking access" description="Verifying your account and application access." />;
   if (!auth.user) return <AccountPage />;
   if (auth.error) return <AccessMessage icon={CloudOff} title="Cloud access unavailable" description={auth.error} action={<SignOutButton />} />;
   if (auth.profile?.status === 'pending') {
-    return <AccessMessage icon={ShieldAlert} title="Approval pending" description="Your account has been created. An administrator must approve access before you can open official workspaces." action={<div className="flex flex-wrap justify-center gap-2"><button type="button" onClick={() => auth.refreshProfile()} className="rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white">Check again</button><SignOutButton /></div>} />;
+    return <AccessMessage icon={ShieldAlert} title="Approval pending" description="Your account has been created. An administrator must approve access before you can open official workspaces." action={<div className="flex flex-col justify-center gap-2 sm:flex-row"><button type="button" onClick={() => checkAgain('profile')} disabled={Boolean(checking)} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-70">{checking === 'profile' && <LoaderCircle className="h-4 w-4 animate-spin" />}{checking === 'profile' ? 'Checking...' : 'Check again'}</button><SignOutButton /></div>} />;
   }
   if (auth.profile?.status === 'suspended') {
     return <AccessMessage icon={LockKeyhole} title="Access suspended" description="This account cannot currently access Secretariat Workflow Manager. Contact an administrator if this is unexpected." action={<SignOutButton />} />;
@@ -20,7 +32,7 @@ export default function AccessGate({ children }) {
     return <AccessMessage icon={CloudOff} title="Access not configured" description="No active access profile is available for this account." action={<SignOutButton />} />;
   }
   if (!auth.workspace) {
-    return <AccessMessage icon={ShieldAlert} title="Workspace access pending" description="Your account is active, but it has not yet been assigned to an official workspace. An administrator can add you from Administration." action={<div className="flex flex-wrap justify-center gap-2"><button type="button" onClick={() => auth.refreshWorkspaces()} className="rounded-md bg-teal-700 px-4 py-2 text-sm font-semibold text-white">Check again</button><SignOutButton /></div>} />;
+    return <AccessMessage icon={ShieldAlert} title="Workspace access pending" description="Your account is active, but it has not yet been assigned to an official workspace. An administrator can add you from Administration." action={<div className="flex flex-col justify-center gap-2 sm:flex-row"><button type="button" onClick={() => checkAgain('workspace')} disabled={Boolean(checking)} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-70">{checking === 'workspace' && <LoaderCircle className="h-4 w-4 animate-spin" />}{checking === 'workspace' ? 'Checking...' : 'Check again'}</button><SignOutButton /></div>} />;
   }
 
   return children;
@@ -74,7 +86,7 @@ function AccountPage() {
             <Field label="Email"><input required type="email" autoComplete="email" value={form.email} onChange={(event) => update('email', event.target.value)} className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm" /></Field>
             <Field label="Password"><input required minLength={8} type="password" autoComplete={mode === 'sign-up' ? 'new-password' : 'current-password'} value={form.password} onChange={(event) => update('password', event.target.value)} className="h-10 w-full rounded-md border border-slate-300 px-3 text-sm" /></Field>
             {state.error && <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{state.error}</p>}
-            <button type="submit" disabled={state.busy} className="h-10 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white disabled:bg-slate-400">{state.busy ? 'Please wait...' : mode === 'sign-up' ? 'Register for approval' : 'Sign in'}</button>
+            <button type="submit" disabled={state.busy} className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white disabled:cursor-wait disabled:bg-slate-500 sm:h-10">{state.busy && <LoaderCircle className="h-4 w-4 animate-spin" />}{state.busy ? (mode === 'sign-up' ? 'Creating account...' : 'Signing in...') : mode === 'sign-up' ? 'Register for approval' : 'Sign in'}</button>
           </form>
         </section>
         <p className="mt-4 text-center text-xs leading-5 text-slate-500">Registration does not grant access automatically. An administrator must activate the account.</p>
@@ -98,7 +110,17 @@ function AccessMessage({ icon: Icon, spin = false, title, description, action })
 
 function SignOutButton() {
   const auth = useAuth();
-  return <button type="button" onClick={() => auth.signOut()} className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700">Sign out</button>;
+  const [busy, setBusy] = useState(false);
+  const signOut = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await auth.signOut();
+    } finally {
+      setBusy(false);
+    }
+  };
+  return <button type="button" onClick={signOut} disabled={busy} className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 disabled:cursor-wait disabled:opacity-60">{busy && <LoaderCircle className="h-4 w-4 animate-spin" />}{busy ? 'Signing out...' : 'Sign out'}</button>;
 }
 
 function ModeTab({ active, children, onClick }) {

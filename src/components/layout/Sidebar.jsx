@@ -37,6 +37,7 @@ export default function Sidebar() {
             <Link
               key={item.label}
               to={item.to}
+              aria-current={isActive ? 'page' : undefined}
               className={`flex items-center gap-3 rounded-md border px-3 py-2.5 text-sm font-medium transition-colors ${
                   isActive ? 'border-teal-400/30 bg-teal-400/15 text-white' : 'border-transparent text-slate-300 hover:bg-white/7 hover:text-white'
                 }`}

@@ -8,7 +8,7 @@ import { listNotifications, markAllNotificationsRead, markNotificationRead } fro
 export default function NotificationCenter() {
   const auth = useAuth();
   const containerRef = useRef(null);
-  const [state, setState] = useState({ open: false, loading: false, error: '', items: [] });
+  const [state, setState] = useState({ open: false, loading: false, markingAll: false, error: '', items: [] });
   const workspaceId = auth.workspace?.id;
   const userId = auth.user?.id;
 
@@ -50,8 +50,15 @@ export default function NotificationCenter() {
   };
 
   const readAll = async () => {
-    setState((current) => ({ ...current, items: current.items.map((item) => ({ ...item, read_at: item.read_at || new Date().toISOString() })) }));
-    await markAllNotificationsRead(workspaceId, userId).catch(() => load());
+    if (state.markingAll) return;
+    setState((current) => ({ ...current, markingAll: true, items: current.items.map((item) => ({ ...item, read_at: item.read_at || new Date().toISOString() })) }));
+    try {
+      await markAllNotificationsRead(workspaceId, userId);
+      setState((current) => ({ ...current, markingAll: false }));
+    } catch {
+      setState((current) => ({ ...current, markingAll: false }));
+      load();
+    }
   };
 
   return (
@@ -64,7 +71,7 @@ export default function NotificationCenter() {
         <div className="absolute right-0 top-10 z-50 w-[min(360px,calc(100vw-24px))] overflow-hidden rounded-md border border-slate-200 bg-white shadow-xl">
           <div className="flex h-12 items-center justify-between border-b border-slate-200 px-3">
             <div><h2 className="text-sm font-semibold text-[#17333b]">Notifications</h2><p className="text-[11px] text-slate-500">Deadlines, returns and digests</p></div>
-            {unread > 0 && <button type="button" onClick={readAll} title="Mark all as read" className="flex h-8 w-8 items-center justify-center rounded-md text-teal-700 hover:bg-teal-50"><CheckCheck className="h-4 w-4" /></button>}
+            {(unread > 0 || state.markingAll) && <button type="button" onClick={readAll} disabled={state.markingAll} title="Mark all as read" className="flex h-9 w-9 items-center justify-center rounded-md text-teal-700 hover:bg-teal-50 disabled:cursor-wait"><CheckCheck className={`h-4 w-4 ${state.markingAll ? 'animate-pulse' : ''}`} /></button>}
           </div>
           <div className="max-h-[420px] overflow-y-auto">
             {state.loading && !state.items.length && <div className="flex items-center justify-center gap-2 px-4 py-10 text-sm text-slate-500"><LoaderCircle className="h-4 w-4 animate-spin" />Loading...</div>}

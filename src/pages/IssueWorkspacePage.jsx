@@ -47,6 +47,7 @@ export default function IssueWorkspacePage() {
     draft: null,
     dirty: false,
     activeTab: 'Current Position',
+    operation: '',
     confirmArchive: false,
     deleteTarget: null,
   });
@@ -225,24 +226,31 @@ export default function IssueWorkspacePage() {
   };
 
   const toggleArchiveIssue = async () => {
-    if (state.issue.isArchived) {
-      await restoreIssue(issueId);
-      showToast('Issue restored.');
-    } else {
-      await archiveIssue(issueId);
-      showToast('Issue archived.');
+    try {
+      if (state.issue.isArchived) {
+        await restoreIssue(issueId);
+        showToast('Issue restored.');
+      } else {
+        await archiveIssue(issueId);
+        showToast('Issue archived.');
+      }
+      setState((current) => ({ ...current, confirmArchive: false }));
+      await load();
+    } catch (error) {
+      showToast(error.message || `Unable to ${state.issue.isArchived ? 'restore' : 'archive'} Issue.`, 'error');
     }
-    setState((current) => ({ ...current, confirmArchive: false }));
-    await load();
   };
 
   const bringBack = async () => {
     try {
+      setState((current) => ({ ...current, operation: 'bring-back' }));
       await bringBackIssue(issueId);
       showToast('Issue returned to the current register.');
       await load();
     } catch (error) {
       showToast(error.message || 'Unable to return Issue.', 'error');
+    } finally {
+      setState((current) => ({ ...current, operation: '' }));
     }
   };
 
@@ -296,6 +304,7 @@ export default function IssueWorkspacePage() {
           onUpdate={updateDraft}
           onUpdateSchedule={updateScheduleDraft}
           onSave={saveWorkflow}
+          operation={state.operation}
           onArchive={() => setState((current) => ({ ...current, confirmArchive: true }))}
           onLoadAllMilestones={loadAllMilestones}
           onCollapseMilestones={() => setState((current) => ({ ...current, milestones: current.milestones.slice(0, 5), milestonesExpanded: false }))}
@@ -315,7 +324,7 @@ export default function IssueWorkspacePage() {
   );
 }
 
-function CurrentPositionTab({ issue, officers, draft, dirty, saveStatus, milestones, milestoneCount, milestonesExpanded, loadingMilestones, latestSummary, summaryVersions, summaryVersionCount, summariesExpanded, loadingSummaries, onUpdate, onUpdateSchedule, onSave, onArchive, onLoadAllMilestones, onCollapseMilestones, onSaveSummary, onLoadAllSummaries, onCollapseSummaries, onBringBack }) {
+function CurrentPositionTab({ issue, officers, draft, dirty, saveStatus, operation, milestones, milestoneCount, milestonesExpanded, loadingMilestones, latestSummary, summaryVersions, summaryVersionCount, summariesExpanded, loadingSummaries, onUpdate, onUpdateSchedule, onSave, onArchive, onLoadAllMilestones, onCollapseMilestones, onSaveSummary, onLoadAllSummaries, onCollapseSummaries, onBringBack }) {
   const assignedOfficer = officers.find((officer) => officer.id === issue.assignedOfficerId);
   return (
     <div className="space-y-4">
@@ -323,7 +332,7 @@ function CurrentPositionTab({ issue, officers, draft, dirty, saveStatus, milesto
         {issue.isScheduled && (
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-cyan-200 bg-cyan-50 px-3 py-3">
             <div className="flex items-center gap-2 text-sm font-semibold text-cyan-900"><CalendarClock className="h-4 w-4" />Scheduled to return {formatDisplayDate(issue.nextAppearanceDate)}</div>
-            <button type="button" onClick={onBringBack} className="inline-flex h-9 items-center gap-2 rounded-md border border-cyan-300 bg-white px-3 text-xs font-semibold text-cyan-900 hover:bg-cyan-100"><RotateCcw className="h-4 w-4" />Bring back now</button>
+            <button type="button" onClick={onBringBack} disabled={operation === 'bring-back'} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-cyan-300 bg-white px-3 text-xs font-semibold text-cyan-900 hover:bg-cyan-100 disabled:cursor-wait disabled:opacity-70 sm:h-9 sm:w-auto">{operation === 'bring-back' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}{operation === 'bring-back' ? 'Returning Issue...' : 'Bring back now'}</button>
           </div>
         )}
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-[#dce6e4] pb-4">

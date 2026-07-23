@@ -6,6 +6,9 @@ export default defineConfig({
   base: process.env.GITHUB_ACTIONS ? '/secretariat-workflow-manager/' : '/',
   plugins: [react(), tailwindcss()],
   server: {
+    watch: {
+      ignored: ['**/.tmp/**'],
+    },
     proxy: {
       '/lmstudio': {
         target: 'http://127.0.0.1:1234',

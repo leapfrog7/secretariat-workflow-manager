@@ -63,7 +63,7 @@ function IssueRow({ issue, officers, showReturnDate, working, onRestore, onBring
                 <td className="px-4 py-3.5"><DeadlineIndicator issue={issue} compact /></td>
                 {showReturnDate && <td className="px-4 py-3.5"><span className="block font-semibold tabular-nums text-cyan-900">{scheduled ? formatDisplayDate(issue.nextAppearanceDate) : '-'}</span>{scheduled && <span className="block text-xs text-slate-500">{issue.recurrenceType}</span>}</td>}
                 <td className="px-4 py-3.5"><div className="flex items-center justify-end gap-1">
-                  {working ? <span className="flex h-8 w-8 items-center justify-center text-slate-500"><LoaderCircle className="h-4 w-4 animate-spin" /></span> : <>
+                  {working ? <span className="flex h-8 items-center justify-center gap-2 px-1 text-xs font-semibold text-cyan-800" role="status"><LoaderCircle className="h-4 w-4 animate-spin" /><span>Updating</span></span> : <>
                     {issue.isArchived && <ActionIcon label="Restore Issue" tone="teal" onClick={() => onRestore(issue)}><RotateCcw className="h-4 w-4" /></ActionIcon>}
                     {scheduled && <ActionIcon label="Bring back now" tone="cyan" onClick={() => onBringBack(issue)}><RotateCcw className="h-4 w-4" /></ActionIcon>}
                     {!issue.isArchived && <ActionIcon label="Archive Issue" onClick={() => onArchive(issue)}><Archive className="h-4 w-4" /></ActionIcon>}

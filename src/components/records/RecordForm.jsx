@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Save, X } from 'lucide-react';
+import { LoaderCircle, Save, X } from 'lucide-react';
 import { RECORD_DIRECTIONS, RECORD_TYPES } from '../../constants/issueConstants';
 import { createBlankRecord, normalizeRecord, validateRecord } from '../../utils/recordUtils';
 import DisclosureSection from '../common/DisclosureSection';
@@ -40,13 +40,13 @@ export default function RecordForm({ issueId, initialRecord, onSubmit, onCancel,
           </div>
         </DisclosureSection>
       </div>
-      <div className="mt-4 flex justify-end gap-2">
-        <button type="button" onClick={onCancel} className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50">
+      <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:justify-end">
+        <button type="button" onClick={onCancel} disabled={isSaving} className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-slate-300 px-3 text-sm font-medium hover:bg-slate-50 disabled:opacity-50 sm:h-10">
           <X className="h-4 w-4" aria-hidden="true" />
           Cancel
         </button>
-        <button type="submit" disabled={isSaving} className="inline-flex items-center gap-2 rounded-md bg-blue-700 px-3 py-2 text-sm font-semibold text-white hover:bg-blue-800 disabled:bg-blue-300">
-          <Save className="h-4 w-4" aria-hidden="true" />
+        <button type="submit" disabled={isSaving} className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-blue-700 px-3 text-sm font-semibold text-white hover:bg-blue-800 disabled:cursor-wait disabled:bg-blue-400 sm:h-10">
+          {isSaving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" aria-hidden="true" />}
           {isSaving ? 'Saving...' : 'Save Record'}
         </button>
       </div>
