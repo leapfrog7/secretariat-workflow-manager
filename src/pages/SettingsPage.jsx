@@ -53,6 +53,7 @@ export default function SettingsPage() {
     aiPreferences: DEFAULT_AI_PREFERENCES,
     cloudProviders: [],
     cloudProvidersStatus: 'idle',
+    cloudProvidersError: '',
     reminderSettings: DEFAULT_REMINDER_SETTINGS,
     aiModels: [],
     aiStatus: 'idle',
@@ -95,12 +96,19 @@ export default function SettingsPage() {
     return () => window.removeEventListener('swm:workspace-synced', load);
   }, []);
 
-  useEffect(() => {
+  const loadCloudProviders = async () => {
     if (!auth.workspace?.id) return;
-    setState((current) => ({ ...current, cloudProvidersStatus: 'loading' }));
-    getCloudAIStatus(auth.workspace.id)
-      .then(({ providers }) => setState((current) => ({ ...current, cloudProviders: providers || [], cloudProvidersStatus: 'ready' })))
-      .catch(() => setState((current) => ({ ...current, cloudProviders: [], cloudProvidersStatus: 'error' })));
+    setState((current) => ({ ...current, cloudProvidersStatus: 'loading', cloudProvidersError: '' }));
+    try {
+      const { providers } = await getCloudAIStatus(auth.workspace.id);
+      setState((current) => ({ ...current, cloudProviders: providers || [], cloudProvidersStatus: 'ready', cloudProvidersError: '' }));
+    } catch (error) {
+      setState((current) => ({ ...current, cloudProviders: [], cloudProvidersStatus: 'error', cloudProvidersError: error.message || 'Cloud provider availability could not be loaded.' }));
+    }
+  };
+
+  useEffect(() => {
+    loadCloudProviders();
   }, [auth.workspace?.id]);
 
   const exportData = async () => {
@@ -399,7 +407,7 @@ export default function SettingsPage() {
             {typeof window !== 'undefined' && window.location.hostname.endsWith('github.io') && <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">On the hosted app, start LM Studio locally with <code className="font-mono font-semibold">lms server start --cors</code>, load a model, then test this connection. Your browser may ask for permission to access localhost.</p>}
           </> : <div className="mt-4 grid gap-3 sm:grid-cols-2">
             {state.cloudProvidersStatus === 'loading' && <div className="flex items-center gap-2 rounded-md border border-cyan-200 bg-cyan-50 px-3 py-3 text-sm text-cyan-900 sm:col-span-2"><LoaderCircle className="h-4 w-4 animate-spin" />Checking available cloud providers...</div>}
-            {state.cloudProvidersStatus === 'error' && <div className="rounded-md border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-800 sm:col-span-2">Cloud provider availability could not be loaded. Refresh or sign in again.</div>}
+            {state.cloudProvidersStatus === 'error' && <div className="flex flex-col gap-3 rounded-md border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-800 sm:col-span-2 sm:flex-row sm:items-center sm:justify-between"><span>{state.cloudProvidersError}</span><button type="button" onClick={loadCloudProviders} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-md border border-red-300 bg-white px-3 text-xs font-semibold text-red-800 hover:bg-red-100"><RefreshCw className="h-4 w-4" />Retry connection</button></div>}
             {['gemini', 'openai'].map((providerId) => {
               const provider = state.cloudProviders.find((item) => item.provider === providerId);
               const selected = state.aiPreferences.cloudProvider === providerId;
