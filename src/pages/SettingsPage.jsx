@@ -202,8 +202,8 @@ export default function SettingsPage() {
 
   const saveOfficerDetails = async (officer) => {
     try {
-      await saveOfficer(officer);
-      showToast(officer.id ? 'Officer updated.' : 'Officer added.');
+      const saved = await saveOfficer(officer);
+      showToast(saved.reusedExisting ? 'That officer is already in the directory.' : officer.id ? 'Officer updated.' : 'Officer added.');
       setState((current) => ({ ...current, officerForm: null }));
       await load();
     } catch (error) {

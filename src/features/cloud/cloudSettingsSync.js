@@ -42,7 +42,7 @@ export function queueCloudSettingsUpsert(settings, scope = 'all') {
     .catch((error) => current.onStatus?.({ status: 'error', error: error.message || 'Unable to sync settings.' }));
 }
 
-export async function syncWorkspaceSettings({ workspaceId, userId, canEdit = true, onStatus }) {
+export async function syncWorkspaceSettings({ workspaceId, userId, canEdit = true, officerIdMap = {}, onStatus }) {
   configureCloudSettingsSync({ workspaceId, userId, canEdit, onStatus });
   onStatus?.({ status: 'syncing' });
   try {
@@ -85,6 +85,21 @@ export async function syncWorkspaceSettings({ workspaceId, userId, canEdit = tru
       merged.userSettingsUpdatedAt = updatedAt;
     }
 
+    const selectedSignatories = merged.officeProfile?.authorizedSignatoryIds || [];
+    const remappedSignatories = [...new Set(selectedSignatories.map((id) => officerIdMap[id] || id))];
+    const signatoriesChanged = JSON.stringify(selectedSignatories) !== JSON.stringify(remappedSignatories);
+    if (signatoriesChanged) {
+      merged.officeProfile = { ...merged.officeProfile, authorizedSignatoryIds: remappedSignatories };
+      merged.workspaceSettingsUpdatedAt = new Date().toISOString();
+      if (canEdit) {
+        await upsertCloudWorkspaceSettings({
+          workspaceId,
+          userId,
+          payload: workspacePayload(merged),
+          updatedAt: merged.workspaceSettingsUpdatedAt,
+        });
+      }
+    }
     merged = { ...merged, id: SETTINGS_ID, updatedAt: new Date().toISOString() };
     await db.settings.put(merged);
     const result = { syncedAt: new Date().toISOString() };

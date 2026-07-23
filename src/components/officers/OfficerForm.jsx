@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { CheckCircle2, LoaderCircle, Save, X } from 'lucide-react';
 
 export default function OfficerForm({ initialOfficer, onSubmit, onCancel }) {
   const [officer, setOfficer] = useState(initialOfficer || { name: '', designation: '', telephone: '', email: '', section: '', role: 'Other', isActive: true });
   const [error, setError] = useState('');
   const [saveStatus, setSaveStatus] = useState('idle');
+  const submitting = useRef(false);
   const update = (field, value) => setOfficer((current) => ({ ...current, [field]: value }));
   const submit = async (event) => {
     event.preventDefault();
@@ -12,6 +13,8 @@ export default function OfficerForm({ initialOfficer, onSubmit, onCancel }) {
       setError('Name is required.');
       return;
     }
+    if (submitting.current) return;
+    submitting.current = true;
     setSaveStatus('saving');
     try {
       await onSubmit(officer);
@@ -19,6 +22,8 @@ export default function OfficerForm({ initialOfficer, onSubmit, onCancel }) {
     } catch (saveError) {
       setError(saveError.message || 'Unable to save officer.');
       setSaveStatus('idle');
+    } finally {
+      submitting.current = false;
     }
   };
   return (

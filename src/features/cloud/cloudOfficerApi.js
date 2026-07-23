@@ -47,3 +47,13 @@ export async function upsertCloudOfficer({ workspaceId, userId, officer }) {
 
   if (insertError) throw insertError;
 }
+
+export async function deleteCloudOfficer({ workspaceId, officerId }) {
+  const { error } = await requireClient()
+    .from('cloud_officers')
+    .delete()
+    .eq('workspace_id', workspaceId)
+    .eq('id', officerId);
+
+  if (error) throw error;
+}

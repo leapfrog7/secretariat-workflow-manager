@@ -7,13 +7,17 @@ import { configureCloudOfficerSync, syncWorkspaceOfficers } from '../cloud/cloud
 import { configureCloudIssueItemSync, syncWorkspaceIssueItems } from '../cloud/cloudIssueItemSync';
 import { configureCloudSettingsSync, syncWorkspaceSettings } from '../cloud/cloudSettingsSync';
 import { ensurePlatformWorkspace, listMyWorkspaces } from '../cloud/workspaceApi';
+import { commitLocalWorkspaceScope, prepareLocalWorkspaceScope } from '../cloud/localWorkspaceScope';
 
 async function synchronizeWorkspace(configuration) {
+  await prepareLocalWorkspaceScope(configuration);
   const officers = await syncWorkspaceOfficers(configuration);
-  const issues = await syncWorkspaceIssues(configuration);
-  const items = await syncWorkspaceIssueItems(configuration);
-  const settings = await syncWorkspaceSettings(configuration);
+  const linkedConfiguration = { ...configuration, officerIdMap: officers.idMap };
+  const issues = await syncWorkspaceIssues(linkedConfiguration);
+  const items = await syncWorkspaceIssueItems(linkedConfiguration);
+  const settings = await syncWorkspaceSettings(linkedConfiguration);
   const result = { officers, issues, items, settings, syncedAt: new Date().toISOString() };
+  commitLocalWorkspaceScope(configuration);
   if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('swm:workspace-synced', { detail: result }));
   return result;
 }
@@ -77,10 +81,11 @@ export default function ConfiguredAuthProvider({ children }) {
         const workspace = workspaces[0] || null;
         if (workspace) {
           const canEdit = workspace.membership?.role !== 'viewer';
+          const canManageOfficerDirectory = workspace.membership?.role === 'workspace_admin';
           const onStatus = (syncState) => {
             if (active) setWorkspaceState((current) => ({ ...current, syncState: { error: '', syncedAt: '', ...syncState } }));
           };
-          await synchronizeWorkspace({ workspaceId: workspace.id, userId, canEdit, onStatus });
+          await synchronizeWorkspace({ workspaceId: workspace.id, userId, canEdit, canManageOfficerDirectory, onStatus });
           if (!active) return;
         }
         if (active) setWorkspaceState((current) => ({ ...current, userId, workspaces, workspace, loading: false, error: '' }));
@@ -112,7 +117,7 @@ export default function ConfiguredAuthProvider({ children }) {
     const workspace = workspaces[0] || null;
     setWorkspaceState((current) => ({ ...current, userId, workspaces, workspace, error: '' }));
     if (workspace) {
-      const configuration = { workspaceId: workspace.id, userId, canEdit: workspace.membership?.role !== 'viewer', onStatus: (syncState) => setWorkspaceState((current) => ({ ...current, syncState: { error: '', syncedAt: '', ...syncState } })) };
+      const configuration = { workspaceId: workspace.id, userId, canEdit: workspace.membership?.role !== 'viewer', canManageOfficerDirectory: workspace.membership?.role === 'workspace_admin', onStatus: (syncState) => setWorkspaceState((current) => ({ ...current, syncState: { error: '', syncedAt: '', ...syncState } })) };
       configureCloudIssueSync(configuration);
       configureCloudOfficerSync(configuration);
       configureCloudIssueItemSync(configuration);
@@ -128,6 +133,7 @@ export default function ConfiguredAuthProvider({ children }) {
       workspaceId: workspace.id,
       userId,
       canEdit: workspace.membership?.role !== 'viewer',
+      canManageOfficerDirectory: workspace.membership?.role === 'workspace_admin',
       onStatus: (syncState) => setWorkspaceState((current) => ({ ...current, syncState: { error: '', syncedAt: '', ...syncState } })),
     };
     return synchronizeWorkspace(configuration);
