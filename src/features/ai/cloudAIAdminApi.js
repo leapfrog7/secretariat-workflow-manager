@@ -2,7 +2,7 @@ import { cloudClient } from '../auth/cloudClient';
 
 export const CLOUD_AI_PROVIDERS = [
   { id: 'openai', label: 'OpenAI', defaultModel: 'gpt-5.6-terra' },
-  { id: 'gemini', label: 'Gemini', defaultModel: 'gemini-2.5-flash' },
+  { id: 'gemini', label: 'Gemini', defaultModel: 'gemini-3.6-flash' },
 ];
 
 function requireClient() {

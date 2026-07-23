@@ -220,7 +220,7 @@ Trusting the GitHub Pages origin does not include the repository path because an
 
 ## AI Drafting
 
-Users choose **Local LLM** or **Cloud API** under **Settings > AI drafting**. A workspace administrator must enable OpenAI or Gemini first. Gemini users choose a task level instead of a raw model name: **Simple** routes to Gemini 2.5 Flash-Lite, **Moderate** (the default) routes to Gemini 2.5 Flash, and **Hard** routes to Gemini 2.5 Pro. Every cloud draft and selected-paragraph regeneration displays a confirmation naming the provider and the official context that will leave the workspace.
+Users choose **Local LLM** or **Cloud API** under **Settings > AI drafting**. A workspace administrator must enable OpenAI or Gemini first. Gemini users choose a task level instead of a raw model name: **Simple** uses Gemini 3.5 Flash-Lite with minimal reasoning, while **Moderate** (the default) and **Hard** use Gemini 3.6 Flash with medium or high reasoning. Supported fallback models are attempted automatically when Google retires a configured model. Every cloud draft and selected-paragraph regeneration displays a confirmation naming the provider and the official context that will leave the workspace.
 
 Cloud calls run through `api/ai/generate.js`. The browser supplies its Neon Auth JWT; Neon atomically checks membership, provider policy, per-user overrides and limits before Vercel reads the server-side provider key. AI logs retain provider, model, operation, token counts, estimated cost and status, but not prompts, official context or generated text.
 
