@@ -7,6 +7,11 @@ function apiUrl(path) {
   return `${base}${path}`;
 }
 
+function localApiBase() {
+  const base = String(import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '');
+  return /^https?:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?$/i.test(base) ? base : '';
+}
+
 async function authToken() {
   if (!cloudClient) throw new Error('Sign in to use Cloud AI.');
   const sessionResult = await cloudClient.auth.getSession({ query: { disableCookieCache: true } });
@@ -29,6 +34,10 @@ async function cloudRequest(path, options = {}) {
     });
   } catch (error) {
     if (error.name === 'AbortError') throw error;
+    const localBase = localApiBase();
+    if (localBase) {
+      throw new Error(`Cannot reach the local Cloud AI API at ${localBase}. Restart development with "npm run dev".`);
+    }
     throw new Error('Cannot reach the Cloud AI service. Confirm that the Vercel API is deployed.');
   }
   const payload = await response.json().catch(() => ({}));

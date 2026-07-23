@@ -148,7 +148,19 @@ Start the development server:
 npm run dev
 ```
 
-Vite serves the application locally and proxies `/lmstudio` to `http://127.0.0.1:1234`.
+This starts both:
+
+- the Vite application, normally at `http://127.0.0.1:5173`
+- the protected Cloud AI API at `http://127.0.0.1:3000`
+
+The API process reads server-only credentials from `.env.local` and `.env.vercel.local`. Vite also proxies `/lmstudio` to `http://127.0.0.1:1234`.
+
+To run only one side while debugging:
+
+```powershell
+npm run dev:web
+npm run api:dev
+```
 
 ## Database Setup
 

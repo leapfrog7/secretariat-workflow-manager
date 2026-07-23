@@ -8,6 +8,16 @@ const handlers = new Map([
   ['/api/ai/status', statusHandler],
 ]);
 
+function allowDevelopmentOrigin(request, response) {
+  const origin = request.headers.origin || '';
+  if (/^https?:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?$/i.test(origin)) {
+    response.setHeader('Access-Control-Allow-Origin', origin);
+    response.setHeader('Vary', 'Origin');
+    response.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+    response.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  }
+}
+
 function responseAdapter(response) {
   response.status = (statusCode) => {
     response.statusCode = statusCode;
@@ -29,7 +39,19 @@ async function readBody(request) {
 }
 
 const server = createServer(async (request, response) => {
+  allowDevelopmentOrigin(request, response);
+  if (request.method === 'OPTIONS') {
+    response.writeHead(204);
+    response.end();
+    return;
+  }
+
   const url = new URL(request.url, `http://${request.headers.host}`);
+  if (url.pathname === '/api/health') {
+    response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    response.end(JSON.stringify({ status: 'ok' }));
+    return;
+  }
   const handler = handlers.get(url.pathname);
   if (!handler) {
     response.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
@@ -50,4 +72,13 @@ const server = createServer(async (request, response) => {
 
 server.listen(port, '127.0.0.1', () => {
   console.log(`Local protected API listening at http://127.0.0.1:${port}`);
+});
+
+server.on('error', (error) => {
+  if (error.code === 'EADDRINUSE') {
+    console.error(`Local API port ${port} is already in use. Stop the other process or set LOCAL_API_PORT to another port.`);
+  } else {
+    console.error('Local protected API failed to start.', error);
+  }
+  process.exitCode = 1;
 });
