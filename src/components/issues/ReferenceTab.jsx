@@ -3,7 +3,7 @@ import { BookOpen, CheckCircle2, LoaderCircle, Pencil, Plus, Save, Trash2, X } f
 import { formatDisplayDate } from '../../utils/dateUtils';
 import { normalizeReference, validateReference } from '../../utils/referenceUtils';
 
-export default function ReferenceTab({ issueId, references, onSave, onDelete }) {
+export default function ReferenceTab({ issueId, references, readOnly = false, onSave, onDelete }) {
   const [form, setForm] = useState(null);
   return (
     <div className="space-y-4">
@@ -12,7 +12,7 @@ export default function ReferenceTab({ issueId, references, onSave, onDelete }) 
           <h2 className="text-base font-semibold text-[#17333b]">References</h2>
           <p className="mt-1 text-sm text-slate-600">Capture the rules, orders and authorities relevant to this Issue.</p>
         </div>
-        {!form && <button type="button" onClick={() => setForm({ id: null })} className="inline-flex h-10 items-center gap-2 rounded-md bg-teal-700 px-3 text-sm font-semibold text-white shadow-sm hover:bg-teal-800"><Plus className="h-4 w-4" />Add reference</button>}
+        {!readOnly && !form && <button type="button" onClick={() => setForm({ id: null })} className="inline-flex h-10 items-center gap-2 rounded-md bg-teal-700 px-3 text-sm font-semibold text-white shadow-sm hover:bg-teal-800"><Plus className="h-4 w-4" />Add reference</button>}
       </div>
 
       {form && <ReferenceForm issueId={issueId} initialReference={form.id ? references.find((item) => item.id === form.id) : null} onSave={onSave} onComplete={() => setForm(null)} onCancel={() => setForm(null)} />}
@@ -25,10 +25,10 @@ export default function ReferenceTab({ issueId, references, onSave, onDelete }) 
                 <h3 className="break-words text-sm font-semibold text-[#17333b]">{reference.citation}</h3>
                 {reference.referenceDate && <p className="mt-1 text-xs font-medium text-slate-500">Dated {formatDisplayDate(reference.referenceDate)}</p>}
               </div>
-              <div className="flex shrink-0 gap-1">
+              {!readOnly && <div className="flex shrink-0 gap-1">
                 <IconButton label="Edit reference" onClick={() => setForm({ id: reference.id })}><Pencil className="h-4 w-4" /></IconButton>
                 <IconButton label="Delete reference" danger onClick={() => onDelete(reference)}><Trash2 className="h-4 w-4" /></IconButton>
-              </div>
+              </div>}
             </div>
             {reference.notes && <p className="mt-3 whitespace-pre-wrap border-t border-[#e3ebe9] pt-3 text-sm leading-6 text-slate-700">{reference.notes}</p>}
           </article>

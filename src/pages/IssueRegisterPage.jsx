@@ -17,6 +17,7 @@ import { useToast } from '../components/common/ToastProvider';
 import { isScheduledIssue } from '../utils/scheduleUtils';
 import { getAllCommunications } from '../db/communicationRepository';
 import { getCommunicationSearchContext } from '../utils/communicationUtils';
+import { useAuth } from '../features/auth/AuthContext';
 
 const defaultFilters = {
   query: '',
@@ -26,6 +27,7 @@ const defaultFilters = {
 };
 
 export default function IssueRegisterPage() {
+  const auth = useAuth();
   const { showToast } = useToast();
   const [data, setData] = useState({ loading: true, error: '', issues: [], officers: [], communications: [] });
   const [filters, setFilters] = useState(defaultFilters);
@@ -160,8 +162,9 @@ export default function IssueRegisterPage() {
         title="Issues"
         description="Search the Issue register and monitor ownership, age and deadlines."
       />
+      {!auth.canEdit && <div className="mb-4 rounded-md border border-cyan-200 bg-cyan-50 px-3 py-3 text-sm text-cyan-950">You have viewing access. Editing, archiving and deletion are unavailable.</div>}
       <div className="space-y-4">
-        <section className="surface grid divide-y divide-slate-200 overflow-hidden rounded-md sm:grid-cols-5 sm:divide-x sm:divide-y-0" aria-label="Issue summary">
+        <section className="surface grid grid-cols-2 divide-x divide-y divide-slate-200 overflow-hidden rounded-md sm:grid-cols-5 sm:divide-y-0" aria-label="Issue summary">
           <Metric label="Total Issues" value={summary.total} detail="Current register" icon={ClipboardList} tone="teal" />
           <Metric label="Pending" value={summary.pending} detail="Awaiting action" icon={CircleDashed} tone="slate" />
           <Metric label="Overdue" value={summary.overdue} detail="Past deadline" icon={AlertTriangle} tone="red" />
@@ -186,10 +189,10 @@ export default function IssueRegisterPage() {
           <EmptyState title={filters.archiveMode === 'Archived' ? 'No archived Issues' : filters.archiveMode === 'Scheduled' ? 'No scheduled Issues' : 'No matching Issues'} message={filters.archiveMode === 'Archived' ? 'Archived Issues will appear here and can be restored to the current register.' : filters.archiveMode === 'Scheduled' ? 'Completed Issues with a return date will wait here until they are due.' : 'Adjust the filters or create a new Issue.'} />
         ) : (
           <>
-            <IssueTable issues={filtered} officers={data.officers} registerMode={filters.archiveMode} workingId={workingId} onRestore={restore} onBringBack={bringBack} onArchive={archive} onDelete={setDeleteTarget} />
+            <IssueTable issues={filtered} officers={data.officers} registerMode={filters.archiveMode} workingId={workingId} canEdit={auth.canEdit} onRestore={restore} onBringBack={bringBack} onArchive={archive} onDelete={setDeleteTarget} />
             <div className="space-y-3 md:hidden">
               {filtered.map((issue) => (
-                <IssueCard key={issue.id} issue={issue} officers={data.officers} registerMode={filters.archiveMode} working={workingId === issue.id} onRestore={restore} onBringBack={bringBack} onArchive={archive} onDelete={setDeleteTarget} />
+                <IssueCard key={issue.id} issue={issue} officers={data.officers} registerMode={filters.archiveMode} working={workingId === issue.id} canEdit={auth.canEdit} onRestore={restore} onBringBack={bringBack} onArchive={archive} onDelete={setDeleteTarget} />
               ))}
             </div>
           </>
@@ -210,12 +213,12 @@ const metricTones = {
 
 function Metric({ label, value, detail, icon: Icon, tone }) {
   return (
-    <div className={`min-h-24 border-t-4 p-3.5 ${metricTones[tone]}`}>
+    <div className={`min-h-20 border-t-4 p-3 sm:min-h-24 sm:p-3.5 ${metricTones[tone]}`}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-2xl font-semibold tabular-nums text-[#17333b]">{value}</div>
-          <div className="mt-1 text-sm font-semibold">{label}</div>
-          <div className="mt-1 text-xs opacity-75">{detail}</div>
+          <div className="text-xl font-semibold tabular-nums text-[#17333b] sm:text-2xl">{value}</div>
+          <div className="mt-1 text-xs font-semibold sm:text-sm">{label}</div>
+          <div className="mt-1 hidden text-xs opacity-75 sm:block">{detail}</div>
         </div>
         <Icon className="h-5 w-5 shrink-0 opacity-80" aria-hidden="true" />
       </div>

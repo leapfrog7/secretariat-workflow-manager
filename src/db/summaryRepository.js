@@ -1,6 +1,6 @@
 import { db } from './database';
 import { normalizeIssueSummary, summariesMatch, validateIssueSummary } from '../utils/summaryUtils';
-import { queueCloudIssueItemUpsert } from '../features/cloud/cloudIssueItemSync';
+import { queueCloudIssueItemDelete, queueCloudIssueItemUpsert } from '../features/cloud/cloudIssueItemSync';
 
 export async function getSummaryVersions(issueId) {
   const summaries = await db.issueSummaries.where('issueId').equals(issueId).toArray();
@@ -39,4 +39,12 @@ export async function saveSummaryVersion(input) {
   });
   queueCloudIssueItemUpsert('summary', result);
   return result;
+}
+
+export async function deleteSummaryVersion(id) {
+  const summary = await db.issueSummaries.get(id);
+  if (!summary) return false;
+  await db.issueSummaries.delete(id);
+  queueCloudIssueItemDelete('summary', id);
+  return true;
 }

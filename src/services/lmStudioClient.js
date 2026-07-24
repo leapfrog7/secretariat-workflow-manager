@@ -5,6 +5,7 @@ export { COMMUNICATION_TYPES };
 
 export const GOVERNMENT_DRAFT_SYSTEM_PROMPT = 'Draft only the substantive body of an outgoing Government of India official communication for human review. The configured Ministry or Department is the sender and the named organization is the recipient; never reverse them. Every factual phrase must come from the supplied input. Prefer omission over elaboration, use the fewest necessary sentences, and state each request once. Never invent or infer facts, dates, recipients, rules, authorities, decisions, approvals, rationale, protocols, enclosures, availability, report contents, contact instructions, urgency, or distribution lists. Preserve eReceipt numbers and citations exactly. Output body paragraphs only. Do not output headings, labels, subject, salutation, close, signature, recipient, Markdown, preface, explanation, or drafting commentary.';
 export const PARAGRAPH_REWRITE_SYSTEM_PROMPT = 'Rewrite only the selected passage from an outgoing Government of India communication. Preserve its meaning, factual content, dates, names, eReceipt numbers, citations, sender, recipient and level of formality. Do not add facts, headings, signatures, explanations, Markdown or surrounding paragraphs. Return only the replacement passage.';
+export const RUNNING_SUMMARY_SYSTEM_PROMPT = 'Convert the supplied official notes into a concise factual running summary for Government work. Preserve material dates, names, file or eReceipt numbers, decisions, directions, rule citations, deadlines, pending actions and responsibility. Remove repetition, drafting discussion and non-material detail. Never invent facts or resolve uncertainty. Use short paragraphs, bullets and Markdown tables only where a table makes dates, responsibilities or status clearer. Return only the summary in Markdown.';
 
 export function normalizeLocalAISettings(input = {}) {
   return {
@@ -130,5 +131,32 @@ export async function regenerateLocalParagraph({ settings, fullDraft, selectedTe
     .replace(/```(?:text)?/gi, '')
     .trim();
   if (!text) throw new Error('LM Studio returned no replacement paragraph.');
+  return { text, model: payload.model_instance_id || config.model, stats: payload.stats || {} };
+}
+
+export async function summarizeLocalNotes({ settings, notes, issueTitle, signal }) {
+  const config = normalizeLocalAISettings(settings);
+  if (!config.model) throw new Error('Select a local model in Settings.');
+  if (!notes?.trim()) throw new Error('Add notes before asking AI to summarize them.');
+  const payload = await request(config.baseUrl, '/api/v1/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    signal,
+    body: JSON.stringify({
+      model: config.model,
+      system_prompt: RUNNING_SUMMARY_SYSTEM_PROMPT,
+      input: `ISSUE\n${issueTitle || 'Not specified'}\n\nSOURCE NOTES\n${notes}`,
+      temperature: 0.1,
+      stream: false,
+      store: false,
+    }),
+  });
+  const text = (payload.output || [])
+    .filter((item) => item.type === 'message' && item.content)
+    .map((item) => item.content)
+    .join('\n\n')
+    .replace(/```(?:markdown|md)?/gi, '')
+    .trim();
+  if (!text) throw new Error('LM Studio returned no summary text.');
   return { text, model: payload.model_instance_id || config.model, stats: payload.stats || {} };
 }

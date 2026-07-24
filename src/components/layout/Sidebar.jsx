@@ -13,7 +13,8 @@ const navItems = [
 export default function Sidebar() {
   const { pathname } = useLocation();
   const auth = useAuth();
-  const visibleItems = auth.isAdmin ? [...navItems, { label: 'Administration', to: '/admin', icon: UserRoundCog }] : navItems;
+  const permittedItems = auth.canEdit ? navItems : navItems.filter((item) => item.to !== '/issues/new');
+  const visibleItems = auth.isAdmin ? [...permittedItems, { label: 'Administration', to: '/admin', icon: UserRoundCog }] : permittedItems;
   return (
     <aside className="hidden w-60 shrink-0 border-r border-[#244750] bg-[#17333b] text-white md:block">
       <div className="border-b border-white/10 px-4 py-5">

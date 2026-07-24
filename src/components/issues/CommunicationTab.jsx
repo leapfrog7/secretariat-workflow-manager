@@ -3,7 +3,7 @@ import { CheckCircle2, FileText, LoaderCircle, MessageSquarePlus, Pencil, Save, 
 import { COMMUNICATION_TYPES, normalizeCommunication, validateCommunication } from '../../utils/communicationUtils';
 import { formatDisplayDate } from '../../utils/dateUtils';
 
-export default function CommunicationTab({ issueId, communications, onSave, onDelete }) {
+export default function CommunicationTab({ issueId, communications, readOnly = false, onSave, onDelete }) {
   const [form, setForm] = useState(null);
 
   return (
@@ -13,7 +13,7 @@ export default function CommunicationTab({ issueId, communications, onSave, onDe
           <h2 className="text-base font-semibold text-[#17333b]">Record of Communication</h2>
           <p className="mt-1 text-sm text-slate-600">Maintain the dated communication chain for this Issue.</p>
         </div>
-        {!form && (
+        {!readOnly && !form && (
           <button type="button" onClick={() => setForm({ id: null })} className="inline-flex h-10 items-center gap-2 rounded-md bg-teal-700 px-3 text-sm font-semibold text-white shadow-sm hover:bg-teal-800">
             <MessageSquarePlus className="h-4 w-4" aria-hidden="true" />
             Add communication
@@ -46,10 +46,10 @@ export default function CommunicationTab({ issueId, communications, onSave, onDe
                   <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">{communication.details}</p>
                   {hasSourceDetails(communication) && <SourceDetails communication={communication} />}
                 </div>
-                <div className="flex items-start gap-1">
+                {!readOnly && <div className="flex items-start gap-1">
                   <IconButton label="Edit communication" onClick={() => setForm({ id: communication.id })}><Pencil className="h-4 w-4" /></IconButton>
                   <IconButton label="Delete communication" danger onClick={() => onDelete(communication)}><Trash2 className="h-4 w-4" /></IconButton>
-                </div>
+                </div>}
               </li>
             ))}
           </ol>

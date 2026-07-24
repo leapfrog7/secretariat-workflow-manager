@@ -15,9 +15,7 @@ import ConfirmDialog from '../common/ConfirmDialog';
 import GeminiTaskLevelControl from '../ai/GeminiTaskLevelControl';
 import { getGeminiTaskLevel } from '../../../shared/cloudAIModels';
 
-const RECIPIENT_REQUIRED_TYPES = new Set(['Letter', 'D.O. Letter', 'Office Memorandum', 'Inter-Departmental Note', 'Notification', 'Press Communique / Note', 'Endorsement']);
-
-export default function AIContextPreview({ issue, assignedOfficer, officers, summary, communications, references, onSaveCommunication }) {
+export default function AIContextPreview({ issue, assignedOfficer, officers, summary, communications, references, readOnly = false, onSaveCommunication }) {
   const auth = useAuth();
   const [sourceTab, setSourceTab] = useState('Communications');
   const [selectedCommunicationIds, setSelectedCommunicationIds] = useState([]);
@@ -32,7 +30,7 @@ export default function AIContextPreview({ issue, assignedOfficer, officers, sum
   const [recipient, setRecipient] = useState({ name: '', designation: '', organization: '', address: '' });
   const [recipientRelationship, setRecipientRelationship] = useState(RECIPIENT_RELATIONSHIPS[0]);
   const [documentDetails, setDocumentDetails] = useState({ subject: issue.shortTitle || '', fileNumber: issue.eFileNumber || '', issueDate: '', salutation: '', copyTo: '' });
-  const [useDetailedContext, setUseDetailedContext] = useState(false);
+  const [useDetailedContext, setUseDetailedContext] = useState(true);
   const [instruction, setInstruction] = useState('');
   const [generation, setGeneration] = useState({ status: 'idle', text: '', error: '', model: '', stats: {}, draftId: '' });
   const [draftCopyStatus, setDraftCopyStatus] = useState('idle');
@@ -61,7 +59,7 @@ export default function AIContextPreview({ issue, assignedOfficer, officers, sum
     setRecipient({ name: '', designation: '', organization: '', address: '' });
     setRecipientRelationship(RECIPIENT_RELATIONSHIPS[0]);
     setDocumentDetails({ subject: issue.shortTitle || '', fileNumber: issue.eFileNumber || '', issueDate: '', salutation: '', copyTo: '' });
-    setUseDetailedContext(false);
+    setUseDetailedContext(true);
   }, [issue.id]);
 
   useEffect(() => {
@@ -153,14 +151,6 @@ export default function AIContextPreview({ issue, assignedOfficer, officers, sum
       setGeneration({ status: 'error', text: '', error: 'Add the issuing Ministry or Department in Settings before generating official communication.', model: '', stats: {} });
       return;
     }
-    if (RECIPIENT_REQUIRED_TYPES.has(communicationType) && !recipient.organization.trim() && !recipient.name.trim()) {
-      setGeneration({ status: 'error', text: '', error: 'Enter the recipient organization or addressee so the model knows who the Ministry is writing to.', model: '', stats: {} });
-      return;
-    }
-    if (!instruction.trim()) {
-      setGeneration({ status: 'error', text: '', error: 'Enter the purpose or requested action. A precise drafting brief keeps the local model from guessing.', model: '', stats: {} });
-      return;
-    }
     if (!context.text) {
       setGeneration({ status: 'error', text: '', error: 'Select some Issue context before generating a draft.', model: '', stats: {} });
       return;
@@ -191,7 +181,7 @@ export default function AIContextPreview({ issue, assignedOfficer, officers, sum
         recipientRelationship,
         draftMode: useDetailedContext ? 'detailed' : 'conservative',
         documentDetails,
-        instruction,
+        instruction: instruction.trim() || `Prepare an appropriate ${communicationType} using the selected Issue context. Do not invent missing addressee details or requested actions.`,
         signal: controller.signal,
       });
       setGeneration({ status: 'complete', text: result.text, error: '', model: result.model, stats: result.stats, draftId: '' });
@@ -367,7 +357,12 @@ export default function AIContextPreview({ issue, assignedOfficer, officers, sum
         <div className={`rounded-md border px-2.5 py-1.5 text-xs font-semibold ${aiPreferences.mode === 'cloud' ? 'border-cyan-200 bg-cyan-50 text-cyan-900' : 'border-emerald-200 bg-emerald-50 text-emerald-800'}`}>{aiPreferences.mode === 'cloud' ? `Cloud API - ${providerLabel}` : 'Local preview only'}</div>
       </div>
 
-      <div className="grid lg:grid-cols-[360px_minmax(0,1fr)]">
+      <details>
+        <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 border-b border-[#e3ebe9] bg-white px-4 py-3 text-sm font-semibold text-slate-700 sm:px-5">
+          <span>Review context and sources</span>
+          <span className="text-xs font-normal text-slate-500">{context.wordCount} words · {context.selectedSourceCount} selected</span>
+        </summary>
+        <div className="grid lg:grid-cols-[360px_minmax(0,1fr)]">
         <aside className="border-b border-[#dce6e4] lg:border-b-0 lg:border-r">
           <div className="border-b border-[#e3ebe9] px-4 py-4">
             <h3 className="text-sm font-semibold text-slate-800">Core context</h3>
@@ -416,7 +411,8 @@ export default function AIContextPreview({ issue, assignedOfficer, officers, sum
           </div>
           <pre className="min-h-[520px] whitespace-pre-wrap break-words px-4 py-5 font-sans text-sm leading-6 text-slate-700 sm:px-6">{context.text || 'Select at least one context section or source.'}</pre>
         </div>
-      </div>
+        </div>
+      </details>
 
       <div className="border-t border-[#dce6e4]">
         <div className="flex flex-wrap items-start justify-between gap-3 bg-[#f7faf9] px-4 py-4 sm:px-5">
@@ -439,9 +435,9 @@ export default function AIContextPreview({ issue, assignedOfficer, officers, sum
           <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Communication type</span><select value={communicationType} onChange={(event) => { setCommunicationType(event.target.value); markDraftDirty(); }} disabled={generation.status === 'generating'} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-100">{COMMUNICATION_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}</select></label>
           <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Authorized signatory</span><select value={signatoryId} onChange={(event) => { setSignatoryId(event.target.value); markDraftDirty(); }} disabled={generation.status === 'generating' || !authorizedSignatories.length} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-100"><option value="">Select signatory</option>{authorizedSignatories.map((officer) => <option key={officer.id} value={officer.id}>{officer.name}{officer.designation ? ` - ${officer.designation}` : ''}</option>)}</select></label>
           <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Recipient relationship</span><select value={recipientRelationship} onChange={(event) => { setRecipientRelationship(event.target.value); markDraftDirty(); }} disabled={generation.status === 'generating'} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-100">{RECIPIENT_RELATIONSHIPS.map((relationship) => <option key={relationship} value={relationship}>{relationship}</option>)}</select></label>
-          <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Recipient organization {RECIPIENT_REQUIRED_TYPES.has(communicationType) && <span className="text-red-700">*</span>}</span><input value={recipient.organization} onChange={(event) => updateRecipient('organization', event.target.value)} disabled={generation.status === 'generating'} placeholder="Example: Department of Legal Affairs" className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-100" /></label>
-          <label className="block sm:col-span-2"><span className="mb-1 block text-sm font-medium text-slate-700">Purpose / requested action <span className="text-red-700">*</span></span><textarea rows={3} value={instruction} onChange={(event) => { setInstruction(event.target.value); markDraftDirty(); }} disabled={generation.status === 'generating'} placeholder="Example: Request comments on the proposed scheme by 31 July 2026, referring to eReceipt 12345." className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm leading-5 text-slate-900 disabled:bg-slate-100" /><span className="mt-1 block text-xs text-slate-500">State who should do what, and by when. This is the model's primary drafting brief.</span></label>
-          <label className="flex items-start gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-3 text-sm text-slate-700 sm:col-span-2"><input type="checkbox" checked={useDetailedContext} onChange={(event) => setUseDetailedContext(event.target.checked)} disabled={generation.status === 'generating'} className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-teal-700" /><span><span className="block font-medium">Use selected Issue context in the body</span><span className="mt-0.5 block text-xs leading-5 text-slate-500">Leave off for a concise purpose-led draft. Enable when the communication must draw facts from the running summary, communications, or references selected above.</span></span></label>
+          <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Recipient organization <span className="font-normal text-slate-500">(optional)</span></span><input value={recipient.organization} onChange={(event) => updateRecipient('organization', event.target.value)} disabled={generation.status === 'generating'} placeholder="Example: Department of Legal Affairs" className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-100" /></label>
+          <label className="block sm:col-span-2"><span className="mb-1 block text-sm font-medium text-slate-700">Purpose / requested action <span className="font-normal text-slate-500">(optional)</span></span><textarea rows={2} value={instruction} onChange={(event) => { setInstruction(event.target.value); markDraftDirty(); }} disabled={generation.status === 'generating'} placeholder="Add a specific action or deadline when the running summary does not make it clear." className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm leading-5 text-slate-900 disabled:bg-slate-100" /></label>
+          <label className="flex items-start gap-2 rounded-md border border-teal-200 bg-teal-50 px-3 py-3 text-sm text-slate-700 sm:col-span-2"><input type="checkbox" checked={useDetailedContext} onChange={(event) => setUseDetailedContext(event.target.checked)} disabled={generation.status === 'generating'} className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-teal-700" /><span><span className="block font-medium">Use selected Issue context in the body</span><span className="mt-0.5 block text-xs leading-5 text-slate-500">Enabled by default so the draft can use the running summary and selected records.</span></span></label>
           <details className="rounded-md border border-slate-200 bg-slate-50 sm:col-span-2">
             <summary className="cursor-pointer px-3 py-3 text-sm font-semibold text-slate-700">Document and addressee details <span className="font-normal text-slate-500">(optional)</span></summary>
             <div className="grid gap-3 border-t border-slate-200 px-3 py-3 sm:grid-cols-2">
@@ -489,7 +485,7 @@ export default function AIContextPreview({ issue, assignedOfficer, officers, sum
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <div><h3 className="text-sm font-semibold text-[#17333b]">Generated draft</h3><p className="mt-1 text-xs text-slate-500">{generation.model}{generation.stats.tokens_per_second ? ` - ${generation.stats.tokens_per_second.toFixed(1)} tokens/second` : ''}</p></div>
               <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={saveDraftChanges} disabled={!generation.text.trim() || draftSaveStatus === 'saving' || draftSaveStatus === 'saved'} className={`inline-flex h-9 min-w-28 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold text-white disabled:bg-slate-300 ${draftSaveStatus === 'saved' ? 'bg-emerald-700' : draftSaveStatus === 'error' ? 'bg-red-700' : 'bg-cyan-700 hover:bg-cyan-800'}`}>{draftSaveStatus === 'saving' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : draftSaveStatus === 'saved' ? <CheckCheck className="h-4 w-4" /> : <Save className="h-4 w-4" />}{draftSaveStatus === 'saving' ? 'Saving...' : draftSaveStatus === 'saved' ? `Saved v${currentSavedDraft?.version || ''}` : draftSaveStatus === 'error' ? 'Save failed' : 'Save version'}</button>
+                {!readOnly && <button type="button" onClick={saveDraftChanges} disabled={!generation.text.trim() || draftSaveStatus === 'saving' || draftSaveStatus === 'saved'} className={`inline-flex h-9 min-w-28 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold text-white disabled:bg-slate-300 ${draftSaveStatus === 'saved' ? 'bg-emerald-700' : draftSaveStatus === 'error' ? 'bg-red-700' : 'bg-cyan-700 hover:bg-cyan-800'}`}>{draftSaveStatus === 'saving' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : draftSaveStatus === 'saved' ? <CheckCheck className="h-4 w-4" /> : <Save className="h-4 w-4" />}{draftSaveStatus === 'saving' ? 'Saving...' : draftSaveStatus === 'saved' ? `Saved v${currentSavedDraft?.version || ''}` : draftSaveStatus === 'error' ? 'Save failed' : 'Save version'}</button>}
                 <button type="button" onClick={exportDraft} className="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"><Download className="h-4 w-4" />Word-compatible</button>
                 <button type="button" onClick={copyDraft} className={`inline-flex h-9 min-w-28 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold text-white ${draftCopyStatus === 'copied' ? 'bg-emerald-700' : draftCopyStatus === 'error' ? 'bg-red-700' : 'bg-teal-700 hover:bg-teal-800'}`}>{draftCopyStatus === 'copied' ? <Check className="h-4 w-4" /> : draftCopyStatus === 'error' ? <X className="h-4 w-4" /> : <Clipboard className="h-4 w-4" />}{draftCopyStatus === 'copied' ? 'Copied' : draftCopyStatus === 'error' ? 'Copy failed' : 'Copy draft'}</button>
               </div>
@@ -499,7 +495,7 @@ export default function AIContextPreview({ issue, assignedOfficer, officers, sum
               <div><p className="text-xs font-semibold text-slate-700">Draft tools</p><p className="mt-0.5 text-xs text-slate-500">Select one paragraph before regenerating. Save the final text before recording it as outgoing.</p></div>
               <div className="flex flex-wrap gap-2">
                 <button type="button" onClick={() => regenerateSelection()} disabled={paragraphStatus.status === 'regenerating' || selection.start === selection.end} className="inline-flex h-9 items-center gap-2 rounded-md border border-cyan-200 bg-cyan-50 px-3 text-xs font-semibold text-cyan-900 hover:bg-cyan-100 disabled:cursor-not-allowed disabled:opacity-50">{paragraphStatus.status === 'regenerating' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}{paragraphStatus.status === 'regenerating' ? 'Regenerating...' : 'Regenerate selection'}</button>
-                <button type="button" onClick={recordOutgoingCommunication} disabled={!currentSavedDraft || draftSaveStatus === 'dirty' || recordStatus === 'saving' || Boolean(recordedCommunication) || recordStatus === 'recorded'} className="inline-flex h-9 items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 text-xs font-semibold text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50">{recordStatus === 'saving' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <FileOutput className="h-4 w-4" />}{recordedCommunication || recordStatus === 'recorded' ? 'Recorded outgoing' : recordStatus === 'saving' ? 'Recording...' : 'Record outgoing'}</button>
+                {!readOnly && <button type="button" onClick={recordOutgoingCommunication} disabled={!currentSavedDraft || draftSaveStatus === 'dirty' || recordStatus === 'saving' || Boolean(recordedCommunication) || recordStatus === 'recorded'} className="inline-flex h-9 items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 text-xs font-semibold text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50">{recordStatus === 'saving' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <FileOutput className="h-4 w-4" />}{recordedCommunication || recordStatus === 'recorded' ? 'Recorded outgoing' : recordStatus === 'saving' ? 'Recording...' : 'Record outgoing'}</button>}
               </div>
             </div>
             {paragraphStatus.error && <p className="mt-2 text-xs text-red-700">{paragraphStatus.error}</p>}

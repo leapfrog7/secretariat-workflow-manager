@@ -6,7 +6,7 @@ import { formatDisplayDate, getIssueAgeDays } from '../../utils/dateUtils';
 import { isScheduledIssue } from '../../utils/scheduleUtils';
 import SourceSearchMatch from './SourceSearchMatch';
 
-export default function IssueCard({ issue, officers = [], working = false, onRestore, onBringBack, onArchive, onDelete }) {
+export default function IssueCard({ issue, officers = [], working = false, canEdit = true, onRestore, onBringBack, onArchive, onDelete }) {
   const officer = officers.find((item) => item.id === issue.assignedOfficerId);
   const ageDays = getIssueAgeDays(issue);
   const scheduled = isScheduledIssue(issue);
@@ -43,14 +43,14 @@ export default function IssueCard({ issue, officers = [], working = false, onRes
         </div>
         {scheduled && <div><dt className="font-medium text-slate-500">Returns</dt><dd>{formatDisplayDate(issue.nextAppearanceDate)}</dd></div>}
       </dl>
-      <div className="mt-4 flex min-h-10 items-center justify-end gap-1 border-t border-[#e3ebe9] pt-3">
+      {canEdit && <div className="mt-4 flex min-h-10 items-center justify-end gap-1 border-t border-[#e3ebe9] pt-3">
         {working ? <span className="flex items-center gap-2 text-xs font-semibold text-cyan-800" role="status"><LoaderCircle className="h-4 w-4 animate-spin" />Updating Issue...</span> : <>
           {issue.isArchived && <CardAction label="Restore Issue" onClick={() => onRestore(issue)}><RotateCcw className="h-4 w-4" /></CardAction>}
           {scheduled && <CardAction label="Bring back now" onClick={() => onBringBack(issue)}><RotateCcw className="h-4 w-4" /></CardAction>}
           {!issue.isArchived && <CardAction label="Archive Issue" onClick={() => onArchive(issue)}><Archive className="h-4 w-4" /></CardAction>}
           <CardAction label="Delete Issue permanently" danger onClick={() => onDelete(issue)}><Trash2 className="h-4 w-4" /></CardAction>
         </>}
-      </div>
+      </div>}
     </article>
   );
 }

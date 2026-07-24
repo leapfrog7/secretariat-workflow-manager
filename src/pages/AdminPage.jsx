@@ -171,7 +171,7 @@ export default function AdminPage() {
                   <div className="min-w-0"><p className="truncate text-sm font-semibold text-slate-900">{profile.display_name || 'Unnamed user'} {isSelf && <span className="font-normal text-slate-500">(you)</span>}</p><p className="mt-1 truncate text-xs text-slate-500">{profile.email}</p></div>
                   <select aria-label={`Role for ${profile.email}`} value={profile.role} disabled={saving || isSelf} onChange={(event) => changeAccess(profile, profile.status, event.target.value)} className="h-9 rounded-md border border-slate-300 bg-white px-2 text-xs"><option value="user">User</option><option value="platform_admin">Platform admin</option></select>
                   <AccessStatus status={profile.status} />
-                  <select aria-label={`Workspace access for ${profile.email}`} value={membershipValue} disabled={saving || isSelf || profile.status !== 'active'} onChange={(event) => changeMembership(profile, event.target.value)} className="h-9 rounded-md border border-slate-300 bg-white px-2 text-xs disabled:bg-slate-100"><option value="none">No workspace access</option><option value="officer">Officer</option><option value="workspace_admin">Workspace admin</option></select>
+                  <select aria-label={`Workspace access for ${profile.email}`} value={membershipValue} disabled={saving || isSelf || profile.status !== 'active'} onChange={(event) => changeMembership(profile, event.target.value)} className="h-9 rounded-md border border-slate-300 bg-white px-2 text-xs disabled:bg-slate-100"><option value="none">No workspace access</option><option value="viewer">Viewer</option><option value="officer">Officer</option><option value="workspace_admin">Workspace admin</option></select>
                   <div className="grid grid-cols-2 gap-1.5">
                     {CLOUD_AI_PROVIDERS.map((provider) => {
                       const permission = aiPermissions.find((item) => item.user_id === profile.user_id && item.provider === provider.id);
@@ -191,7 +191,7 @@ export default function AdminPage() {
           </div>
         )}
       </section>
-      <div className="mt-4 flex gap-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-950"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" /><p>Approval activates the account and adds it to this workspace as an Officer. Workspace access can grant workspace administration or remove the user from official Issues.</p></div>
+      <div className="mt-4 flex gap-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-950"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" /><p>Approval activates the account and adds it to this workspace as an Officer. Viewers can inspect Issues but cannot change them; Officers can edit; Workspace admins can also manage access.</p></div>
     </>
   );
 }

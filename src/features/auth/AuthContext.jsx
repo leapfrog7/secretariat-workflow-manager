@@ -18,6 +18,7 @@ export function AuthProvider({ children }) {
         syncState: { status: 'local', error: '', syncedAt: '' },
         isAdmin: false,
         isWorkspaceAdmin: false,
+        canEdit: true,
         error: '',
         refreshWorkspaces: null,
         syncNow: null,

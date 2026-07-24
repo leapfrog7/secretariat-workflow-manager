@@ -40,13 +40,10 @@ export function buildAIContext({
   }
 
   if (includeSummary && summary) {
-    const lines = [];
-    addLine(lines, 'What this Issue is about', summary.overview);
-    addLine(lines, 'Important facts and background', summary.keyFacts);
-    addLine(lines, 'Present position', summary.presentPosition);
-    addLine(lines, 'Decisions or questions outstanding', summary.outstandingDecisions);
-    addLine(lines, 'Immediate next step', summary.nextStep);
-    const section = makeSection(`RUNNING SUMMARY${summary.version ? ` (VERSION ${summary.version})` : ''}`, lines);
+    const section = makeSection(
+      `RUNNING SUMMARY${summary.version ? ` (VERSION ${summary.version})` : ''}`,
+      [summary.content],
+    );
     if (section) sections.push(section);
   }
 

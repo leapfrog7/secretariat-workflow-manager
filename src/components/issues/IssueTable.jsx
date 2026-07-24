@@ -6,7 +6,7 @@ import { formatDisplayDate, getIssueAgeDays } from '../../utils/dateUtils';
 import { isScheduledIssue } from '../../utils/scheduleUtils';
 import SourceSearchMatch from './SourceSearchMatch';
 
-export default function IssueTable({ issues, officers = [], registerMode = 'Current', workingId = '', onRestore, onBringBack, onArchive, onDelete }) {
+export default function IssueTable({ issues, officers = [], registerMode = 'Current', workingId = '', canEdit = true, onRestore, onBringBack, onArchive, onDelete }) {
   const showReturnDate = ['Scheduled', 'All'].includes(registerMode);
   return (
     <div className="surface hidden overflow-hidden rounded-md md:block">
@@ -14,7 +14,7 @@ export default function IssueTable({ issues, officers = [], registerMode = 'Curr
         <table className="min-w-[1180px] divide-y divide-[#dce6e4] text-sm">
           <thead className="bg-[#edf4f2] text-left text-xs font-semibold uppercase tracking-wide text-[#526b70]">
             <tr>
-              {['Issue', 'eFile no.', 'Subject type', 'Stage', 'Assigned officer', 'Age', 'Deadline', ...(showReturnDate ? ['Returns'] : []), 'Actions'].map((header) => (
+              {['Issue', 'eFile no.', 'Subject type', 'Stage', 'Assigned officer', 'Age', 'Deadline', ...(showReturnDate ? ['Returns'] : []), ...(canEdit ? ['Actions'] : [])].map((header) => (
                 <th key={header} scope="col" className={`px-4 py-3 ${header === 'Actions' ? 'text-right' : ''}`}>
                   {header}
                 </th>
@@ -23,7 +23,7 @@ export default function IssueTable({ issues, officers = [], registerMode = 'Curr
           </thead>
           <tbody className="divide-y divide-[#e3ebe9] bg-white">
             {issues.map((issue) => (
-              <IssueRow key={issue.id} issue={issue} officers={officers} showReturnDate={showReturnDate} working={workingId === issue.id} onRestore={onRestore} onBringBack={onBringBack} onArchive={onArchive} onDelete={onDelete} />
+              <IssueRow key={issue.id} issue={issue} officers={officers} showReturnDate={showReturnDate} working={workingId === issue.id} canEdit={canEdit} onRestore={onRestore} onBringBack={onBringBack} onArchive={onArchive} onDelete={onDelete} />
             ))}
           </tbody>
         </table>
@@ -32,7 +32,7 @@ export default function IssueTable({ issues, officers = [], registerMode = 'Curr
   );
 }
 
-function IssueRow({ issue, officers, showReturnDate, working, onRestore, onBringBack, onArchive, onDelete }) {
+function IssueRow({ issue, officers, showReturnDate, working, canEdit, onRestore, onBringBack, onArchive, onDelete }) {
   const officer = officers.find((item) => item.id === issue.assignedOfficerId);
   const ageDays = getIssueAgeDays(issue);
   const scheduled = isScheduledIssue(issue);
@@ -62,14 +62,14 @@ function IssueRow({ issue, officers, showReturnDate, working, onRestore, onBring
                 </td>
                 <td className="px-4 py-3.5"><DeadlineIndicator issue={issue} compact /></td>
                 {showReturnDate && <td className="px-4 py-3.5"><span className="block font-semibold tabular-nums text-cyan-900">{scheduled ? formatDisplayDate(issue.nextAppearanceDate) : '-'}</span>{scheduled && <span className="block text-xs text-slate-500">{issue.recurrenceType}</span>}</td>}
-                <td className="px-4 py-3.5"><div className="flex items-center justify-end gap-1">
+                {canEdit && <td className="px-4 py-3.5"><div className="flex items-center justify-end gap-1">
                   {working ? <span className="flex h-8 items-center justify-center gap-2 px-1 text-xs font-semibold text-cyan-800" role="status"><LoaderCircle className="h-4 w-4 animate-spin" /><span>Updating</span></span> : <>
                     {issue.isArchived && <ActionIcon label="Restore Issue" tone="teal" onClick={() => onRestore(issue)}><RotateCcw className="h-4 w-4" /></ActionIcon>}
                     {scheduled && <ActionIcon label="Bring back now" tone="cyan" onClick={() => onBringBack(issue)}><RotateCcw className="h-4 w-4" /></ActionIcon>}
                     {!issue.isArchived && <ActionIcon label="Archive Issue" onClick={() => onArchive(issue)}><Archive className="h-4 w-4" /></ActionIcon>}
                     <ActionIcon label="Delete Issue permanently" tone="red" onClick={() => onDelete(issue)}><Trash2 className="h-4 w-4" /></ActionIcon>
                   </>}
-                </div></td>
+                </div></td>}
     </tr>
   );
 }

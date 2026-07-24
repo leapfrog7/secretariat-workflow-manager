@@ -17,15 +17,17 @@ import { deleteCommunication, getCommunicationsByIssue, saveCommunication } from
 import { deleteReference, getReferencesByIssue, saveReference } from '../db/referenceRepository';
 import { getAllOfficers } from '../db/officerRepository';
 import { countMilestonesByIssue, getMilestonesByIssue } from '../db/milestoneRepository';
-import { countSummaryVersions, getLatestSummary, getSummaryVersions, saveSummaryVersion } from '../db/summaryRepository';
+import { countSummaryVersions, deleteSummaryVersion, getLatestSummary, getSummaryVersions, saveSummaryVersion } from '../db/summaryRepository';
 import { useToast } from '../components/common/ToastProvider';
 import { formatDateTime, formatDisplayDate, todayISO, tomorrowISO } from '../utils/dateUtils';
 import { ISSUE_RECURRENCE_TYPES, ISSUE_STATUSES } from '../constants/issueConstants';
+import { useAuth } from '../features/auth/AuthContext';
 
-const tabs = ['Current Position', 'Record of Communication', 'References', 'AI Context'];
+const tabs = ['Current Position', 'Running Summary', 'Record of Communication', 'References', 'AI Context'];
 
 export default function IssueWorkspacePage() {
   const { issueId } = useParams();
+  const auth = useAuth();
   const { showToast } = useToast();
   const [state, setState] = useState({
     loading: true,
@@ -216,8 +218,9 @@ export default function IssueWorkspacePage() {
     if (!target) return;
     try {
       if (target.kind === 'communication') await deleteCommunication(target.item.id);
-      else await deleteReference(target.item.id);
-      showToast(target.kind === 'communication' ? 'Communication deleted.' : 'Reference deleted.');
+      else if (target.kind === 'reference') await deleteReference(target.item.id);
+      else await deleteSummaryVersion(target.item.id);
+      showToast(target.kind === 'communication' ? 'Communication deleted.' : target.kind === 'reference' ? 'Reference deleted.' : `Summary version ${target.item.version} deleted.`);
       setState((current) => ({ ...current, deleteTarget: null }));
       await load();
     } catch (error) {
@@ -267,17 +270,24 @@ export default function IssueWorkspacePage() {
         actions={
           <>
             <Link to="/issues" className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:border-teal-300 hover:bg-teal-50 hover:text-teal-800"><ArrowLeft className="h-4 w-4" />Issues</Link>
-            <Link to={`/issues/${issue.id}/edit`} className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:border-teal-300 hover:bg-teal-50 hover:text-teal-800"><Pencil className="h-4 w-4" />Edit details</Link>
+            {auth.canEdit && <Link to={`/issues/${issue.id}/edit`} className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:border-teal-300 hover:bg-teal-50 hover:text-teal-800"><Pencil className="h-4 w-4" />Edit details</Link>}
           </>
         }
       />
+      {!auth.canEdit && <div className="mb-4 rounded-md border border-cyan-200 bg-cyan-50 px-3 py-3 text-sm text-cyan-950">Viewing access only. You can inspect the complete Issue record, but changes are disabled.</div>}
 
       <div className="mb-5 overflow-x-auto border-b border-[#d7e3e1]">
         <div className="flex min-w-max gap-1" role="tablist" aria-label="Issue workspace">
           {tabs.map((tab) => {
-            const count = tab === 'Record of Communication' ? state.communications.length : tab === 'References' ? state.references.length : null;
+            const count = tab === 'Running Summary'
+              ? state.summaryVersionCount
+              : tab === 'Record of Communication'
+                ? state.communications.length
+                : tab === 'References'
+                  ? state.references.length
+                  : null;
             return (
-              <button key={tab} type="button" role="tab" aria-selected={state.activeTab === tab} onClick={() => setState((current) => ({ ...current, activeTab: tab }))} className={`border-b-2 px-4 py-3 text-sm font-semibold transition-colors ${state.activeTab === tab ? 'border-teal-700 text-teal-800' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
+              <button key={tab} type="button" role="tab" aria-selected={state.activeTab === tab} onClick={() => setState((current) => ({ ...current, activeTab: tab }))} className={`border-b-2 px-3 py-3 text-xs font-semibold transition-colors sm:px-4 sm:text-sm ${state.activeTab === tab ? 'border-teal-700 text-teal-800' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
                 {tab}{count !== null && <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs tabular-nums text-slate-600">{count}</span>}
               </button>
             );
@@ -296,11 +306,7 @@ export default function IssueWorkspacePage() {
           milestoneCount={state.milestoneCount}
           milestonesExpanded={state.milestonesExpanded}
           loadingMilestones={state.loadingMilestones}
-          latestSummary={state.latestSummary}
-          summaryVersions={state.summaryVersions}
-          summaryVersionCount={state.summaryVersionCount}
-          summariesExpanded={state.summariesExpanded}
-          loadingSummaries={state.loadingSummaries}
+          readOnly={!auth.canEdit}
           onUpdate={updateDraft}
           onUpdateSchedule={updateScheduleDraft}
           onSave={saveWorkflow}
@@ -308,27 +314,50 @@ export default function IssueWorkspacePage() {
           onArchive={() => setState((current) => ({ ...current, confirmArchive: true }))}
           onLoadAllMilestones={loadAllMilestones}
           onCollapseMilestones={() => setState((current) => ({ ...current, milestones: current.milestones.slice(0, 5), milestonesExpanded: false }))}
-          onSaveSummary={saveRunningSummary}
-          onLoadAllSummaries={loadAllSummaries}
-          onCollapseSummaries={() => setState((current) => ({ ...current, summaryVersions: current.latestSummary ? [current.latestSummary] : [], summariesExpanded: false }))}
           onBringBack={bringBack}
         />
       )}
-      {state.activeTab === 'Record of Communication' && <CommunicationTab issueId={issueId} communications={state.communications} onSave={saveCommunicationEntry} onDelete={(item) => setState((current) => ({ ...current, deleteTarget: { kind: 'communication', item } }))} />}
-      {state.activeTab === 'References' && <ReferenceTab issueId={issueId} references={state.references} onSave={saveReferenceEntry} onDelete={(item) => setState((current) => ({ ...current, deleteTarget: { kind: 'reference', item } }))} />}
-      {state.activeTab === 'AI Context' && <AIContextPreview issue={issue} assignedOfficer={assignedOfficer} officers={officers} summary={state.latestSummary} communications={state.communications} references={state.references} onSaveCommunication={saveCommunicationEntry} />}
+      {state.activeTab === 'Running Summary' && (
+        <RunningSummaryPanel
+          issueId={issueId}
+          issueTitle={issue.shortTitle}
+          latestSummary={state.latestSummary}
+          versionCount={state.summaryVersionCount}
+          versions={state.summaryVersions}
+          expanded={state.summariesExpanded}
+          loading={state.loadingSummaries}
+          currentPosition={draft.currentPosition}
+          readOnly={!auth.canEdit}
+          onSave={saveRunningSummary}
+          onDelete={(item) => setState((current) => ({ ...current, deleteTarget: { kind: 'summary', item } }))}
+          onLoadAll={loadAllSummaries}
+          onCollapse={() => setState((current) => ({ ...current, summaryVersions: current.latestSummary ? [current.latestSummary] : [], summariesExpanded: false }))}
+        />
+      )}
+      {state.activeTab === 'Record of Communication' && <CommunicationTab issueId={issueId} communications={state.communications} readOnly={!auth.canEdit} onSave={saveCommunicationEntry} onDelete={(item) => setState((current) => ({ ...current, deleteTarget: { kind: 'communication', item } }))} />}
+      {state.activeTab === 'References' && <ReferenceTab issueId={issueId} references={state.references} readOnly={!auth.canEdit} onSave={saveReferenceEntry} onDelete={(item) => setState((current) => ({ ...current, deleteTarget: { kind: 'reference', item } }))} />}
+      {state.activeTab === 'AI Context' && <AIContextPreview issue={issue} assignedOfficer={assignedOfficer} officers={officers} summary={state.latestSummary} communications={state.communications} references={state.references} readOnly={!auth.canEdit} onSaveCommunication={saveCommunicationEntry} />}
 
       <ConfirmDialog open={state.confirmArchive} title={issue.isArchived ? 'Restore Issue?' : 'Archive Issue?'} message={issue.isArchived ? 'The Issue will return to the current register.' : 'The Issue will be hidden from the current register but retained in the database.'} confirmLabel={issue.isArchived ? 'Restore' : 'Archive'} onCancel={() => setState((current) => ({ ...current, confirmArchive: false }))} onConfirm={toggleArchiveIssue} />
-      <ConfirmDialog open={Boolean(state.deleteTarget)} title={state.deleteTarget?.kind === 'communication' ? 'Delete communication?' : 'Delete reference?'} message="This entry will be permanently removed from the Issue." confirmLabel="Delete" destructive onCancel={() => setState((current) => ({ ...current, deleteTarget: null }))} onConfirm={confirmDelete} />
+      <ConfirmDialog
+        open={Boolean(state.deleteTarget)}
+        title={state.deleteTarget?.kind === 'communication' ? 'Delete communication?' : state.deleteTarget?.kind === 'reference' ? 'Delete reference?' : `Delete summary version ${state.deleteTarget?.item?.version || ''}?`}
+        message={state.deleteTarget?.kind === 'summary' ? 'This saved version will be permanently removed. If it is the latest version, the preceding version will become the current running summary.' : 'This entry will be permanently removed from the Issue.'}
+        confirmLabel="Delete"
+        destructive
+        onCancel={() => setState((current) => ({ ...current, deleteTarget: null }))}
+        onConfirm={confirmDelete}
+      />
     </>
   );
 }
 
-function CurrentPositionTab({ issue, officers, draft, dirty, saveStatus, operation, milestones, milestoneCount, milestonesExpanded, loadingMilestones, latestSummary, summaryVersions, summaryVersionCount, summariesExpanded, loadingSummaries, onUpdate, onUpdateSchedule, onSave, onArchive, onLoadAllMilestones, onCollapseMilestones, onSaveSummary, onLoadAllSummaries, onCollapseSummaries, onBringBack }) {
+function CurrentPositionTab({ issue, officers, draft, dirty, saveStatus, operation, milestones, milestoneCount, milestonesExpanded, loadingMilestones, readOnly, onUpdate, onUpdateSchedule, onSave, onArchive, onLoadAllMilestones, onCollapseMilestones, onBringBack }) {
   const assignedOfficer = officers.find((officer) => officer.id === issue.assignedOfficerId);
   return (
     <div className="space-y-4">
-      <form onSubmit={onSave} className="surface overflow-hidden rounded-md border-t-4 border-t-teal-600 p-4 sm:p-5">
+      <form onSubmit={onSave}>
+        <fieldset disabled={readOnly} className="surface overflow-hidden rounded-md border-t-4 border-t-teal-600 p-4 disabled:opacity-85 sm:p-5">
         {issue.isScheduled && (
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-cyan-200 bg-cyan-50 px-3 py-3">
             <div className="flex items-center gap-2 text-sm font-semibold text-cyan-900"><CalendarClock className="h-4 w-4" />Scheduled to return {formatDisplayDate(issue.nextAppearanceDate)}</div>
@@ -352,15 +381,15 @@ function CurrentPositionTab({ issue, officers, draft, dirty, saveStatus, operati
             {draft.recurrenceType && <p className="text-xs leading-5 text-slate-500 sm:col-span-2">When this cycle is saved as Completed, the Issue will move to Scheduled and return as Pending on this date.</p>}
           </div>
         </details>
-        <div className="mt-4 flex justify-end"><SaveButton dirty={dirty} saveStatus={saveStatus} /></div>
+        {!readOnly && <div className="mt-4 flex justify-end"><SaveButton dirty={dirty} saveStatus={saveStatus} /></div>}
+        </fieldset>
       </form>
-      <RunningSummaryPanel latestSummary={latestSummary} versionCount={summaryVersionCount} versions={summaryVersions} expanded={summariesExpanded} loading={loadingSummaries} currentPosition={draft.currentPosition} onSave={onSaveSummary} onLoadAll={onLoadAllSummaries} onCollapse={onCollapseSummaries} />
       <MilestoneStack milestones={milestones} total={milestoneCount} expanded={milestonesExpanded} loading={loadingMilestones} onLoadAll={onLoadAllMilestones} onCollapse={onCollapseMilestones} />
       <DisclosureSection title="Issue details" description="Dates and optional administrative information.">
         <dl className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
           <Item label="eFile number" value={issue.eFileNumber || 'Not set'} /><Item label="Subject type" value={issue.subjectType || 'Not specified'} /><Item label="Assigned to" value={assignedOfficer?.name || 'Not assigned'} /><Item label="Opened" value={formatDisplayDate(issue.dateOpened)} /><Item label="Last updated" value={formatDateTime(issue.updatedAt)} /><Item label="Organisation" value={issue.organisation || 'Not set'} /><Item label="Category" value={issue.category || 'Miscellaneous'} /><Item label="Deadline" value={formatDisplayDate(issue.nextDeadline)} />{issue.recurrenceType && <Item label="Return pattern" value={issue.recurrenceType} />}{issue.nextAppearanceDate && <Item label="Next appearance" value={formatDisplayDate(issue.nextAppearanceDate)} />}
         </dl>
-        <div className="mt-5 border-t border-[#dce6e4] pt-4"><button type="button" onClick={onArchive} className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:border-amber-300 hover:bg-amber-50 hover:text-amber-900">{issue.isArchived ? <RotateCcw className="h-4 w-4" /> : <Archive className="h-4 w-4" />}{issue.isArchived ? 'Restore Issue' : 'Archive Issue'}</button></div>
+        {!readOnly && <div className="mt-5 border-t border-[#dce6e4] pt-4"><button type="button" onClick={onArchive} className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:border-amber-300 hover:bg-amber-50 hover:text-amber-900">{issue.isArchived ? <RotateCcw className="h-4 w-4" /> : <Archive className="h-4 w-4" />}{issue.isArchived ? 'Restore Issue' : 'Archive Issue'}</button></div>}
       </DisclosureSection>
     </div>
   );
