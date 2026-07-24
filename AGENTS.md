@@ -74,9 +74,10 @@ human review instead of silently overwriting a colleague's newer work.
 Current implementation status:
 
 - Phases 0 through 3 are implemented in the application.
-- Migrations `009_division_access_foundation.sql` and
-  `010_shared_issue_access.sql` must be applied through the normal migration
-  process before using collaboration controls.
+- Migrations `009_division_access_foundation.sql`,
+  `010_shared_issue_access.sql`, `012_optimistic_concurrency.sql` and
+  `013_security_and_sync_hardening.sql` must be applied through the normal
+  migration process before using collaboration controls.
 - Division enforcement remains off until a workspace administrator creates
   divisions, assigns active members and Issues, passes the readiness report, and
   explicitly enables it.
@@ -118,6 +119,9 @@ Current implementation status:
   communications, references, milestones, summaries and drafts. Cloud rows use
   monotonic revisions; stale saves and deletes are retained locally and shown in
   a global review panel with **Keep cloud version** and **Use my change** actions.
+- Active profile and workspace membership are required for every non-platform
+  Issue access path. Privileged item saves cannot move a child record between
+  Issues, and view-only browser caches are overwritten by the cloud authority.
 - Add access-change audit views and notifications.
 - Add temporary access expiry, handover and bulk division reassignment.
 - Test revocation, suspended users, cross-division sharing and offline recovery.

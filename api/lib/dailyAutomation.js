@@ -135,7 +135,8 @@ export async function runDailyAutomation() {
         UPDATE public.cloud_issues
         SET payload = ${JSON.stringify(issue)}::jsonb,
             status = 'Pending', is_scheduled = false,
-            updated_by = 'automation', updated_at = ${now}::timestamptz
+            updated_by = 'automation', updated_at = ${now}::timestamptz,
+            revision = revision + 1
         WHERE workspace_id = ${row.workspace_id}::uuid AND id = ${row.id}::uuid AND is_scheduled = true
         RETURNING id
       `;

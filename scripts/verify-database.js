@@ -54,7 +54,8 @@ const [tables, policies, functions, migrations, workspaces, memberships] = await
       '009_division_access_foundation.sql',
       '010_shared_issue_access.sql',
       '011_reload_data_api_schema.sql',
-      '012_optimistic_concurrency.sql'
+      '012_optimistic_concurrency.sql',
+      '013_security_and_sync_hardening.sql'
     )
   `,
   sql`SELECT count(*)::int AS count FROM public.workspaces WHERE is_active = true`,
@@ -70,7 +71,7 @@ const result = {
   activeMemberships: memberships[0].count,
 };
 
-const expected = { tables: 17, policies: 43, functions: 18, migrationRecords: 12 };
+const expected = { tables: 17, policies: 43, functions: 18, migrationRecords: 13 };
 const valid = Object.entries(expected).every(([key, value]) => result[key] === value);
 
 console.log(JSON.stringify(result, null, 2));

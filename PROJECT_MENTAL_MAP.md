@@ -374,6 +374,7 @@ Migrations are the authoritative cloud schema. Important stages are:
 | `009_division_access_foundation.sql` | divisions and Issue grants behind a feature flag |
 | `010_shared_issue_access.sql` | effective Issue permissions and inherited RLS |
 | `012_optimistic_concurrency.sql` | revision-aware saves, deletes and conflict detection |
+| `013_security_and_sync_hardening.sql` | active-membership enforcement and protected child-record ownership |
 
 ### Row-level security
 

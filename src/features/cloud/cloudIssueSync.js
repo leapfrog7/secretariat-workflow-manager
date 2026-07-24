@@ -172,14 +172,14 @@ export async function syncWorkspaceIssues({ workspaceId, userId, canEdit = true,
       const localUpdatedAt = issueTimestamp(local);
 
       if (row.deleted_at) {
-        if (local && new Date(row.deleted_at).getTime() >= localUpdatedAt) {
+        if (local && (!canEdit || new Date(row.deleted_at).getTime() >= localUpdatedAt)) {
           await deleteLocalIssueGraph(row.id);
           deleted += 1;
         }
         continue;
       }
 
-      if (!local || cloudUpdatedAt > localUpdatedAt) {
+      if (!local || !canEdit || cloudUpdatedAt > localUpdatedAt) {
         const issue = normalizeIssue({
           ...row.payload,
           owningDivisionId: row.owning_division_id || row.payload?.owningDivisionId || '',
@@ -244,9 +244,10 @@ export async function syncWorkspaceIssues({ workspaceId, userId, canEdit = true,
       }
     }
 
-    storeVisibleIds(workspaceId, userId, [...visibleIds, ...[...localById.values()]
-      .filter((issue) => !issue.isDemo && !cloudById.has(issue.id))
-      .map((issue) => issue.id)]);
+    const pendingLocalIds = canEdit
+      ? [...localById.values()].filter((issue) => !issue.isDemo && !cloudById.has(issue.id)).map((issue) => issue.id)
+      : [];
+    storeVisibleIds(workspaceId, userId, [...visibleIds, ...pendingLocalIds]);
     const result = { downloaded, uploaded, deleted, revoked: revokedIds.length, visibleIssueIds: [...visibleIds], syncedAt: new Date().toISOString() };
     report('synced', result);
     if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('swm:issues-synced', { detail: result }));

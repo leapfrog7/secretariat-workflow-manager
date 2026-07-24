@@ -1,4 +1,5 @@
 import { db } from '../../db/database';
+import { localWorkspaceScopeKey, shouldResetLocalWorkspaceScope } from './workspaceScopeUtils';
 
 const STORAGE_KEY = 'swm:local-cloud-scope';
 const SHARED_TABLES = [
@@ -17,15 +18,10 @@ const SHARED_TABLES = [
   'settings',
 ];
 
-function scopeKey(workspaceId, userId) {
-  return `${workspaceId}:${userId}`;
-}
-
 export async function prepareLocalWorkspaceScope({ workspaceId, userId }) {
   if (typeof window === 'undefined' || !workspaceId || !userId) return;
-  const nextScope = scopeKey(workspaceId, userId);
   const currentScope = window.localStorage.getItem(STORAGE_KEY);
-  if (!currentScope || currentScope === nextScope) return;
+  if (!shouldResetLocalWorkspaceScope(currentScope, workspaceId, userId)) return;
 
   await db.transaction('rw', ...SHARED_TABLES.map((table) => db[table]), async () => {
     await Promise.all(SHARED_TABLES.map((table) => db[table].clear()));
@@ -34,5 +30,5 @@ export async function prepareLocalWorkspaceScope({ workspaceId, userId }) {
 
 export function commitLocalWorkspaceScope({ workspaceId, userId }) {
   if (typeof window === 'undefined' || !workspaceId || !userId) return;
-  window.localStorage.setItem(STORAGE_KEY, scopeKey(workspaceId, userId));
+  window.localStorage.setItem(STORAGE_KEY, localWorkspaceScopeKey(workspaceId, userId));
 }

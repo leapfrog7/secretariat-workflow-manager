@@ -148,11 +148,11 @@ export async function syncWorkspaceIssueItems({ workspaceId, userId, canEdit = t
       const local = await table.get(row.id);
       const cloudUpdatedAt = new Date(row.updated_at || 0).getTime();
       if (row.deleted_at) {
-        if (local && new Date(row.deleted_at).getTime() >= itemTimestamp(local)) {
+        if (local && (!canEdit || new Date(row.deleted_at).getTime() >= itemTimestamp(local))) {
           await table.delete(row.id);
           deleted += 1;
         }
-      } else if (!local || cloudUpdatedAt > itemTimestamp(local)) {
+      } else if (!local || !canEdit || cloudUpdatedAt > itemTimestamp(local)) {
         const normalized = config.normalize({
           ...row.payload,
           cloudRevision: Number(row.revision || 0),
@@ -161,7 +161,7 @@ export async function syncWorkspaceIssueItems({ workspaceId, userId, canEdit = t
         });
         const remapped = remapOfficerReferences(row.item_type, normalized, officerIdMap);
         const downloadedItem = config.normalize(remapped.item);
-        if (await getSyncConflict(row.item_type, row.id)) continue;
+        if (canEdit && await getSyncConflict(row.item_type, row.id)) continue;
         await table.put(downloadedItem);
         if (remapped.changed && canEdit) {
           const result = await upsertCloudIssueItem({ workspaceId, userId, itemType: row.item_type, item: downloadedItem });

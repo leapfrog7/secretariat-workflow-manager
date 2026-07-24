@@ -2,6 +2,7 @@ import { db, getSettings, saveSettings } from './database';
 import { normalizeOfficer, validateOfficer } from '../utils/officerUtils';
 import { getOfficerIdentityKey } from '../utils/officerIdentity';
 import { queueCloudOfficerDelete, queueCloudOfficerUpsert } from '../features/cloud/cloudOfficerSync';
+import { queueCloudIssueUpsert } from '../features/cloud/cloudIssueSync';
 import { consolidateDuplicateOfficers } from './officerDeduplication';
 
 function requireValidOfficer(input) {
@@ -57,6 +58,7 @@ export async function deleteOfficer(id) {
   if (!id) throw new Error('Choose an officer to delete.');
   const existing = await db.officers.get(id);
   if (!existing) return false;
+  const affectedIssueIds = (await db.issues.where('assignedOfficerId').equals(id).primaryKeys());
 
   await db.transaction('rw', db.officers, db.issues, db.actions, async () => {
     await db.issues.where('assignedOfficerId').equals(id).modify({
@@ -79,6 +81,8 @@ export async function deleteOfficer(id) {
       },
     });
   }
+  const affectedIssues = (await db.issues.bulkGet(affectedIssueIds)).filter(Boolean);
+  await Promise.all(affectedIssues.map((issue) => queueCloudIssueUpsert(issue)));
   await queueCloudOfficerDelete(id);
   return true;
 }

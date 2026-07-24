@@ -38,6 +38,7 @@ export default function SettingsPage() {
   const fileRef = useRef(null);
   const { showToast } = useToast();
   const auth = useAuth();
+  const canMutateWorkspace = auth.mode !== 'cloud' || auth.canEdit;
   const [activeTab, setActiveTab] = useState('officers');
   const [state, setState] = useState({
     loading: true,
@@ -174,6 +175,10 @@ export default function SettingsPage() {
   };
 
   const confirmImport = async () => {
+    if (!canMutateWorkspace) {
+      showToast('View-only accounts cannot replace workspace data.', 'error');
+      return;
+    }
     try {
       await validateBackupPayload(state.pendingImport);
       const result = await importDatabase(state.pendingImport);
@@ -186,6 +191,10 @@ export default function SettingsPage() {
   };
 
   const loadDemo = async () => {
+    if (!canMutateWorkspace) {
+      showToast('View-only accounts cannot add demo Issues.', 'error');
+      return;
+    }
     try {
       setState((current) => ({ ...current, busy: 'demo-load' }));
       const result = await loadDemoIssues();
@@ -199,6 +208,10 @@ export default function SettingsPage() {
   };
 
   const clearDemo = async () => {
+    if (!canMutateWorkspace) {
+      showToast('View-only accounts cannot remove demo Issues.', 'error');
+      return;
+    }
     try {
       setState((current) => ({ ...current, busy: 'demo-clear' }));
       const result = await clearDemoIssues();
@@ -213,6 +226,10 @@ export default function SettingsPage() {
   };
 
   const saveOfficerDetails = async (officer) => {
+    if (!canMutateWorkspace) {
+      showToast('View-only accounts cannot change the officer directory.', 'error');
+      return;
+    }
     try {
       const saved = await saveOfficer(officer);
       showToast(saved.reusedExisting ? 'That officer is already in the directory.' : officer.id ? 'Officer updated.' : 'Officer added.');
@@ -315,6 +332,10 @@ export default function SettingsPage() {
   };
 
   const saveOfficeProfile = async () => {
+    if (!canMutateWorkspace) {
+      showToast('View-only accounts cannot change the office profile.', 'error');
+      return;
+    }
     try {
       setState((current) => ({ ...current, busy: 'profile-save' }));
       const settings = await getSettings();
@@ -409,17 +430,18 @@ export default function SettingsPage() {
             <Building2 className="mt-0.5 h-5 w-5 text-amber-700" aria-hidden="true" />
             <div><h2 className="text-sm font-semibold text-slate-950">Official drafting profile</h2><p className="mt-1 text-sm text-slate-600">Office identity and officers authorized to sign generated communications.</p></div>
           </div>
+          {!canMutateWorkspace && <p className="mt-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">You can view this shared profile. An officer or workspace administrator can change it.</p>}
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <ProfileInput label="Government heading" value={state.officeProfile.governmentName} onChange={(value) => updateOfficeProfile('governmentName', value)} />
-            <ProfileInput label="Government heading (Hindi transliteration)" value={state.officeProfile.governmentHindiName} onChange={(value) => updateOfficeProfile('governmentHindiName', value)} />
-            <ProfileInput label="Ministry" value={state.officeProfile.ministry} onChange={(value) => updateOfficeProfile('ministry', value)} />
-            <ProfileInput label="Department" value={state.officeProfile.department} onChange={(value) => updateOfficeProfile('department', value)} />
-            <ProfileInput label="Department (Hindi transliteration)" value={state.officeProfile.departmentHindiName} onChange={(value) => updateOfficeProfile('departmentHindiName', value)} />
-            <ProfileInput label="Division" value={state.officeProfile.division} onChange={(value) => updateOfficeProfile('division', value)} />
-            <ProfileInput label="Section" value={state.officeProfile.section} onChange={(value) => updateOfficeProfile('section', value)} />
-            <ProfileInput label="Place of issue" value={state.officeProfile.placeOfIssue} onChange={(value) => updateOfficeProfile('placeOfIssue', value)} />
-            <label className="block sm:col-span-2 lg:col-span-3"><span className="mb-1 block text-sm font-medium text-slate-700">Office address <span className="font-normal text-slate-500">(optional)</span></span><textarea rows={2} value={state.officeProfile.officeAddress} onChange={(event) => updateOfficeProfile('officeAddress', event.target.value)} className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm leading-5 text-slate-900" /></label>
-            <label className="block sm:col-span-2 lg:col-span-3"><span className="mb-1 block text-sm font-medium text-slate-700">House-style drafting notes <span className="font-normal text-slate-500">(optional)</span></span><textarea rows={3} value={state.officeProfile.houseStyleNotes} onChange={(event) => updateOfficeProfile('houseStyleNotes', event.target.value)} placeholder="Example: Refer to the Ministry as this Ministry; use concise numbered paragraphs." className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm leading-5 text-slate-900" /><span className="mt-1 block text-xs text-slate-500">Applied to the prose while the standard communication structure remains fixed.</span></label>
+            <ProfileInput disabled={!canMutateWorkspace} label="Government heading" value={state.officeProfile.governmentName} onChange={(value) => updateOfficeProfile('governmentName', value)} />
+            <ProfileInput disabled={!canMutateWorkspace} label="Government heading (Hindi transliteration)" value={state.officeProfile.governmentHindiName} onChange={(value) => updateOfficeProfile('governmentHindiName', value)} />
+            <ProfileInput disabled={!canMutateWorkspace} label="Ministry" value={state.officeProfile.ministry} onChange={(value) => updateOfficeProfile('ministry', value)} />
+            <ProfileInput disabled={!canMutateWorkspace} label="Department" value={state.officeProfile.department} onChange={(value) => updateOfficeProfile('department', value)} />
+            <ProfileInput disabled={!canMutateWorkspace} label="Department (Hindi transliteration)" value={state.officeProfile.departmentHindiName} onChange={(value) => updateOfficeProfile('departmentHindiName', value)} />
+            <ProfileInput disabled={!canMutateWorkspace} label="Division" value={state.officeProfile.division} onChange={(value) => updateOfficeProfile('division', value)} />
+            <ProfileInput disabled={!canMutateWorkspace} label="Section" value={state.officeProfile.section} onChange={(value) => updateOfficeProfile('section', value)} />
+            <ProfileInput disabled={!canMutateWorkspace} label="Place of issue" value={state.officeProfile.placeOfIssue} onChange={(value) => updateOfficeProfile('placeOfIssue', value)} />
+            <label className="block sm:col-span-2 lg:col-span-3"><span className="mb-1 block text-sm font-medium text-slate-700">Office address <span className="font-normal text-slate-500">(optional)</span></span><textarea disabled={!canMutateWorkspace} rows={2} value={state.officeProfile.officeAddress} onChange={(event) => updateOfficeProfile('officeAddress', event.target.value)} className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm leading-5 text-slate-900 disabled:bg-slate-100 disabled:text-slate-600" /></label>
+            <label className="block sm:col-span-2 lg:col-span-3"><span className="mb-1 block text-sm font-medium text-slate-700">House-style drafting notes <span className="font-normal text-slate-500">(optional)</span></span><textarea disabled={!canMutateWorkspace} rows={3} value={state.officeProfile.houseStyleNotes} onChange={(event) => updateOfficeProfile('houseStyleNotes', event.target.value)} placeholder="Example: Refer to the Ministry as this Ministry; use concise numbered paragraphs." className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm leading-5 text-slate-900 disabled:bg-slate-100 disabled:text-slate-600" /><span className="mt-1 block text-xs text-slate-500">Applied to the prose while the standard communication structure remains fixed.</span></label>
           </div>
           <fieldset className="mt-5 border-t border-slate-200 pt-4">
             <legend className="pr-2 text-sm font-semibold text-slate-800">Authorized signatories</legend>
@@ -427,14 +449,14 @@ export default function SettingsPage() {
             <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {state.officers.filter((officer) => officer.isActive).map((officer) => (
                 <label key={officer.id} className="flex cursor-pointer items-start gap-3 rounded-md border border-slate-200 bg-white px-3 py-3 hover:border-amber-300 hover:bg-amber-50">
-                  <input type="checkbox" checked={state.officeProfile.authorizedSignatoryIds.includes(officer.id)} onChange={() => toggleSignatory(officer.id)} className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-teal-700" />
+                  <input disabled={!canMutateWorkspace} type="checkbox" checked={state.officeProfile.authorizedSignatoryIds.includes(officer.id)} onChange={() => toggleSignatory(officer.id)} className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-teal-700 disabled:cursor-not-allowed" />
                   <span className="min-w-0"><span className="block truncate text-sm font-medium text-slate-900">{officer.name}</span><span className="mt-0.5 block text-xs text-slate-500">{officer.designation || 'Designation not set'}</span></span>
                 </label>
               ))}
               {!state.officers.some((officer) => officer.isActive) && <p className="text-sm text-slate-500 sm:col-span-2 lg:col-span-3">Add an active officer above before choosing signatories.</p>}
             </div>
           </fieldset>
-          <div className="mt-4 flex justify-end"><button type="button" onClick={saveOfficeProfile} disabled={state.busy === 'profile-save'} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-teal-800 disabled:bg-slate-400 sm:h-10 sm:w-auto">{state.busy === 'profile-save' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{state.busy === 'profile-save' ? 'Saving profile...' : 'Save drafting profile'}</button></div>
+          {canMutateWorkspace && <div className="mt-4 flex justify-end"><button type="button" onClick={saveOfficeProfile} disabled={state.busy === 'profile-save'} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-teal-800 disabled:bg-slate-400 sm:h-10 sm:w-auto">{state.busy === 'profile-save' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{state.busy === 'profile-save' ? 'Saving profile...' : 'Save drafting profile'}</button></div>}
         </section>}
 
         {activeTab === 'ai' && <section className="surface rounded-md border-t-4 border-t-cyan-600 p-4">
@@ -583,7 +605,7 @@ export default function SettingsPage() {
               {state.busy === 'save-file' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" aria-hidden="true" />}
               {state.busy === 'save-file' ? 'Saving backup...' : 'Save backup to local file'}
             </button>
-            <button type="button" onClick={() => fileRef.current?.click()} className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50">
+            <button type="button" disabled={!canMutateWorkspace} onClick={() => fileRef.current?.click()} className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">
               <Upload className="h-4 w-4" aria-hidden="true" />
               Import JSON
             </button>
@@ -596,10 +618,10 @@ export default function SettingsPage() {
           <h2 className="text-sm font-semibold text-slate-950">Demo data</h2>
           <p className="mt-1 text-sm text-slate-600">Demo Issues are fictional and loaded only from this page.</p>
           <div className="mt-3 flex flex-wrap gap-2">
-            <button type="button" onClick={loadDemo} disabled={state.busy === 'demo-load'} className="inline-flex items-center justify-center gap-2 rounded-md bg-teal-700 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-wait disabled:opacity-70">
+            <button type="button" onClick={loadDemo} disabled={!canMutateWorkspace || state.busy === 'demo-load'} className="inline-flex items-center justify-center gap-2 rounded-md bg-teal-700 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-70">
               {state.busy === 'demo-load' && <LoaderCircle className="h-4 w-4 animate-spin" />}{state.busy === 'demo-load' ? 'Loading demo Issues...' : 'Load demo Issues'}
             </button>
-            <button type="button" onClick={() => setState((current) => ({ ...current, confirmClearDemo: true }))} className="inline-flex items-center gap-2 rounded-md border border-red-300 px-3 py-2 text-sm font-medium text-red-800 hover:bg-red-50">
+            <button type="button" disabled={!canMutateWorkspace} onClick={() => setState((current) => ({ ...current, confirmClearDemo: true }))} className="inline-flex items-center gap-2 rounded-md border border-red-300 px-3 py-2 text-sm font-medium text-red-800 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50">
               <Trash2 className="h-4 w-4" aria-hidden="true" />
               Clear demo data
             </button>
@@ -662,8 +684,8 @@ function Info({ label, value }) {
   );
 }
 
-function ProfileInput({ label, value, onChange }) {
-  return <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">{label}</span><input value={value || ''} onChange={(event) => onChange(event.target.value)} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900" /></label>;
+function ProfileInput({ label, value, onChange, disabled = false }) {
+  return <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">{label}</span><input disabled={disabled} value={value || ''} onChange={(event) => onChange(event.target.value)} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-100 disabled:text-slate-600" /></label>;
 }
 
 function ReminderToggle({ label, description, checked, onChange }) {

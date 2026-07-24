@@ -58,7 +58,7 @@ export async function syncWorkspaceSettings({ workspaceId, userId, canEdit = tru
     const cloudWorkspaceAt = new Date(cloudWorkspace?.updated_at || 0).getTime();
     const cloudUserAt = new Date(cloudUser?.updated_at || 0).getTime();
 
-    if (cloudWorkspace && (!stored || cloudWorkspaceAt > localWorkspaceAt)) {
+    if (cloudWorkspace && (!stored || !canEdit || cloudWorkspaceAt > localWorkspaceAt)) {
       merged = {
         ...merged,
         categories: Array.isArray(cloudWorkspace.payload?.categories) ? cloudWorkspace.payload.categories : merged.categories,
