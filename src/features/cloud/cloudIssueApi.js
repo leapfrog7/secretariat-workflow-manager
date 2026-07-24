@@ -1,6 +1,8 @@
 import { cloudClient } from '../auth/cloudClient';
 
-const CLOUD_ISSUE_FIELDS = 'workspace_id, id, payload, updated_at, deleted_at';
+import { CloudRevisionConflict } from './cloudRevisionConflict';
+
+const CLOUD_ISSUE_FIELDS = 'workspace_id, id, payload, owning_division_id, visibility, created_by, updated_by, updated_at, deleted_at, revision';
 
 function requireClient() {
   if (!cloudClient) throw new Error('Cloud access is not configured for this build.');
@@ -19,49 +21,54 @@ export async function listCloudIssueRows(workspaceId) {
   return data || [];
 }
 
-export async function upsertCloudIssue({ workspaceId, userId, issue }) {
+export async function upsertCloudIssue({ workspaceId, issue }) {
   const client = requireClient();
-  const update = {
-    payload: issue,
-    status: issue.status || 'Pending',
-    assigned_officer_id: issue.assignedOfficerId || '',
-    next_deadline: issue.nextDeadline || null,
-    is_archived: Boolean(issue.isArchived),
-    is_scheduled: Boolean(issue.isScheduled),
-    updated_by: userId,
-    updated_at: issue.updatedAt || new Date().toISOString(),
-    deleted_at: null,
-  };
-  const { data: updated, error: updateError } = await client
-    .from('cloud_issues')
-    .update(update)
-    .eq('workspace_id', workspaceId)
-    .eq('id', issue.id)
-    .select('id');
-
-  if (updateError) throw updateError;
-  if (updated?.length) return;
-
-  const { error: insertError } = await client
-    .from('cloud_issues')
-    .insert({
-      workspace_id: workspaceId,
-      id: issue.id,
-      ...update,
-      created_by: userId,
-      created_at: issue.createdAt || new Date().toISOString(),
+  const { data, error } = await client.rpc('save_cloud_issue_revision', {
+    target_workspace_id: workspaceId,
+    target_issue_id: issue.id,
+    target_payload: issue,
+    expected_revision: Number(issue.cloudRevision || 0),
+    target_status: issue.status || 'Pending',
+    target_assigned_officer_id: issue.assignedOfficerId || '',
+    target_next_deadline: issue.nextDeadline || null,
+    target_is_archived: Boolean(issue.isArchived),
+    target_is_scheduled: Boolean(issue.isScheduled),
+    target_owning_division_id: issue.owningDivisionId || null,
+    target_visibility: issue.visibility || 'workspace',
+  });
+  if (error) throw error;
+  const result = data?.[0];
+  if (!result?.saved) {
+    throw new CloudRevisionConflict({
+      entityType: 'issue',
+      itemId: issue.id,
+      issueId: issue.id,
+      localPayload: issue,
+      cloudResult: result,
     });
-
-  if (insertError) throw insertError;
+  }
+  return result;
 }
 
-export async function markCloudIssueDeleted({ workspaceId, userId, issueId, deletedAt }) {
+export async function markCloudIssueDeleted({ workspaceId, issue, deletedAt }) {
   const client = requireClient();
-  const { error } = await client
-    .from('cloud_issues')
-    .update({ deleted_at: deletedAt, updated_at: deletedAt, updated_by: userId })
-    .eq('workspace_id', workspaceId)
-    .eq('id', issueId);
-
+  const localPayload = { ...issue, deletedAt, _deleted: true };
+  const { data, error } = await client.rpc('delete_cloud_issue_revision', {
+    target_workspace_id: workspaceId,
+    target_issue_id: issue.id,
+    expected_revision: Number(issue.cloudRevision || 0),
+  });
   if (error) throw error;
+  const result = data?.[0];
+  if (!result?.saved) {
+    throw new CloudRevisionConflict({
+      entityType: 'issue',
+      itemId: issue.id,
+      issueId: issue.id,
+      localPayload,
+      cloudResult: result,
+      operation: 'delete',
+    });
+  }
+  return result;
 }

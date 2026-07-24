@@ -86,7 +86,7 @@ export default function ConfiguredAuthProvider({ children }) {
           const onStatus = (syncState) => {
             if (active) setWorkspaceState((current) => ({ ...current, syncState: { error: '', syncedAt: '', ...syncState } }));
           };
-          await synchronizeWorkspace({ workspaceId: workspace.id, userId, canEdit, canManageOfficerDirectory, onStatus });
+          await synchronizeWorkspace({ workspaceId: workspace.id, userId, canEdit, canManageOfficerDirectory, divisionAccessEnabled: Boolean(workspace.division_access_enabled), onStatus });
           if (!active) return;
         }
         if (active) setWorkspaceState((current) => ({ ...current, userId, workspaces, workspace, loading: false, error: '' }));
@@ -118,7 +118,7 @@ export default function ConfiguredAuthProvider({ children }) {
     const workspace = workspaces[0] || null;
     setWorkspaceState((current) => ({ ...current, userId, workspaces, workspace, error: '' }));
     if (workspace) {
-      const configuration = { workspaceId: workspace.id, userId, canEdit: canEditWorkspace(profileState.profile, workspace), canManageOfficerDirectory: workspace.membership?.role === 'workspace_admin', onStatus: (syncState) => setWorkspaceState((current) => ({ ...current, syncState: { error: '', syncedAt: '', ...syncState } })) };
+      const configuration = { workspaceId: workspace.id, userId, canEdit: canEditWorkspace(profileState.profile, workspace), canManageOfficerDirectory: workspace.membership?.role === 'workspace_admin', divisionAccessEnabled: Boolean(workspace.division_access_enabled), onStatus: (syncState) => setWorkspaceState((current) => ({ ...current, syncState: { error: '', syncedAt: '', ...syncState } })) };
       configureCloudIssueSync(configuration);
       configureCloudOfficerSync(configuration);
       configureCloudIssueItemSync(configuration);
@@ -135,6 +135,7 @@ export default function ConfiguredAuthProvider({ children }) {
       userId,
       canEdit: canEditWorkspace(profileState.profile, workspace),
       canManageOfficerDirectory: workspace.membership?.role === 'workspace_admin',
+      divisionAccessEnabled: Boolean(workspace.division_access_enabled),
       onStatus: (syncState) => setWorkspaceState((current) => ({ ...current, syncState: { error: '', syncedAt: '', ...syncState } })),
     };
     return synchronizeWorkspace(configuration);

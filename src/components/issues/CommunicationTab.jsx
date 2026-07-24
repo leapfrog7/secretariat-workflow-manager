@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { CheckCircle2, FileText, LoaderCircle, MessageSquarePlus, Pencil, Save, Trash2, X } from 'lucide-react';
 import { COMMUNICATION_TYPES, normalizeCommunication, validateCommunication } from '../../utils/communicationUtils';
 import { formatDisplayDate } from '../../utils/dateUtils';
+import AdaptiveSelect from '../common/AdaptiveSelect';
 
 export default function CommunicationTab({ issueId, communications, readOnly = false, onSave, onDelete }) {
   const [form, setForm] = useState(null);
@@ -93,11 +94,7 @@ function CommunicationForm({ issueId, initialCommunication, onSave, onComplete, 
         <Field label="Date" error={errors.communicationDate}>
           <input type="date" value={communication.communicationDate} onChange={(event) => update('communicationDate', event.target.value)} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm" />
         </Field>
-        <Field label="Communication type">
-          <select value={communication.communicationType} onChange={(event) => update('communicationType', event.target.value)} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm">
-            {COMMUNICATION_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}
-          </select>
-        </Field>
+        <AdaptiveSelect label="Communication type" value={communication.communicationType} onChange={(value) => update('communicationType', value)} options={COMMUNICATION_TYPES} includeBlank={false} />
         <Field className="sm:col-span-2" label="Organisation / person (optional)">
           <input value={communication.correspondent} onChange={(event) => update('correspondent', event.target.value)} placeholder="Example: Attached office, Department or officer" className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm" />
         </Field>

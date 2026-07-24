@@ -9,5 +9,8 @@ export function normalizeMilestone(input = {}) {
     recordedAt: input.recordedAt || input.createdAt || new Date().toISOString(),
     createdAt: input.createdAt || input.recordedAt || new Date().toISOString(),
     updatedAt: input.updatedAt || input.createdAt || input.recordedAt || new Date().toISOString(),
+    cloudRevision: Number(input.cloudRevision) || 0,
+    cloudUpdatedAt: input.cloudUpdatedAt || '',
+    cloudUpdatedBy: input.cloudUpdatedBy || '',
   };
 }

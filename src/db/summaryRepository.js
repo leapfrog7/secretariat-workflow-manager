@@ -37,7 +37,7 @@ export async function saveSummaryVersion(input) {
     await db.issueSummaries.add(summary);
     return summary;
   });
-  queueCloudIssueItemUpsert('summary', result);
+  await queueCloudIssueItemUpsert('summary', result);
   return result;
 }
 
@@ -45,6 +45,6 @@ export async function deleteSummaryVersion(id) {
   const summary = await db.issueSummaries.get(id);
   if (!summary) return false;
   await db.issueSummaries.delete(id);
-  queueCloudIssueItemDelete('summary', id);
+  await queueCloudIssueItemDelete('summary', normalizeIssueSummary(summary));
   return true;
 }

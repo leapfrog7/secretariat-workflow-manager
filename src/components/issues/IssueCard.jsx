@@ -6,18 +6,23 @@ import { formatDisplayDate, getIssueAgeDays } from '../../utils/dateUtils';
 import { isScheduledIssue } from '../../utils/scheduleUtils';
 import SourceSearchMatch from './SourceSearchMatch';
 
-export default function IssueCard({ issue, officers = [], working = false, canEdit = true, onRestore, onBringBack, onArchive, onDelete }) {
+export default function IssueCard({ issue, officers = [], working = false, canEdit = true, showDivision = false, onRestore, onBringBack, onArchive, onDelete }) {
   const officer = officers.find((item) => item.id === issue.assignedOfficerId);
   const ageDays = getIssueAgeDays(issue);
   const scheduled = isScheduledIssue(issue);
   return (
     <article className={`surface rounded-md border-l-4 p-4 ${issue.isArchived ? 'border-l-slate-400' : scheduled ? 'border-l-cyan-600' : 'border-l-teal-600'}`}>
       <div className="flex items-start justify-between gap-3">
-        <Link to={`/issues/${issue.id}`} className="min-w-0 text-sm font-semibold text-[#17333b] hover:text-teal-800 hover:underline" title={issue.shortTitle}>
-          <span className="block truncate">{issue.shortTitle}</span>
-        </Link>
-        {issue.isArchived && <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">Archived</span>}
-        {scheduled && <span className="shrink-0 rounded-full bg-cyan-100 px-2 py-0.5 text-[11px] font-semibold text-cyan-800">Scheduled</span>}
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+          <Link to={`/issues/${issue.id}`} className="min-w-0 max-w-full text-sm font-semibold text-[#17333b] hover:text-teal-800 hover:underline" title={issue.shortTitle}>
+            <span className="block truncate">{issue.shortTitle}</span>
+          </Link>
+          {showDivision && <span title={issue.divisionName ? `Owning division: ${issue.divisionName}` : 'No owning division assigned'} className={`inline-flex max-w-40 truncate rounded px-1.5 py-0.5 text-[10px] font-semibold ${issue.divisionName ? 'bg-teal-50 text-teal-800 ring-1 ring-inset ring-teal-200' : 'bg-slate-100 text-slate-500 ring-1 ring-inset ring-slate-200'}`}>{issue.divisionName || 'Unassigned'}</span>}
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          {issue.isArchived && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">Archived</span>}
+          {scheduled && <span className="rounded-full bg-cyan-100 px-2 py-0.5 text-[11px] font-semibold text-cyan-800">Scheduled</span>}
+        </div>
       </div>
       <SourceSearchMatch match={issue.searchMatch} />
       <div className="mt-3 flex flex-wrap gap-2">

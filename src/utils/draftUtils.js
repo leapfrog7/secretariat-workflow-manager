@@ -17,6 +17,9 @@ export function normalizeDraft(input = {}) {
     selectedReferenceIds: Array.isArray(input.selectedReferenceIds) ? input.selectedReferenceIds : [],
     createdAt: input.createdAt,
     updatedAt: input.updatedAt || input.createdAt,
+    cloudRevision: Number(input.cloudRevision) || 0,
+    cloudUpdatedAt: input.cloudUpdatedAt || '',
+    cloudUpdatedBy: input.cloudUpdatedBy || '',
   };
 }
 

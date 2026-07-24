@@ -8,26 +8,37 @@ import { getSettings } from '../db/database';
 import { createIssue, getIssueById, updateIssue } from '../db/issueRepository';
 import { getAllOfficers } from '../db/officerRepository';
 import { useToast } from '../components/common/ToastProvider';
+import { useAuth } from '../features/auth/AuthContext';
+import { getIssueAccessLevel, listDivisions } from '../features/collaboration/accessApi';
 
 export default function IssueFormPage({ mode }) {
   const { issueId } = useParams();
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const [state, setState] = useState({ loading: true, saveStatus: 'idle', error: '', issue: null, settings: null, officers: [], saveError: '' });
+  const auth = useAuth();
+  const [state, setState] = useState({ loading: true, saveStatus: 'idle', error: '', issue: null, settings: null, officers: [], divisions: [], saveError: '' });
 
   useEffect(() => {
     async function load() {
       try {
-        const [settings, officers] = await Promise.all([getSettings(), getAllOfficers({ includeInactive: false })]);
+        const [settings, officers, divisions, accessLevel] = await Promise.all([
+          getSettings(),
+          getAllOfficers({ includeInactive: false }),
+          auth.workspace?.id ? listDivisions(auth.workspace.id) : Promise.resolve([]),
+          mode === 'edit' && auth.workspace?.id && auth.workspace.division_access_enabled
+            ? getIssueAccessLevel(auth.workspace.id, issueId)
+            : Promise.resolve(auth.canEdit ? 'editor' : 'viewer'),
+        ]);
         const issue = mode === 'edit' ? await getIssueById(issueId) : null;
         if (mode === 'edit' && !issue) throw new Error('Issue not found.');
-        setState({ loading: false, saveStatus: 'idle', error: '', issue, settings, officers, saveError: '' });
+        if (mode === 'edit' && (!auth.canEdit || accessLevel !== 'editor')) throw new Error('You have viewing access to this Issue, but not editing access.');
+        setState({ loading: false, saveStatus: 'idle', error: '', issue, settings, officers, divisions: divisions.filter((division) => division.is_active), saveError: '' });
       } catch (error) {
-        setState({ loading: false, saveStatus: 'idle', error: error.message, issue: null, settings: null, officers: [], saveError: '' });
+        setState({ loading: false, saveStatus: 'idle', error: error.message, issue: null, settings: null, officers: [], divisions: [], saveError: '' });
       }
     }
     load();
-  }, [mode, issueId]);
+  }, [auth.workspace?.id, mode, issueId]);
 
   const save = async (issue) => {
     try {
@@ -55,6 +66,8 @@ export default function IssueFormPage({ mode }) {
         initialIssue={state.issue}
         settings={state.settings}
         officers={state.officers}
+        divisions={state.divisions}
+        divisionAccessEnabled={Boolean(auth.workspace?.division_access_enabled)}
         onSubmit={save}
         onCancel={() => navigate(mode === 'edit' ? `/issues/${issueId}` : '/issues')}
         saveStatus={state.saveStatus}

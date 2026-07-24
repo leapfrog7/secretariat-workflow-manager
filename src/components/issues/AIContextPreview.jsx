@@ -14,6 +14,8 @@ import { useAuth } from '../../features/auth/AuthContext';
 import ConfirmDialog from '../common/ConfirmDialog';
 import GeminiTaskLevelControl from '../ai/GeminiTaskLevelControl';
 import { getGeminiTaskLevel } from '../../../shared/cloudAIModels';
+import AIModeControl from '../ai/AIModeControl';
+import AdaptiveSelect from '../common/AdaptiveSelect';
 
 export default function AIContextPreview({ issue, assignedOfficer, officers, summary, communications, references, readOnly = false, onSaveCommunication }) {
   const auth = useAuth();
@@ -345,6 +347,13 @@ export default function AIContextPreview({ issue, assignedOfficer, officers, sum
 
   const providerLabel = aiPreferences.cloudProvider === 'openai' ? 'OpenAI' : 'Gemini';
   const geminiTask = getGeminiTaskLevel(aiPreferences.geminiTaskLevel);
+  const changeAIMode = (mode) => {
+    generationController.current?.abort();
+    setAIPreferences((current) => ({ ...current, mode }));
+    setCloudConsent('');
+    setGeneration((current) => current.status === 'error' ? { ...current, status: 'idle', error: '' } : current);
+    setParagraphStatus({ status: 'idle', error: '' });
+  };
 
   return (
     <>
@@ -420,7 +429,10 @@ export default function AIContextPreview({ issue, assignedOfficer, officers, sum
             <div className="flex items-center gap-2"><Sparkles className="h-5 w-5 text-cyan-700" /><h3 className="text-sm font-semibold text-[#17333b]">Generate with {aiPreferences.mode === 'cloud' ? providerLabel : 'local model'}</h3></div>
             <p className="mt-1 text-xs text-slate-500">{aiPreferences.mode === 'cloud' ? 'You will review and confirm before selected official context leaves the workspace.' : 'Selected context is sent only to LM Studio. Saving a generated draft is optional.'}</p>
           </div>
-          <Link to="/settings" className="text-xs font-semibold text-teal-700 hover:underline">Drafting and Local AI settings</Link>
+          <div className="flex flex-col items-start gap-2 sm:items-end">
+            <AIModeControl value={aiPreferences.mode} onChange={changeAIMode} cloudDisabled={!auth.workspace?.id} disabled={generation.status === 'generating' || paragraphStatus.status === 'regenerating'} compact />
+            <Link to="/settings" className="text-xs font-semibold text-teal-700 hover:underline">Configure AI providers</Link>
+          </div>
         </div>
         {drafts.length > 0 && (
           <div className="flex flex-wrap items-center gap-3 border-t border-[#e3ebe9] bg-white px-4 py-3 sm:px-5">
@@ -432,8 +444,8 @@ export default function AIContextPreview({ issue, assignedOfficer, officers, sum
           </div>
         )}
         <div className="grid gap-3 border-t border-[#e3ebe9] px-4 py-4 sm:grid-cols-2 sm:px-5">
-          <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Communication type</span><select value={communicationType} onChange={(event) => { setCommunicationType(event.target.value); markDraftDirty(); }} disabled={generation.status === 'generating'} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-100">{COMMUNICATION_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}</select></label>
-          <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Authorized signatory</span><select value={signatoryId} onChange={(event) => { setSignatoryId(event.target.value); markDraftDirty(); }} disabled={generation.status === 'generating' || !authorizedSignatories.length} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-100"><option value="">Select signatory</option>{authorizedSignatories.map((officer) => <option key={officer.id} value={officer.id}>{officer.name}{officer.designation ? ` - ${officer.designation}` : ''}</option>)}</select></label>
+          <AdaptiveSelect label="Communication type" value={communicationType} onChange={(value) => { setCommunicationType(value); markDraftDirty(); }} options={COMMUNICATION_TYPES} includeBlank={false} disabled={generation.status === 'generating'} />
+          <AdaptiveSelect label="Authorized signatory" value={signatoryId} onChange={(value) => { setSignatoryId(value); markDraftDirty(); }} options={authorizedSignatories.map((officer) => ({ value: officer.id, label: officer.designation ? `${officer.name} - ${officer.designation}` : officer.name }))} placeholder="Select signatory" disabled={generation.status === 'generating' || !authorizedSignatories.length} />
           <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Recipient relationship</span><select value={recipientRelationship} onChange={(event) => { setRecipientRelationship(event.target.value); markDraftDirty(); }} disabled={generation.status === 'generating'} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-100">{RECIPIENT_RELATIONSHIPS.map((relationship) => <option key={relationship} value={relationship}>{relationship}</option>)}</select></label>
           <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Recipient organization <span className="font-normal text-slate-500">(optional)</span></span><input value={recipient.organization} onChange={(event) => updateRecipient('organization', event.target.value)} disabled={generation.status === 'generating'} placeholder="Example: Department of Legal Affairs" className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-100" /></label>
           <label className="block sm:col-span-2"><span className="mb-1 block text-sm font-medium text-slate-700">Purpose / requested action <span className="font-normal text-slate-500">(optional)</span></span><textarea rows={2} value={instruction} onChange={(event) => { setInstruction(event.target.value); markDraftDirty(); }} disabled={generation.status === 'generating'} placeholder="Add a specific action or deadline when the running summary does not make it clear." className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm leading-5 text-slate-900 disabled:bg-slate-100" /></label>

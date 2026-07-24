@@ -159,7 +159,7 @@ export async function runDailyAutomation() {
       reactivatedCount += 1;
     }
 
-    const [members, activeIssues] = await Promise.all([
+    const [members, activeIssues, accessibleIssues] = await Promise.all([
       sql`
         SELECT m.workspace_id, m.user_id, p.email, p.display_name, coalesce(s.payload, '{}'::jsonb) AS settings
         FROM public.workspace_members m
@@ -172,7 +172,16 @@ export async function runDailyAutomation() {
         FROM public.cloud_issues
         WHERE deleted_at IS NULL AND is_archived = false AND is_scheduled = false
       `,
+      sql`
+        SELECT m.workspace_id, m.user_id, i.id AS issue_id
+        FROM public.workspace_members m
+        JOIN public.profiles p ON p.user_id = m.user_id AND p.status = 'active'
+        JOIN public.cloud_issues i ON i.workspace_id = m.workspace_id AND i.deleted_at IS NULL
+        WHERE m.status = 'active'
+          AND public.can_read_issue(i.workspace_id, i.id, m.user_id)
+      `,
     ]);
+    const accessibleIssueKeys = new Set(accessibleIssues.map((row) => `${row.workspace_id}:${row.user_id}:${row.issue_id}`));
     const issuesByWorkspace = new Map();
     for (const issue of activeIssues) {
       const items = issuesByWorkspace.get(issue.workspace_id) || [];
@@ -190,9 +199,9 @@ export async function runDailyAutomation() {
     const monthDay = Number(runDate.slice(8, 10));
     for (const member of members) {
       const preferences = normalizePreferences(member.settings);
-      const issues = issuesByWorkspace.get(member.workspace_id) || [];
+      const issues = (issuesByWorkspace.get(member.workspace_id) || []).filter((issue) => accessibleIssueKeys.has(`${member.workspace_id}:${member.user_id}:${issue.id}`));
       const candidates = [];
-      for (const issue of returnedByWorkspace.get(member.workspace_id) || []) {
+      for (const issue of (returnedByWorkspace.get(member.workspace_id) || []).filter((item) => accessibleIssueKeys.has(`${member.workspace_id}:${member.user_id}:${item.id}`))) {
         candidates.push({ issueId: issue.id, type: 'scheduled_returned', title: 'Issue returned to the register', message: issue.title, dueDate: null, dedupe: `returned:${issue.id}:${runDate}` });
       }
       for (const issue of issues) {
@@ -237,6 +246,7 @@ export async function runDailyAutomation() {
       WHERE n.email_requested = true
         AND n.email_status IN ('pending', 'failed', 'not_configured')
         AND n.created_at >= now() - interval '7 days'
+        AND (n.issue_id IS NULL OR public.can_read_issue(n.workspace_id, n.issue_id, n.user_id))
       ORDER BY n.event_date, n.created_at
     `;
     const emailGroups = new Map();

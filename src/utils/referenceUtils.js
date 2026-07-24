@@ -7,6 +7,9 @@ export function normalizeReference(input = {}) {
     notes: input.notes || '',
     createdAt: input.createdAt,
     updatedAt: input.updatedAt,
+    cloudRevision: Number(input.cloudRevision) || 0,
+    cloudUpdatedAt: input.cloudUpdatedAt || '',
+    cloudUpdatedBy: input.cloudUpdatedBy || '',
   };
 }
 

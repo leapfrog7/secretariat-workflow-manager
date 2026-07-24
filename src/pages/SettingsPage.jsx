@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, BellRing, Bot, Building2, CheckCircle2, Cloud, Database, Download, HardDrive, LoaderCircle, Pencil, Plus, RefreshCw, Save, ShieldCheck, Trash2, Upload } from 'lucide-react';
+import { AlertTriangle, BellRing, Bot, Building2, CheckCircle2, Database, Download, HardDrive, LoaderCircle, Pencil, Plus, RefreshCw, Save, ShieldCheck, Trash2, Upload, Users } from 'lucide-react';
 import PageHeader from '../components/common/PageHeader';
 import LoadingState from '../components/common/LoadingState';
 import ErrorState from '../components/common/ErrorState';
@@ -7,6 +7,8 @@ import ConfirmDialog from '../components/common/ConfirmDialog';
 import DisclosureSection from '../components/common/DisclosureSection';
 import OfficerForm from '../components/officers/OfficerForm';
 import GeminiTaskLevelControl from '../components/ai/GeminiTaskLevelControl';
+import AIModeControl from '../components/ai/AIModeControl';
+import AdaptiveSelect from '../components/common/AdaptiveSelect';
 import { useToast } from '../components/common/ToastProvider';
 import { APP_NAME, DB_NAME, DB_VERSION, DEFAULT_AI_PREFERENCES, DEFAULT_LOCAL_AI_SETTINGS, DEFAULT_OFFICE_PROFILE, DEFAULT_REMINDER_SETTINGS } from '../constants/issueConstants';
 import { getIssueStatistics } from '../db/issueRepository';
@@ -22,7 +24,7 @@ import {
   saveBackupToLocalFile,
   validateBackupPayload,
 } from '../db/backupService';
-import { getAllOfficers, getOfficerStatistics, saveOfficer } from '../db/officerRepository';
+import { deleteOfficer, getAllOfficers, getOfficerStatistics, saveOfficer } from '../db/officerRepository';
 import { clearDemoIssues, loadDemoIssues } from '../db/seedData';
 import { formatDateTime } from '../utils/dateUtils';
 import { getSettings, saveSettings } from '../db/database';
@@ -36,6 +38,7 @@ export default function SettingsPage() {
   const fileRef = useRef(null);
   const { showToast } = useToast();
   const auth = useAuth();
+  const [activeTab, setActiveTab] = useState('officers');
   const [state, setState] = useState({
     loading: true,
     busy: '',
@@ -48,6 +51,7 @@ export default function SettingsPage() {
     fileSystemAccessSupported: false,
     officers: [],
     officerForm: null,
+    officerToDelete: null,
     officeProfile: DEFAULT_OFFICE_PROFILE,
     aiSettings: DEFAULT_LOCAL_AI_SETTINGS,
     aiPreferences: DEFAULT_AI_PREFERENCES,
@@ -220,6 +224,23 @@ export default function SettingsPage() {
     }
   };
 
+  const confirmDeleteOfficer = async () => {
+    const officer = state.officerToDelete;
+    if (!officer) return;
+    try {
+      setState((current) => ({ ...current, busy: 'officer-delete' }));
+      await deleteOfficer(officer.id);
+      const settings = await getSettings();
+      queueCloudSettingsUpsert(settings, 'workspace');
+      showToast(`${officer.name} deleted from the officer directory.`);
+      setState((current) => ({ ...current, busy: '', officerToDelete: null, officerForm: current.officerForm?.officer?.id === officer.id ? null : current.officerForm }));
+      await load();
+    } catch (error) {
+      setState((current) => ({ ...current, busy: '' }));
+      showToast(error.message || 'Unable to delete the officer.', 'error');
+    }
+  };
+
   const testLocalAI = async () => {
     try {
       setState((current) => ({ ...current, busy: 'ai-test', aiStatus: 'testing', aiMessage: '' }));
@@ -312,18 +333,42 @@ export default function SettingsPage() {
 
   const storage = state.storageStatus;
   const backup = state.backupStatus;
+  const canDeleteOfficers = auth.mode !== 'cloud' || auth.isWorkspaceAdmin;
+  const tabs = [
+    { id: 'officers', label: 'Officers', icon: Users },
+    { id: 'profile', label: 'Office profile', icon: Building2 },
+    { id: 'ai', label: 'AI settings', icon: Bot },
+    { id: 'reminders', label: 'Reminders', icon: BellRing },
+    { id: 'data', label: 'Data & backup', icon: Database },
+  ];
 
   return (
     <>
-      <PageHeader title="Settings" description="Manage officers, the official drafting profile, Local AI and application data." />
-      <div className="grid gap-4 lg:grid-cols-2">
-        <section className="surface rounded-md border-t-4 border-t-teal-600 p-4 lg:col-span-2">
+      <PageHeader title="Settings" description="Manage each part of your workspace in one clearly separated place." />
+      <nav className="mb-4 overflow-x-auto border-b border-slate-200" aria-label="Settings sections">
+        <div className="flex min-w-max gap-1">
+          {tabs.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setActiveTab(id)}
+              aria-current={activeTab === id ? 'page' : undefined}
+              className={`inline-flex h-11 items-center gap-2 border-b-2 px-3 text-sm font-semibold transition-colors ${activeTab === id ? 'border-teal-700 text-teal-800' : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-800'}`}
+            >
+              <Icon className="h-4 w-4" />
+              {label}
+            </button>
+          ))}
+        </div>
+      </nav>
+      <div>
+        {activeTab === 'officers' && <section className="surface rounded-md border-t-4 border-t-teal-600 p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold text-slate-950">Officers</h2>
               <p className="mt-1 text-sm text-slate-600">These names appear when an Issue is allocated.</p>
             </div>
-            {!state.officerForm && (
+            {!state.officerForm && auth.canEdit && (
               <button type="button" onClick={() => setState((current) => ({ ...current, officerForm: { mode: 'new', officer: null } }))} className="inline-flex h-10 items-center gap-2 rounded-md bg-teal-700 px-3 text-sm font-semibold text-white shadow-sm hover:bg-teal-800">
                 <Plus className="h-4 w-4" aria-hidden="true" />
                 Add officer
@@ -332,7 +377,7 @@ export default function SettingsPage() {
           </div>
           {state.officerForm && (
             <div className="mt-4">
-              <OfficerForm initialOfficer={state.officerForm.officer} onSubmit={saveOfficerDetails} onCancel={() => setState((current) => ({ ...current, officerForm: null }))} />
+              <OfficerForm key={state.officerForm.officer?.id || 'new'} initialOfficer={state.officerForm.officer} onSubmit={saveOfficerDetails} onCancel={() => setState((current) => ({ ...current, officerForm: null }))} />
             </div>
           )}
           <div className="mt-4 divide-y divide-slate-200 border-y border-slate-200">
@@ -342,17 +387,24 @@ export default function SettingsPage() {
                   <div className="truncate text-sm font-medium text-slate-900">{officer.name}</div>
                   {(officer.designation || !officer.isActive) && <div className="mt-0.5 text-xs text-slate-500">{officer.designation}{officer.designation && !officer.isActive ? ' - ' : ''}{!officer.isActive ? 'Inactive' : ''}</div>}
                 </div>
-                <button type="button" title="Edit officer" onClick={() => setState((current) => ({ ...current, officerForm: { mode: 'edit', officer } }))} className="rounded-md border border-slate-300 p-2 text-slate-600 transition-colors hover:border-teal-300 hover:bg-teal-50 hover:text-teal-800">
-                  <span className="sr-only">Edit {officer.name}</span>
-                  <Pencil className="h-4 w-4" aria-hidden="true" />
-                </button>
+                {auth.canEdit && <div className="flex shrink-0 items-center gap-1">
+                  <button type="button" title="Edit officer" onClick={() => setState((current) => ({ ...current, officerForm: { mode: 'edit', officer } }))} className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-300 text-slate-600 transition-colors hover:border-teal-300 hover:bg-teal-50 hover:text-teal-800">
+                    <span className="sr-only">Edit {officer.name}</span>
+                    <Pencil className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                  <button type="button" title={canDeleteOfficers ? 'Delete officer' : 'Only a workspace administrator can delete cloud officers'} disabled={!canDeleteOfficers} onClick={() => setState((current) => ({ ...current, officerToDelete: officer }))} className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-300 text-slate-500 transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-40">
+                    <span className="sr-only">Delete {officer.name}</span>
+                    <Trash2 className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                </div>}
               </div>
             ))}
             {!state.officers.length && <p className="py-4 text-sm text-slate-500">No officers added.</p>}
           </div>
-        </section>
+          {!canDeleteOfficers && <p className="mt-3 text-xs text-slate-500">Workspace officers can be edited here. Permanent deletion is limited to workspace administrators.</p>}
+        </section>}
 
-        <section className="surface rounded-md border-t-4 border-t-amber-500 p-4 lg:col-span-2">
+        {activeTab === 'profile' && <section className="surface rounded-md border-t-4 border-t-amber-500 p-4">
           <div className="flex items-start gap-2">
             <Building2 className="mt-0.5 h-5 w-5 text-amber-700" aria-hidden="true" />
             <div><h2 className="text-sm font-semibold text-slate-950">Official drafting profile</h2><p className="mt-1 text-sm text-slate-600">Office identity and officers authorized to sign generated communications.</p></div>
@@ -383,9 +435,9 @@ export default function SettingsPage() {
             </div>
           </fieldset>
           <div className="mt-4 flex justify-end"><button type="button" onClick={saveOfficeProfile} disabled={state.busy === 'profile-save'} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-teal-800 disabled:bg-slate-400 sm:h-10 sm:w-auto">{state.busy === 'profile-save' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{state.busy === 'profile-save' ? 'Saving profile...' : 'Save drafting profile'}</button></div>
-        </section>
+        </section>}
 
-        <section className="surface rounded-md border-t-4 border-t-cyan-600 p-4 lg:col-span-2">
+        {activeTab === 'ai' && <section className="surface rounded-md border-t-4 border-t-cyan-600 p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <div className="flex items-center gap-2"><Bot className="h-5 w-5 text-cyan-700" /><h2 className="text-sm font-semibold text-slate-950">AI drafting</h2></div>
@@ -393,15 +445,12 @@ export default function SettingsPage() {
             </div>
             {state.aiPreferences.mode === 'local' && <AIStatus status={state.aiStatus} />}
           </div>
-          <div className="mt-4 inline-flex rounded-md border border-slate-300 bg-white p-1" aria-label="AI processing location">
-            <button type="button" onClick={() => setState((current) => ({ ...current, aiPreferences: { ...current.aiPreferences, mode: 'local' } }))} className={`inline-flex h-9 items-center gap-2 rounded px-3 text-xs font-semibold ${state.aiPreferences.mode === 'local' ? 'bg-[#17333b] text-white' : 'text-slate-600 hover:bg-slate-100'}`}><Bot className="h-4 w-4" />Local LLM</button>
-            <button type="button" disabled={!auth.workspace} onClick={() => setState((current) => ({ ...current, aiPreferences: { ...current.aiPreferences, mode: 'cloud' } }))} className={`inline-flex h-9 items-center gap-2 rounded px-3 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${state.aiPreferences.mode === 'cloud' ? 'bg-[#17333b] text-white' : 'text-slate-600 hover:bg-slate-100'}`}><Cloud className="h-4 w-4" />Cloud API</button>
-          </div>
+          <div className="mt-4"><AIModeControl value={state.aiPreferences.mode} cloudDisabled={!auth.workspace} onChange={(mode) => setState((current) => ({ ...current, aiPreferences: { ...current.aiPreferences, mode } }))} /></div>
 
           {state.aiPreferences.mode === 'local' ? <>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Server connection</span><input value={state.aiSettings.baseUrl} onChange={(event) => setState((current) => ({ ...current, aiStatus: 'idle', aiMessage: '', aiSettings: { ...current.aiSettings, baseUrl: event.target.value } }))} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900" /></label>
-              <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Model</span><select value={state.aiSettings.model} onChange={(event) => setState((current) => ({ ...current, aiSettings: { ...current.aiSettings, model: event.target.value } }))} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900"><option value={state.aiSettings.model}>{state.aiModels.find((model) => model.id === state.aiSettings.model)?.name || state.aiSettings.model}</option>{state.aiModels.filter((model) => model.id !== state.aiSettings.model).map((model) => <option key={model.id} value={model.id}>{model.name}{model.params ? ` (${model.params})` : ''}{model.loaded ? ' - loaded' : ''}</option>)}</select></label>
+              <AdaptiveSelect label="Model" value={state.aiSettings.model} onChange={(model) => setState((current) => ({ ...current, aiSettings: { ...current.aiSettings, model } }))} includeBlank={false} options={(state.aiModels.length ? state.aiModels : [{ id: state.aiSettings.model, name: state.aiSettings.model }]).map((model) => ({ value: model.id, label: `${model.name}${model.params ? ` (${model.params})` : ''}${model.loaded ? ' - loaded' : ''}` }))} />
             </div>
             {state.aiMessage && <p className={`mt-3 text-sm ${state.aiStatus === 'error' ? 'text-red-700' : 'text-emerald-700'}`}>{state.aiMessage}</p>}
             {typeof window !== 'undefined' && window.location.hostname.endsWith('github.io') && <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">On the hosted app, start LM Studio locally with <code className="font-mono font-semibold">lms server start --cors</code>, load a model, then test this connection. Your browser may ask for permission to access localhost.</p>}
@@ -428,9 +477,9 @@ export default function SettingsPage() {
             {state.aiPreferences.mode === 'local' && <button type="button" onClick={testLocalAI} disabled={state.busy === 'ai-test'} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-cyan-200 bg-cyan-50 px-3 text-sm font-semibold text-cyan-900 hover:bg-cyan-100 disabled:opacity-60 sm:w-auto">{state.busy === 'ai-test' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}{state.busy === 'ai-test' ? 'Testing...' : 'Test connection'}</button>}
             <button type="button" onClick={saveAISettings} disabled={state.busy === 'ai-save'} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-teal-700 px-3 text-sm font-semibold text-white hover:bg-teal-800 disabled:bg-slate-400 sm:w-auto">{state.busy === 'ai-save' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{state.busy === 'ai-save' ? 'Saving preference...' : 'Save AI preference'}</button>
           </div>
-        </section>
+        </section>}
 
-        <section className="surface rounded-md border-t-4 border-t-rose-600 p-4 lg:col-span-2">
+        {activeTab === 'reminders' && <section className="surface rounded-md border-t-4 border-t-rose-600 p-4">
           <div className="flex items-start gap-2">
             <BellRing className="mt-0.5 h-5 w-5 text-rose-700" aria-hidden="true" />
             <div><h2 className="text-sm font-semibold text-slate-950">Reminders and digests</h2><p className="mt-1 text-sm text-slate-600">Choose how this account is notified about scheduled returns and deadlines.</p></div>
@@ -444,9 +493,9 @@ export default function SettingsPage() {
             <fieldset><legend className="mb-1 text-sm font-medium text-slate-700">Workload digest</legend><div className="inline-flex rounded-md border border-slate-300 bg-white p-1">{[['none', 'None'], ['weekly', 'Weekly'], ['monthly', 'Monthly']].map(([value, label]) => <button key={value} type="button" onClick={() => setState((current) => ({ ...current, reminderSettings: { ...current.reminderSettings, digestFrequency: value } }))} className={`h-8 rounded px-3 text-xs font-semibold ${state.reminderSettings.digestFrequency === value ? 'bg-[#17333b] text-white' : 'text-slate-600 hover:bg-slate-100'}`}>{label}</button>)}</div></fieldset>
           </div>
           <div className="mt-4 flex justify-end"><button type="button" onClick={saveReminders} disabled={state.busy === 'reminders-save'} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800 disabled:bg-slate-400 sm:h-10 sm:w-auto">{state.busy === 'reminders-save' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{state.busy === 'reminders-save' ? 'Saving reminders...' : 'Save reminders'}</button></div>
-        </section>
+        </section>}
 
-        <DisclosureSection title="Data and backup" description="Storage, backup, restore and demo data." className="lg:col-span-2">
+        {activeTab === 'data' && <DisclosureSection title="Data and backup" description="Storage, backup, restore and demo data.">
           <div className="grid gap-4 lg:grid-cols-2">
         <section className="border-b border-slate-200 pb-5">
           <div className="mb-3 flex items-center gap-2">
@@ -557,9 +606,18 @@ export default function SettingsPage() {
           </div>
         </section>
           </div>
-        </DisclosureSection>
+        </DisclosureSection>}
       </div>
 
+      <ConfirmDialog
+        open={Boolean(state.officerToDelete)}
+        title="Delete officer?"
+        message={state.officerToDelete ? `${state.officerToDelete.name} will be removed from the directory and cleared from current assignments. Historical milestone text will remain intact.` : ''}
+        confirmLabel={state.busy === 'officer-delete' ? 'Deleting...' : 'Delete officer'}
+        destructive
+        onCancel={() => setState((current) => ({ ...current, officerToDelete: null }))}
+        onConfirm={confirmDeleteOfficer}
+      />
       <ConfirmDialog
         open={Boolean(state.pendingImport)}
         title="Import backup?"
@@ -612,7 +670,7 @@ function ReminderToggle({ label, description, checked, onChange }) {
   return (
     <div className="flex items-start justify-between gap-4 rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
       <div><div className="text-sm font-semibold text-slate-900">{label}</div><p className="mt-1 text-xs leading-5 text-slate-500">{description}</p></div>
-      <button type="button" role="switch" aria-checked={checked} aria-label={label} onClick={() => onChange(!checked)} className={`relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition-colors ${checked ? 'bg-teal-700' : 'bg-slate-300'}`}><span className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${checked ? 'translate-x-6' : 'translate-x-1'}`} /></button>
+      <button type="button" role="switch" aria-checked={checked} aria-label={label} onClick={() => onChange(!checked)} className={`relative mt-0.5 h-6 w-11 shrink-0 overflow-hidden rounded-full transition-colors ${checked ? 'bg-teal-700' : 'bg-slate-300'}`}><span className={`absolute left-1 top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${checked ? 'translate-x-5' : 'translate-x-0'}`} /></button>
     </div>
   );
 }

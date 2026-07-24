@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { LoaderCircle } from 'lucide-react';
 import { REVIEW_STATUSES } from '../../constants/issueConstants';
 import DisclosureSection from '../common/DisclosureSection';
+import AdaptiveSelect from '../common/AdaptiveSelect';
 
 export default function TaskWorkflowPanel({ action, officers, onAssign, onProgress, onSubmitTask, onReview }) {
   const [assign, setAssign] = useState({
@@ -71,7 +72,7 @@ function Button({ children, onClick }) {
   return <button type="button" onClick={run} disabled={busy} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-blue-700 px-3 py-2 text-sm font-semibold text-white disabled:cursor-wait disabled:bg-blue-400 sm:w-auto">{busy && <LoaderCircle className="h-4 w-4 animate-spin" />}{busy ? 'Working...' : children}</button>;
 }
 function OfficerSelect({ label, value, officers, onChange }) {
-  return <label className="block"><span className="mb-1 block text-sm font-medium">{label}</span><select value={value || ''} onChange={(event) => onChange(event.target.value)} className="h-9 w-full rounded-md border border-slate-300 px-3 text-sm"><option value="">Select officer</option>{officers.map((officer) => <option key={officer.id} value={officer.id}>{officer.name}{officer.isActive ? '' : ' (inactive)'}</option>)}</select></label>;
+  return <AdaptiveSelect label={label} value={value} onChange={onChange} options={officers.map((officer) => ({ value: officer.id, label: `${officer.name}${officer.isActive ? '' : ' (inactive)'}` }))} placeholder="Select officer" controlClassName="h-9" labelClassName="text-sm font-medium" />;
 }
 function Input({ label, value, onChange, type = 'text' }) {
   return <label className="block"><span className="mb-1 block text-sm font-medium">{label}</span><input type={type} value={value || ''} onChange={(event) => onChange(event.target.value)} className="h-9 w-full rounded-md border border-slate-300 px-3 text-sm" /></label>;

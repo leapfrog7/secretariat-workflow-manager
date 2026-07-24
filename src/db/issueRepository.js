@@ -20,7 +20,7 @@ import { queueCloudIssueItemUpsert } from '../features/cloud/cloudIssueItemSync'
 async function queueMilestoneRecordedAt(issueId, recordedAt) {
   const milestones = await db.issueMilestones.where('issueId').equals(issueId).toArray();
   const milestone = milestones.find((item) => item.recordedAt === recordedAt);
-  if (milestone) queueCloudIssueItemUpsert('milestone', normalizeMilestone(milestone));
+  if (milestone) await queueCloudIssueItemUpsert('milestone', normalizeMilestone(milestone));
 }
 
 function requireValidIssue(input) {
@@ -88,7 +88,7 @@ export async function reactivateScheduledIssues({ issueId, referenceDate = today
     }
     return reactivated;
   });
-  reactivatedIssues.forEach(queueCloudIssueUpsert);
+  await Promise.all(reactivatedIssues.map(queueCloudIssueUpsert));
   await Promise.all(reactivatedIssues.map((issue) => queueMilestoneRecordedAt(issue.id, issue.updatedAt)));
   return count;
 }
@@ -139,9 +139,9 @@ export async function createIssue(input) {
     eventType: 'Issue created',
     title: issue.shortTitle,
   });
-  queueCloudIssueUpsert(issue);
+  const synced = await queueCloudIssueUpsert(issue);
   await queueMilestoneRecordedAt(issue.id, now);
-  return issue;
+  return synced || issue;
 }
 
 export async function updateIssue(id, input) {
@@ -211,9 +211,9 @@ export async function updateIssuePosition(id, input) {
     }
     return issue;
   });
-  queueCloudIssueUpsert(issue);
+  const synced = await queueCloudIssueUpsert(issue);
   await queueMilestoneRecordedAt(issue.id, issue.updatedAt);
-  return issue;
+  return synced || issue;
 }
 
 export async function bringBackIssue(id) {
@@ -257,9 +257,9 @@ export async function bringBackIssue(id) {
     }));
     return issue;
   });
-  queueCloudIssueUpsert(issue);
+  const synced = await queueCloudIssueUpsert(issue);
   await queueMilestoneRecordedAt(issue.id, issue.updatedAt);
-  return issue;
+  return synced || issue;
 }
 
 export async function archiveIssue(id) {
@@ -271,7 +271,7 @@ export async function archiveIssue(id) {
     eventType: 'Issue archived',
     title: existing.shortTitle,
   });
-  queueCloudIssueUpsert(await getIssueById(id));
+  await queueCloudIssueUpsert(await getIssueById(id));
 }
 
 export async function restoreIssue(id) {
@@ -283,10 +283,12 @@ export async function restoreIssue(id) {
     eventType: 'Issue restored',
     title: existing.shortTitle,
   });
-  queueCloudIssueUpsert(await getIssueById(id));
+  await queueCloudIssueUpsert(await getIssueById(id));
 }
 
 export async function permanentlyDeleteIssue(id) {
+  const issue = await getIssueById(id);
+  if (!issue) return;
   await db.transaction('rw', db.issues, db.records, db.actions, db.communications, db.references, db.issueMilestones, db.issueSummaries, db.drafts, db.chronology, async () => {
     const records = await db.records.where('issueId').equals(id).toArray();
     const actions = await db.actions.where('issueId').equals(id).toArray();
@@ -306,7 +308,7 @@ export async function permanentlyDeleteIssue(id) {
     await db.drafts.bulkDelete(drafts);
     await db.issues.delete(id);
   });
-  queueCloudIssueDelete(id);
+  await queueCloudIssueDelete(issue);
 }
 
 export async function getIssueStatistics() {
@@ -513,7 +515,7 @@ export async function importDatabase(payload) {
         }))
         .filter((draft) => issueIds.has(draft.issueId))
     : [];
-  await db.transaction('rw', db.issues, db.records, db.actions, db.communications, db.references, db.issueMilestones, db.issueSummaries, db.drafts, db.syncTombstones, db.officers, db.chronology, db.settings, async () => {
+  await db.transaction('rw', db.issues, db.records, db.actions, db.communications, db.references, db.issueMilestones, db.issueSummaries, db.drafts, db.syncTombstones, db.syncConflicts, db.officers, db.chronology, db.settings, async () => {
     await db.issues.clear();
     await db.records.clear();
     await db.actions.clear();
@@ -524,6 +526,7 @@ export async function importDatabase(payload) {
     await db.issueSummaries.clear();
     await db.drafts.clear();
     await db.syncTombstones.clear();
+    await db.syncConflicts.clear();
     await db.officers.clear();
     await db.issues.bulkPut(issues);
     if (records.length) await db.records.bulkPut(records);

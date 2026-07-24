@@ -12,7 +12,8 @@ import ReferenceTab from '../components/issues/ReferenceTab';
 import MilestoneStack from '../components/issues/MilestoneStack';
 import RunningSummaryPanel from '../components/issues/RunningSummaryPanel';
 import AIContextPreview from '../components/issues/AIContextPreview';
-import { archiveIssue, bringBackIssue, getIssueById, restoreIssue, updateIssuePosition } from '../db/issueRepository';
+import IssueAccessPanel from '../components/collaboration/IssueAccessPanel';
+import { archiveIssue, bringBackIssue, getIssueById, restoreIssue, updateIssue, updateIssuePosition } from '../db/issueRepository';
 import { deleteCommunication, getCommunicationsByIssue, saveCommunication } from '../db/communicationRepository';
 import { deleteReference, getReferencesByIssue, saveReference } from '../db/referenceRepository';
 import { getAllOfficers } from '../db/officerRepository';
@@ -22,8 +23,10 @@ import { useToast } from '../components/common/ToastProvider';
 import { formatDateTime, formatDisplayDate, todayISO, tomorrowISO } from '../utils/dateUtils';
 import { ISSUE_RECURRENCE_TYPES, ISSUE_STATUSES } from '../constants/issueConstants';
 import { useAuth } from '../features/auth/AuthContext';
+import AdaptiveSelect from '../components/common/AdaptiveSelect';
+import { getIssueAccessLevel } from '../features/collaboration/accessApi';
 
-const tabs = ['Current Position', 'Running Summary', 'Record of Communication', 'References', 'AI Context'];
+const tabs = ['Current Position', 'Running Summary', 'Record of Communication', 'References', 'AI Context', 'Share & Access'];
 
 export default function IssueWorkspacePage() {
   const { issueId } = useParams();
@@ -52,11 +55,12 @@ export default function IssueWorkspacePage() {
     operation: '',
     confirmArchive: false,
     deleteTarget: null,
+    accessLevel: 'editor',
   });
 
   const load = async () => {
     try {
-      const [issue, officers, communications, references, milestones, milestoneCount, latestSummary, summaryVersionCount] = await Promise.all([
+      const [issue, officers, communications, references, milestones, milestoneCount, latestSummary, summaryVersionCount, accessLevel] = await Promise.all([
         getIssueById(issueId),
         getAllOfficers(),
         getCommunicationsByIssue(issueId),
@@ -65,6 +69,9 @@ export default function IssueWorkspacePage() {
         countMilestonesByIssue(issueId),
         getLatestSummary(issueId),
         countSummaryVersions(issueId),
+        auth.workspace?.id && auth.workspace.division_access_enabled
+          ? getIssueAccessLevel(auth.workspace.id, issueId)
+          : Promise.resolve(auth.canEdit ? 'editor' : 'viewer'),
       ]);
       if (!issue) throw new Error('Issue not found.');
       setState((current) => ({
@@ -91,6 +98,7 @@ export default function IssueWorkspacePage() {
           recurrenceAnchorDay: issue.recurrenceAnchorDay || null,
         },
         dirty: false,
+        accessLevel,
       }));
     } catch (error) {
       setState((current) => ({ ...current, loading: false, error: error.message }));
@@ -101,7 +109,7 @@ export default function IssueWorkspacePage() {
     load();
     window.addEventListener('swm:workspace-synced', load);
     return () => window.removeEventListener('swm:workspace-synced', load);
-  }, [issueId]);
+  }, [auth.workspace?.id, issueId]);
 
   const updateDraft = (field, value) => {
     setState((current) => ({ ...current, dirty: true, draft: { ...current.draft, [field]: value } }));
@@ -257,11 +265,19 @@ export default function IssueWorkspacePage() {
     }
   };
 
+  const saveAccessPolicy = async (changes) => {
+    const saved = await updateIssue(issueId, { ...state.issue, ...changes });
+    setState((current) => ({ ...current, issue: saved }));
+    showToast('Issue access updated.');
+    return saved;
+  };
+
   if (state.loading) return <LoadingState message="Loading Issue..." />;
   if (state.error) return <ErrorState message={state.error} />;
 
   const { issue, officers, draft } = state;
   const assignedOfficer = officers.find((officer) => officer.id === issue.assignedOfficerId);
+  const canEditIssue = auth.canEdit && state.accessLevel === 'editor';
 
   return (
     <>
@@ -270,11 +286,11 @@ export default function IssueWorkspacePage() {
         actions={
           <>
             <Link to="/issues" className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:border-teal-300 hover:bg-teal-50 hover:text-teal-800"><ArrowLeft className="h-4 w-4" />Issues</Link>
-            {auth.canEdit && <Link to={`/issues/${issue.id}/edit`} className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:border-teal-300 hover:bg-teal-50 hover:text-teal-800"><Pencil className="h-4 w-4" />Edit details</Link>}
+            {canEditIssue && <Link to={`/issues/${issue.id}/edit`} className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:border-teal-300 hover:bg-teal-50 hover:text-teal-800"><Pencil className="h-4 w-4" />Edit details</Link>}
           </>
         }
       />
-      {!auth.canEdit && <div className="mb-4 rounded-md border border-cyan-200 bg-cyan-50 px-3 py-3 text-sm text-cyan-950">Viewing access only. You can inspect the complete Issue record, but changes are disabled.</div>}
+      {!canEditIssue && <div className="mb-4 rounded-md border border-cyan-200 bg-cyan-50 px-3 py-3 text-sm text-cyan-950">Viewing access only. You can inspect the complete Issue record, but changes are disabled.</div>}
 
       <div className="mb-5 overflow-x-auto border-b border-[#d7e3e1]">
         <div className="flex min-w-max gap-1" role="tablist" aria-label="Issue workspace">
@@ -306,7 +322,7 @@ export default function IssueWorkspacePage() {
           milestoneCount={state.milestoneCount}
           milestonesExpanded={state.milestonesExpanded}
           loadingMilestones={state.loadingMilestones}
-          readOnly={!auth.canEdit}
+          readOnly={!canEditIssue}
           onUpdate={updateDraft}
           onUpdateSchedule={updateScheduleDraft}
           onSave={saveWorkflow}
@@ -327,16 +343,17 @@ export default function IssueWorkspacePage() {
           expanded={state.summariesExpanded}
           loading={state.loadingSummaries}
           currentPosition={draft.currentPosition}
-          readOnly={!auth.canEdit}
+          readOnly={!canEditIssue}
           onSave={saveRunningSummary}
           onDelete={(item) => setState((current) => ({ ...current, deleteTarget: { kind: 'summary', item } }))}
           onLoadAll={loadAllSummaries}
           onCollapse={() => setState((current) => ({ ...current, summaryVersions: current.latestSummary ? [current.latestSummary] : [], summariesExpanded: false }))}
         />
       )}
-      {state.activeTab === 'Record of Communication' && <CommunicationTab issueId={issueId} communications={state.communications} readOnly={!auth.canEdit} onSave={saveCommunicationEntry} onDelete={(item) => setState((current) => ({ ...current, deleteTarget: { kind: 'communication', item } }))} />}
-      {state.activeTab === 'References' && <ReferenceTab issueId={issueId} references={state.references} readOnly={!auth.canEdit} onSave={saveReferenceEntry} onDelete={(item) => setState((current) => ({ ...current, deleteTarget: { kind: 'reference', item } }))} />}
-      {state.activeTab === 'AI Context' && <AIContextPreview issue={issue} assignedOfficer={assignedOfficer} officers={officers} summary={state.latestSummary} communications={state.communications} references={state.references} readOnly={!auth.canEdit} onSaveCommunication={saveCommunicationEntry} />}
+      {state.activeTab === 'Record of Communication' && <CommunicationTab issueId={issueId} communications={state.communications} readOnly={!canEditIssue} onSave={saveCommunicationEntry} onDelete={(item) => setState((current) => ({ ...current, deleteTarget: { kind: 'communication', item } }))} />}
+      {state.activeTab === 'References' && <ReferenceTab issueId={issueId} references={state.references} readOnly={!canEditIssue} onSave={saveReferenceEntry} onDelete={(item) => setState((current) => ({ ...current, deleteTarget: { kind: 'reference', item } }))} />}
+      {state.activeTab === 'AI Context' && <AIContextPreview issue={issue} assignedOfficer={assignedOfficer} officers={officers} summary={state.latestSummary} communications={state.communications} references={state.references} readOnly={!canEditIssue} onSaveCommunication={saveCommunicationEntry} />}
+      {state.activeTab === 'Share & Access' && <IssueAccessPanel auth={auth} issue={issue} canEdit={canEditIssue} onUpdateIssue={saveAccessPolicy} />}
 
       <ConfirmDialog open={state.confirmArchive} title={issue.isArchived ? 'Restore Issue?' : 'Archive Issue?'} message={issue.isArchived ? 'The Issue will return to the current register.' : 'The Issue will be hidden from the current register but retained in the database.'} confirmLabel={issue.isArchived ? 'Restore' : 'Archive'} onCancel={() => setState((current) => ({ ...current, confirmArchive: false }))} onConfirm={toggleArchiveIssue} />
       <ConfirmDialog
@@ -370,7 +387,7 @@ function CurrentPositionTab({ issue, officers, draft, dirty, saveStatus, operati
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <Select label="Stage" value={draft.status} options={ISSUE_STATUSES} onChange={(value) => onUpdate('status', value)} />
-          <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Assigned officer</span><select value={draft.assignedOfficerId} onChange={(event) => onUpdate('assignedOfficerId', event.target.value)} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900"><option value="">Not assigned</option>{officers.map((officer) => <option key={officer.id} value={officer.id}>{officer.name}</option>)}</select>{!officers.length && <Link to="/settings" className="mt-1 block text-xs font-semibold text-teal-700 hover:underline">Add officers in Settings</Link>}</label>
+          <div><AdaptiveSelect label="Assigned officer" value={draft.assignedOfficerId} onChange={(value) => onUpdate('assignedOfficerId', value)} options={officers.map((officer) => ({ value: officer.id, label: officer.designation ? `${officer.name} - ${officer.designation}` : officer.name }))} placeholder="Not assigned" />{!officers.length && <Link to="/settings" className="mt-1 block text-xs font-semibold text-teal-700 hover:underline">Add officers in Settings</Link>}</div>
         </div>
         <label className="mt-4 block"><span className="mb-1 block text-sm font-medium text-slate-700">Notes / current position</span><textarea value={draft.currentPosition} onChange={(event) => onUpdate('currentPosition', event.target.value)} rows={6} placeholder="Record the latest position, internal sub-stage or anything the next person needs to know." className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm leading-6 text-slate-900" /></label>
         <details className="mt-4 rounded-md border border-slate-200 bg-slate-50">

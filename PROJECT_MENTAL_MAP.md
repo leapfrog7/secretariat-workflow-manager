@@ -291,11 +291,14 @@ queueCloudIssueUpsert(issue);
 queueCloudIssueItemUpsert('milestone', milestone);
 ```
 
-These are best-effort asynchronous writes. The UI stays responsive while the header reports sync status.
+Repository saves wait for the immediate cloud attempt when cloud mode is active.
+Network failures leave the local copy available and the header reports sync
+status. Revision conflicts are surfaced to the user instead of being hidden.
 
 ### Full reconciliation
 
-On startup or manual sync, each synchronizer compares local and cloud timestamps:
+On startup or manual sync, each synchronizer compares local and cloud sync
+timestamps:
 
 ```text
 Cloud newer -> download to IndexedDB
@@ -306,6 +309,22 @@ Cloud deletion newer -> remove local record
 ### Tombstones
 
 `syncTombstones` preserves deletion intent when a record is removed locally before the cloud deletion succeeds. Without tombstones, a later sync could download the deleted cloud record again.
+
+### Simultaneous edits
+
+`cloud_issues` and `cloud_issue_items` carry an increasing `revision`. Saves and
+deletes call revision-aware PostgreSQL functions and succeed only when the
+browser's expected revision is still current.
+
+When the revisions differ:
+
+1. `cloudRevisionConflict.js` describes the stale local and current cloud copies.
+2. `syncConflictRepository.js` retains that comparison in IndexedDB.
+3. `SyncConflictCenter.jsx` shows the global **Changes need review** panel.
+4. `syncConflictResolution.js` applies **Keep cloud version** or retries the
+   user's latest local change against the newest revision.
+
+This prevents silent last-write-wins data loss. It is not live co-editing.
 
 ### Generic Issue child records
 
@@ -352,6 +371,9 @@ Migrations are the authoritative cloud schema. Important stages are:
 | `005_cloud_officer_directory.sql` | shared officer directory |
 | `006_complete_workspace_sync.sql` | Issue child records and settings |
 | `007_background_reminders.sql` | notification inbox and automation-run history |
+| `009_division_access_foundation.sql` | divisions and Issue grants behind a feature flag |
+| `010_shared_issue_access.sql` | effective Issue permissions and inherited RLS |
+| `012_optimistic_concurrency.sql` | revision-aware saves, deletes and conflict detection |
 
 ### Row-level security
 

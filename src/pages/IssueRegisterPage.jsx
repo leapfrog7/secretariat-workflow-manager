@@ -18,10 +18,12 @@ import { isScheduledIssue } from '../utils/scheduleUtils';
 import { getAllCommunications } from '../db/communicationRepository';
 import { getCommunicationSearchContext } from '../utils/communicationUtils';
 import { useAuth } from '../features/auth/AuthContext';
+import { listDivisions } from '../features/collaboration/accessApi';
 
 const defaultFilters = {
   query: '',
   status: '',
+  divisionId: '',
   archiveMode: 'Current',
   sort: 'Recently updated',
 };
@@ -29,7 +31,7 @@ const defaultFilters = {
 export default function IssueRegisterPage() {
   const auth = useAuth();
   const { showToast } = useToast();
-  const [data, setData] = useState({ loading: true, error: '', issues: [], officers: [], communications: [] });
+  const [data, setData] = useState({ loading: true, error: '', issues: [], officers: [], communications: [], divisions: [] });
   const [filters, setFilters] = useState(defaultFilters);
   const [showFilters, setShowFilters] = useState(false);
   const [workingId, setWorkingId] = useState('');
@@ -37,10 +39,15 @@ export default function IssueRegisterPage() {
 
   const load = async () => {
     try {
-      const [issues, officers, communications] = await Promise.all([getAllIssues(), getAllOfficers(), getAllCommunications()]);
-      setData({ loading: false, error: '', issues, officers, communications });
+      const [issues, officers, communications, divisions] = await Promise.all([
+        getAllIssues(),
+        getAllOfficers(),
+        getAllCommunications(),
+        auth.workspace?.id ? listDivisions(auth.workspace.id) : Promise.resolve([]),
+      ]);
+      setData({ loading: false, error: '', issues, officers, communications, divisions });
     } catch (error) {
-      setData({ loading: false, error: error.message, issues: [], officers: [], communications: [] });
+      setData({ loading: false, error: error.message, issues: [], officers: [], communications: [], divisions: [] });
     }
   };
 
@@ -49,7 +56,7 @@ export default function IssueRegisterPage() {
     const handleSync = () => load();
     window.addEventListener('swm:issues-synced', handleSync);
     return () => window.removeEventListener('swm:issues-synced', handleSync);
-  }, []);
+  }, [auth.workspace?.id]);
 
   const summary = useMemo(() => {
     const current = data.issues.filter((issue) => !issue.isArchived && !isScheduledIssue(issue));
@@ -130,15 +137,18 @@ export default function IssueRegisterPage() {
   };
 
   const filtered = useMemo(() => {
+    const divisionNames = new Map(data.divisions.map((division) => [division.id, division.name]));
     const rows = data.issues.flatMap((issue) => {
       if (filters.archiveMode === 'Current' && issue.isArchived) return [];
       if (filters.archiveMode === 'Current' && isScheduledIssue(issue)) return [];
       if (filters.archiveMode === 'Scheduled' && !isScheduledIssue(issue)) return [];
       if (filters.archiveMode === 'Archived' && !issue.isArchived) return [];
       if (filters.status && issue.status !== filters.status) return [];
+      if (filters.divisionId === '__unassigned__' && issue.owningDivisionId) return [];
+      if (filters.divisionId && filters.divisionId !== '__unassigned__' && issue.owningDivisionId !== filters.divisionId) return [];
       const sourceMatch = getCommunicationSearchContext(communicationsByIssue.get(issue.id) || [], filters.query);
       if (filters.query && !issueMatchesSearch(issue, filters.query) && !sourceMatch) return [];
-      return [{ ...issue, searchMatch: sourceMatch }];
+      return [{ ...issue, divisionName: divisionNames.get(issue.owningDivisionId) || '', searchMatch: sourceMatch }];
     });
     return rows.sort((a, b) => {
       if (filters.sort === 'Recently updated') return new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0);
@@ -147,11 +157,11 @@ export default function IssueRegisterPage() {
       if (filters.sort === 'Title') return a.shortTitle.localeCompare(b.shortTitle);
       return 0;
     });
-  }, [data.issues, communicationsByIssue, filters]);
+  }, [data.divisions, data.issues, communicationsByIssue, filters]);
 
   const sourceMatchCount = useMemo(() => filtered.reduce((total, issue) => total + (issue.searchMatch?.count || 0), 0), [filtered]);
   const expectedSort = filters.archiveMode === 'Scheduled' ? 'Next appearance' : 'Recently updated';
-  const advancedFiltersActive = Boolean(filters.status || filters.sort !== expectedSort);
+  const advancedFiltersActive = Boolean(filters.status || filters.divisionId || filters.sort !== expectedSort);
 
   if (data.loading) return <LoadingState message="Loading Issue register..." />;
   if (data.error) return <ErrorState message={data.error} onRetry={load} />;
@@ -179,7 +189,7 @@ export default function IssueRegisterPage() {
           </div>
           <div className="mt-3">
             <SearchInput value={filters.query} onChange={(query) => setFilters({ ...filters, query })} placeholder="Search Issues, eReceipts or source documents" />
-            {showFilters && <div className="mt-3 border-t border-slate-200 pt-3"><FilterBar filters={filters} onChange={setFilters} onClear={() => setFilters((current) => ({ ...defaultFilters, archiveMode: current.archiveMode, sort: current.archiveMode === 'Scheduled' ? 'Next appearance' : defaultFilters.sort }))} /></div>}
+            {showFilters && <div className="mt-3 border-t border-slate-200 pt-3"><FilterBar filters={filters} divisions={data.divisions} onChange={setFilters} onClear={() => setFilters((current) => ({ ...defaultFilters, archiveMode: current.archiveMode, sort: current.archiveMode === 'Scheduled' ? 'Next appearance' : defaultFilters.sort }))} /></div>}
           </div>
         </section>
         <div className="flex items-center justify-between gap-3">
@@ -189,10 +199,10 @@ export default function IssueRegisterPage() {
           <EmptyState title={filters.archiveMode === 'Archived' ? 'No archived Issues' : filters.archiveMode === 'Scheduled' ? 'No scheduled Issues' : 'No matching Issues'} message={filters.archiveMode === 'Archived' ? 'Archived Issues will appear here and can be restored to the current register.' : filters.archiveMode === 'Scheduled' ? 'Completed Issues with a return date will wait here until they are due.' : 'Adjust the filters or create a new Issue.'} />
         ) : (
           <>
-            <IssueTable issues={filtered} officers={data.officers} registerMode={filters.archiveMode} workingId={workingId} canEdit={auth.canEdit} onRestore={restore} onBringBack={bringBack} onArchive={archive} onDelete={setDeleteTarget} />
+            <IssueTable issues={filtered} officers={data.officers} registerMode={filters.archiveMode} workingId={workingId} canEdit={auth.canEdit} showDivision={Boolean(auth.workspace?.id)} onRestore={restore} onBringBack={bringBack} onArchive={archive} onDelete={setDeleteTarget} />
             <div className="space-y-3 md:hidden">
               {filtered.map((issue) => (
-                <IssueCard key={issue.id} issue={issue} officers={data.officers} registerMode={filters.archiveMode} working={workingId === issue.id} canEdit={auth.canEdit} onRestore={restore} onBringBack={bringBack} onArchive={archive} onDelete={setDeleteTarget} />
+                <IssueCard key={issue.id} issue={issue} officers={data.officers} registerMode={filters.archiveMode} working={workingId === issue.id} canEdit={auth.canEdit && issue.accessLevel !== 'viewer'} showDivision={Boolean(auth.workspace?.id)} onRestore={restore} onBringBack={bringBack} onArchive={archive} onDelete={setDeleteTarget} />
               ))}
             </div>
           </>

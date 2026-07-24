@@ -15,7 +15,6 @@ import {
   MessageSquareText,
   Settings,
   ShieldCheck,
-  UserRoundCog,
   Users,
 } from 'lucide-react';
 import PageHeader from '../components/common/PageHeader';
@@ -28,9 +27,9 @@ const sections = [
   ['Issue workspace', 'workspace'],
   ['Periodic work', 'periodic'],
   ['Reminders', 'reminders'],
+  ['Settings', 'settings'],
   ['AI drafting', 'ai'],
   ['Local LLM', 'local-ai'],
-  ['Administration', 'admin'],
   ['Data and sync', 'data'],
   ['Cloud AI', 'api'],
 ];
@@ -77,6 +76,7 @@ export default function HelpPage() {
               ['Workspace access', 'After account approval, the user must also belong to an official workspace. The workspace name in the header identifies the shared register currently in use.'],
               ['Check again', 'Use Check again on an approval or workspace-access screen after an administrator has changed your access. There is no need to create a second account.'],
               ['Across laptops', 'Sign in to the same account and workspace on another laptop to receive the complete Issue workspace, shared officer directory and saved drafting context.'],
+              ['Why an Issue may be read only', 'Some Issues may be shared with you for viewing only. You can read their position and records, but editing controls are hidden. The Share & Access tab shows the reason for your access.'],
               ['Sign out', 'Use the account control in the header when leaving a shared computer. Signing out does not delete locally cached work.'],
             ]} />
           </HelpSection>
@@ -87,6 +87,7 @@ export default function HelpPage() {
               ['Title', 'The only essential description. Use a short, recognizable subject so the Issue is easy to find later.'],
               ['Current stage', 'Defaults to Pending. Change it during creation only when the matter is already at another stage.'],
               ['Assigned to', 'Optionally allocate the Issue to an officer already saved in Settings. Leave it blank when ownership is not yet decided.'],
+              ['Division and visibility', 'When division sharing is in use, choose the division responsible for the Issue. Entire workspace shares it broadly, Owning division keeps routine access within that division, and Restricted uses named access only.'],
               ['Deadline and identifiers', 'Deadline, subject type, eFile number, category and priority are optional. Subject types include RTI, Parliamentary Matter, Audit, VIP Reference, Public Grievance, Court Case, Administrative, PMO and Cabinet Secretariat matters.'],
               ['After saving', 'The Issue opens in its workspace, where its position, communications, references and AI drafting context can be maintained.'],
             ]} />
@@ -114,6 +115,7 @@ export default function HelpPage() {
               <WorkspaceRow icon={MessageSquareText} title="Record of Communication">Add incoming, outgoing and internal communications chronologically. Record the eReceipt number, source, subject, date, direction and useful details. The application stores the register entry, not the PDF.</WorkspaceRow>
               <WorkspaceRow icon={FileText} title="References">Capture rules, O.M.s, instructions, court directions or other authorities with their citation, date and relevant proposition.</WorkspaceRow>
               <WorkspaceRow icon={Bot} title="AI Context">Preview the material available for drafting and choose exactly which summary, communications and references may be supplied to the model. Search eReceipts where needed and review the assembled context before generation.</WorkspaceRow>
+              <WorkspaceRow icon={Users} title="Share & Access">See why you can open the Issue. If you have editing rights, choose its owning division and share it with a colleague or another division as Can view or Can edit.</WorkspaceRow>
             </div>
             <p className="mt-4 text-xs leading-5 text-slate-500">Use the running summary for the current understanding of the matter. Use milestones for position history, communications for the correspondence chain and references for the legal or rule position.</p>
           </HelpSection>
@@ -135,15 +137,27 @@ export default function HelpPage() {
             ]} />
           </HelpSection>
 
+          <HelpSection id="settings" icon={Settings} title="Using Settings" tone="blue">
+            <GuideLocation link="/settings" label="Open Settings">Main navigation &gt; Settings</GuideLocation>
+            <GuideRows rows={[
+              ['Officers', 'Add the officers who may receive Issues or sign communications. Use the pencil to correct an entry and the delete icon only when the officer should be removed from current choices.'],
+              ['Office profile', 'Enter the Ministry, Department, office address and other heading details used in generated communication. Select which saved officers are authorized signatories.'],
+              ['AI settings', 'Set up LM Studio for Local LLM use or choose the available Cloud API provider. These are defaults; Local or Cloud can also be changed immediately before drafting or summarizing.'],
+              ['Reminders', 'Choose in-app or email notifications, the upcoming-deadline window and weekly or monthly digest. These preferences belong to your account.'],
+              ['Data and backup', 'Check browser storage and download a JSON backup. Import replaces the current local copy, so use it only with the intended backup file.'],
+            ]} />
+          </HelpSection>
+
           <HelpSection id="ai" icon={Bot} title="Preparing an AI-assisted draft" tone="violet">
             <GuideLocation link="/issues" label="Choose an Issue">Issue workspace &gt; AI Context</GuideLocation>
             <ol className="space-y-3">
               <Instruction number="1" title="Prepare the office profile">In Settings, enter the Ministry or Department, bilingual heading if required, place of issue and house-style notes. Select the officers authorized to sign communications.</Instruction>
               <Instruction number="2" title="Build reliable Issue context">Keep the running summary current and record only relevant communications and references. Better source material produces safer drafts.</Instruction>
-              <Instruction number="3" title="Select context deliberately">In AI Context, choose the summary, communications and references needed for this draft. Sensitive or irrelevant entries can remain unselected.</Instruction>
-              <Instruction number="4" title="Describe the outgoing communication">Choose Office Memorandum, D.O. Letter, Letter, Office Order, Order, I.D. Note or another available form. Select the authorized signatory and recipient relationship. Recipient organization and a separate drafting purpose are optional when the running summary already supplies enough context.</Instruction>
-              <Instruction number="5" title="Choose the drafting scope">Selected Issue context is used by default. Turn it off only when preparing a brief purpose-led draft that should not draw on the summary, communications or references.</Instruction>
-              <Instruction number="6" title="Review before use">The application supplies the CSMOP-oriented document structure and asks the model to draft the body from the Ministry&apos;s perspective. Edit the result, verify every fact and citation, complete placeholders and obtain the required approval before issue.</Instruction>
+              <Instruction number="3" title="Choose Local or Cloud AI">Use Local LLM when LM Studio is running on your laptop. Use Cloud API when your workspace provides Gemini or OpenAI. Cloud use asks for confirmation before selected official context leaves the workspace.</Instruction>
+              <Instruction number="4" title="Select context deliberately">In AI Context, choose the summary, communications and references needed for this draft. Sensitive or irrelevant entries can remain unselected.</Instruction>
+              <Instruction number="5" title="Describe the outgoing communication">Choose Office Memorandum, D.O. Letter, Letter, Office Order, Order, I.D. Note or another available form. Select the authorized signatory and recipient relationship. Recipient organization and a separate drafting purpose are optional when the running summary already supplies enough context.</Instruction>
+              <Instruction number="6" title="Choose the drafting scope">Selected Issue context is used by default. Turn it off only when preparing a brief purpose-led draft that should not draw on the summary, communications or references.</Instruction>
+              <Instruction number="7" title="Review before use">The application supplies the CSMOP-oriented document structure and asks the model to draft the body from the Ministry&apos;s perspective. Edit the result, verify every fact and citation, complete placeholders and obtain the required approval before issue.</Instruction>
             </ol>
             <div className="mt-5 flex gap-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-3 text-sm leading-6 text-amber-950"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" /><p>AI output is a drafting aid, not an official decision. The responsible officer remains accountable for factual accuracy, authority, tone, classification and approval.</p></div>
           </HelpSection>
@@ -163,23 +177,10 @@ export default function HelpPage() {
             ]} />
           </HelpSection>
 
-          <HelpSection id="admin" icon={UserRoundCog} title="Administration" tone="amber">
-            <GuideLocation link="/admin" label="Open Administration">Main navigation &gt; Administration (platform administrators only)</GuideLocation>
-            <GuideRows rows={[
-              ['Approve registration', 'Activate a pending account after verifying the user. Approval also adds the user to the current workspace as an Officer.'],
-              ['Workspace access', 'Choose Viewer, Officer, Workspace admin or No workspace access. Viewers can inspect Issues without changing them, Officers can edit, and Workspace admins can manage access.'],
-              ['Division sharing', 'Division-level ownership and per-Issue sharing are being introduced in phases. Until enforcement is enabled by an administrator, active workspace members retain workspace-wide visibility.'],
-              ['Cloud AI policy', 'Enable OpenAI or Gemini, select the model, set daily and monthly limits, optionally set a budget and current per-token rates, and override access for individual users when needed.'],
-              ['Suspend an account', 'Suspension blocks cloud access for that profile. Use it when a user should no longer access official workspaces.'],
-              ['Protect the administrator', 'The signed-in administrator cannot remove or suspend their own access from the Administration page. Keep at least one verified platform administrator available.'],
-            ]} />
-            <div className="mt-4 flex gap-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-3 text-sm leading-6 text-amber-950"><ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" /><p>Account approval and workspace membership are separate controls. A user needs both an active account and active workspace access to open the official register.</p></div>
-          </HelpSection>
-
           <HelpSection id="data" icon={Database} title="Data, cloud sync and backup" tone="rose">
             <GuideLocation link="/settings" label="Open Settings">Settings &gt; Data and backup</GuideLocation>
             <GuideRows rows={[
-              ['Cloud-synced now', 'Issue details, officers, communications, eReceipts, references, milestones, summary versions and saved drafts sync through Neon for approved workspace members.'],
+              ['Cloud-synced now', 'Issue details, officers, communications, eReceipts, references, milestones, summary versions and saved drafts sync through Neon for people who have access to that Issue.'],
               ['Local working copy', 'The browser keeps an IndexedDB copy so the interface remains responsive. When connected, newer cloud and local changes are reconciled in the background.'],
               ['Drafting settings', 'The official office profile and authorised signatories are shared with the workspace. LM Studio preferences follow the signed-in user.'],
               ['Saved drafts', 'Generation remains temporary until Save version is selected. Up to five versions are retained per Issue; version six replaces the oldest slot. Saved versions are available on another laptop after cloud sync.'],

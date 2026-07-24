@@ -31,11 +31,13 @@ export async function saveReference(input) {
     updatedAt: now,
   });
   await db.references.put(reference);
-  queueCloudIssueItemUpsert('reference', reference);
+  await queueCloudIssueItemUpsert('reference', reference);
   return reference;
 }
 
 export async function deleteReference(id) {
+  const reference = await db.references.get(id);
+  if (!reference) return;
   await db.references.delete(id);
-  queueCloudIssueItemDelete('reference', id);
+  await queueCloudIssueItemDelete('reference', normalizeReference(reference));
 }

@@ -1,7 +1,7 @@
-import { db } from './database';
+import { db, getSettings, saveSettings } from './database';
 import { normalizeOfficer, validateOfficer } from '../utils/officerUtils';
 import { getOfficerIdentityKey } from '../utils/officerIdentity';
-import { queueCloudOfficerUpsert } from '../features/cloud/cloudOfficerSync';
+import { queueCloudOfficerDelete, queueCloudOfficerUpsert } from '../features/cloud/cloudOfficerSync';
 import { consolidateDuplicateOfficers } from './officerDeduplication';
 
 function requireValidOfficer(input) {
@@ -51,6 +51,36 @@ export async function saveOfficer(input) {
   });
   if (!reusedExisting) queueCloudOfficerUpsert(officer);
   return reusedExisting ? { ...officer, reusedExisting: true } : officer;
+}
+
+export async function deleteOfficer(id) {
+  if (!id) throw new Error('Choose an officer to delete.');
+  const existing = await db.officers.get(id);
+  if (!existing) return false;
+
+  await db.transaction('rw', db.officers, db.issues, db.actions, async () => {
+    await db.issues.where('assignedOfficerId').equals(id).modify({
+      assignedOfficerId: '',
+      assignedOn: '',
+      updatedAt: new Date().toISOString(),
+    });
+    await db.actions.where('assignedOfficerId').equals(id).modify({ assignedOfficerId: '', updatedAt: new Date().toISOString() });
+    await db.actions.where('assignedByOfficerId').equals(id).modify({ assignedByOfficerId: '', updatedAt: new Date().toISOString() });
+    await db.officers.delete(id);
+  });
+
+  const settings = await getSettings();
+  if (settings.officeProfile.authorizedSignatoryIds.includes(id)) {
+    await saveSettings({
+      ...settings,
+      officeProfile: {
+        ...settings.officeProfile,
+        authorizedSignatoryIds: settings.officeProfile.authorizedSignatoryIds.filter((officerId) => officerId !== id),
+      },
+    });
+  }
+  await queueCloudOfficerDelete(id);
+  return true;
 }
 
 export async function getOfficerStatistics() {

@@ -18,6 +18,22 @@ export function queueCloudOfficerUpsert(officer) {
     .catch((error) => current.onStatus?.({ status: 'error', error: error.message || 'Unable to sync officer directory.' }));
 }
 
+export async function queueCloudOfficerDelete(officerId) {
+  if (!officerId) return;
+  const tombstone = { id: `officer:${officerId}`, entityType: 'officer', itemId: officerId, deletedAt: new Date().toISOString() };
+  await db.syncTombstones.put(tombstone);
+  const current = runtime;
+  if (!current || !current.canManageOfficerDirectory) return;
+  current.onStatus?.({ status: 'syncing' });
+  try {
+    await deleteCloudOfficer({ workspaceId: current.workspaceId, officerId });
+    await db.syncTombstones.delete(tombstone.id);
+    current.onStatus?.({ status: 'synced', syncedAt: new Date().toISOString() });
+  } catch (error) {
+    current.onStatus?.({ status: 'error', error: error.message || 'Unable to delete the officer from the cloud directory.' });
+  }
+}
+
 async function flushOfficerTombstones({ workspaceId, canManageOfficerDirectory }) {
   const tombstones = (await db.syncTombstones.toArray()).filter((item) => item.entityType === 'officer');
   if (!canManageOfficerDirectory) return tombstones;

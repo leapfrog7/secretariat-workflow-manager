@@ -34,11 +34,12 @@ export async function saveDraft(input) {
       error.validationErrors = errors;
       throw error;
     }
+    const deletedDrafts = deletedIds.length ? await db.drafts.bulkGet(deletedIds) : [];
     if (deletedIds.length) await db.drafts.bulkDelete(deletedIds);
     await db.drafts.put(prepared);
-    return { draft: prepared, deletedIds };
+    return { draft: prepared, deletedDrafts: deletedDrafts.filter(Boolean).map(normalizeDraft) };
   });
-  result.deletedIds.forEach((id) => queueCloudIssueItemDelete('draft', id));
-  queueCloudIssueItemUpsert('draft', result.draft);
+  await Promise.all(result.deletedDrafts.map((draft) => queueCloudIssueItemDelete('draft', draft)));
+  await queueCloudIssueItemUpsert('draft', result.draft);
   return result.draft;
 }

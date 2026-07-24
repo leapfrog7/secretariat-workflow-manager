@@ -27,6 +27,9 @@ export function normalizeIssueSummary(input = {}) {
     outstandingDecisions: input.outstandingDecisions || '',
     nextStep: input.nextStep || '',
     createdAt: input.createdAt,
+    cloudRevision: Number(input.cloudRevision) || 0,
+    cloudUpdatedAt: input.cloudUpdatedAt || '',
+    cloudUpdatedBy: input.cloudUpdatedBy || '',
   };
 }
 

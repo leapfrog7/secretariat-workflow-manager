@@ -202,6 +202,26 @@ db.version(11).stores({
   settings: 'id',
 });
 
+db.version(12).stores({
+  issues:
+    'id, eFileNumber, subjectType, assignedOfficerId, organisation, category, priority, status, nextDeadline, nextAppearanceDate, dateOpened, isArchived, isDemo, createdAt, updatedAt',
+  records:
+    'id, issueId, recordNumber, recordType, direction, organisation, recordDate, receivedDate, isArchived, createdAt, updatedAt',
+  actions:
+    'id, issueId, recordId, assignedOfficerId, assignedByOfficerId, reviewStatus, status, priority, assignedTo, pendingWith, dueDate, reminderDate, escalationDate, isArchived, completedAt, assignedOn, submittedOn, lastProgressUpdatedAt, createdAt, updatedAt',
+  communications: 'id, issueId, communicationDate, communicationType, createdAt, updatedAt',
+  references: 'id, issueId, referenceDate, createdAt, updatedAt',
+  issueMilestones: 'id, issueId, recordedAt, createdAt',
+  issueSummaries: 'id, issueId, version, createdAt',
+  drafts: 'id, issueId, version, communicationType, status, createdAt, updatedAt',
+  syncTombstones: 'id, entityType, itemId, deletedAt',
+  syncConflicts: 'id, issueId, entityType, itemId, detectedAt',
+  officers: 'id, name, designation, section, role, isActive, createdAt, updatedAt',
+  chronology:
+    'id, issueId, recordId, actionId, eventType, eventDate, createdAt',
+  settings: 'id',
+});
+
 export async function getSettings() {
   const settings = await db.settings.get(SETTINGS_ID);
   if (settings) return {

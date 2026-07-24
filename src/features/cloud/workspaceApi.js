@@ -1,6 +1,6 @@
 import { cloudClient } from '../auth/cloudClient';
 
-const WORKSPACE_FIELDS = 'id, name, code, is_active, created_by, created_at, updated_at';
+const WORKSPACE_FIELDS = 'id, name, code, is_active, division_access_enabled, created_by, created_at, updated_at';
 const MEMBER_FIELDS = 'workspace_id, user_id, role, status, created_at, updated_at';
 
 function requireClient() {

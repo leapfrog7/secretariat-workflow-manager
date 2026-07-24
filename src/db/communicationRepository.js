@@ -38,11 +38,13 @@ export async function saveCommunication(input) {
     updatedAt: now,
   });
   await db.communications.put(communication);
-  queueCloudIssueItemUpsert('communication', communication);
+  await queueCloudIssueItemUpsert('communication', communication);
   return communication;
 }
 
 export async function deleteCommunication(id) {
+  const communication = await db.communications.get(id);
+  if (!communication) return;
   await db.communications.delete(id);
-  queueCloudIssueItemDelete('communication', id);
+  await queueCloudIssueItemDelete('communication', normalizeCommunication(communication));
 }

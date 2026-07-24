@@ -10,6 +10,7 @@ import { normalizeLocalAISettings, summarizeLocalNotes } from '../../services/lm
 import { summarizeCloudNotes } from '../../services/cloudAIClient';
 import { useAuth } from '../../features/auth/AuthContext';
 import ConfirmDialog from '../common/ConfirmDialog';
+import AIModeControl from '../ai/AIModeControl';
 
 const TABLE_TEMPLATE = '\n| Item | Details | Status |\n| --- | --- | --- |\n|  |  |  |\n';
 
@@ -151,6 +152,13 @@ export default function RunningSummaryPanel({ issueId, issueTitle, latestSummary
     }
   };
 
+  const changeAIMode = (mode) => {
+    aiController.current?.abort();
+    setAIConfig((current) => current ? { ...current, preferences: { ...current.preferences, mode } } : current);
+    setAIStatus({ status: 'idle', model: '' });
+    setError('');
+  };
+
   const restoreBeforeAI = () => {
     updateContent(beforeAI);
     setBeforeAI('');
@@ -202,13 +210,17 @@ export default function RunningSummaryPanel({ issueId, issueTitle, latestSummary
                 </div>
               )}
 
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                <button type="button" onClick={() => summarize()} disabled={aiStatus.status === 'summarizing' || saveStatus !== 'idle'} className="inline-flex h-10 items-center gap-2 rounded-md border border-cyan-200 bg-cyan-50 px-3 text-sm font-semibold text-cyan-900 hover:bg-cyan-100 disabled:cursor-wait disabled:opacity-60">
+              <div className="mt-3 flex flex-wrap items-end justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+                <div>
+                  <span className="mb-1.5 block text-xs font-semibold text-slate-600">Summarize using</span>
+                  <AIModeControl value={aiConfig?.preferences.mode || 'local'} onChange={changeAIMode} cloudDisabled={!auth.workspace?.id} disabled={aiStatus.status === 'summarizing'} compact />
+                </div>
+                <button type="button" onClick={() => summarize()} disabled={aiStatus.status === 'summarizing' || saveStatus !== 'idle'} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-cyan-200 bg-cyan-50 px-3 text-sm font-semibold text-cyan-900 hover:bg-cyan-100 disabled:cursor-wait disabled:opacity-60 sm:w-auto">
                   {aiStatus.status === 'summarizing' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                   {aiStatus.status === 'summarizing' ? 'Summarizing...' : 'Summarize with AI'}
                 </button>
-                {aiStatus.status === 'complete' && <span className="text-xs text-emerald-700">AI summary ready. Review it before saving.</span>}
               </div>
+              {aiStatus.status === 'complete' && <span className="mt-2 block text-xs text-emerald-700">AI summary ready using {aiStatus.model}. Review it before saving.</span>}
               {error && <p className="mt-3 text-sm font-medium text-red-700">{error}</p>}
               <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:justify-end">
                 <button type="button" onClick={() => setEditing(false)} disabled={saveStatus !== 'idle' || aiStatus.status === 'summarizing'} className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 sm:h-10"><X className="h-4 w-4" />Cancel</button>

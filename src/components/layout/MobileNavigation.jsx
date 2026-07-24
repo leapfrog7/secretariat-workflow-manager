@@ -13,7 +13,7 @@ export default function MobileNavigation() {
   const { pathname } = useLocation();
   const auth = useAuth();
   const permittedItems = auth.canEdit ? navItems : navItems.filter((item) => item.to !== '/issues/new');
-  const visibleItems = auth.isAdmin ? [...permittedItems, { label: 'Administration', mobileLabel: 'Admin', to: '/admin', icon: UserRoundCog }] : permittedItems;
+  const visibleItems = auth.isAdmin || auth.isWorkspaceAdmin ? [...permittedItems, { label: 'Administration', mobileLabel: 'Admin', to: '/admin', icon: UserRoundCog }] : permittedItems;
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[#d2dfdc] bg-white/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_18px_rgb(15_49_56_/_0.06)] backdrop-blur md:hidden" aria-label="Mobile navigation">
       <div className="grid" style={{ gridTemplateColumns: `repeat(${visibleItems.length}, minmax(0, 1fr))` }}>

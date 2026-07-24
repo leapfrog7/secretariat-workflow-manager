@@ -4,18 +4,24 @@ import { ISSUE_STATUSES, PRIORITIES, SUBJECT_TYPES } from '../../constants/issue
 import { createBlankIssue, normalizeIssue, normalizeTags, validateIssue } from '../../utils/issueUtils';
 import { todayISO } from '../../utils/dateUtils';
 import DisclosureSection from '../common/DisclosureSection';
+import AdaptiveSelect from '../common/AdaptiveSelect';
 
 export default function IssueForm({
   initialIssue,
   settings,
   officers = [],
+  divisions = [],
+  divisionAccessEnabled = false,
   onSubmit,
   onCancel,
   submitLabel = 'Save Issue',
   saveError,
   saveStatus = 'idle',
 }) {
-  const startingIssue = useMemo(() => normalizeIssue(initialIssue || createBlankIssue(settings)), [initialIssue, settings]);
+  const startingIssue = useMemo(() => normalizeIssue(initialIssue || {
+    ...createBlankIssue(settings),
+    visibility: divisionAccessEnabled ? 'division' : 'workspace',
+  }), [divisionAccessEnabled, initialIssue, settings]);
   const isSaving = saveStatus === 'saving';
   const isSaved = saveStatus === 'saved';
   const isEditing = Boolean(initialIssue?.id);
@@ -56,6 +62,8 @@ export default function IssueForm({
       assignedOn: issue.assignedOfficerId && !issue.assignedOn ? todayISO() : issue.assignedOn,
     };
     const nextErrors = validateIssue(prepared);
+    if (divisionAccessEnabled && !prepared.owningDivisionId) nextErrors.owningDivisionId = 'Choose the division responsible for this Issue.';
+    if (prepared.visibility === 'division' && !prepared.owningDivisionId) nextErrors.owningDivisionId = 'Choose an owning division for division-only visibility.';
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
     await onSubmit(prepared);
@@ -72,6 +80,13 @@ export default function IssueForm({
         <Input label="Deadline date" type="date" value={issue.nextDeadline} onChange={(value) => update('nextDeadline', value)} />
         {!isEditing && <OfficerSelect label="Assigned to" value={issue.assignedOfficerId} officers={officers} onChange={(value) => update('assignedOfficerId', value)} />}
         {!isEditing && <Select label="Current stage" value={issue.status} onChange={(value) => update('status', value)} options={ISSUE_STATUSES} required />}
+        {divisions.length > 0 && <AdaptiveSelect label="Owning division" value={issue.owningDivisionId} onChange={(value) => update('owningDivisionId', value)} options={divisions.map((division) => ({ value: division.id, label: `${division.name} (${division.code})` }))} placeholder="Select division" required={divisionAccessEnabled} error={errors.owningDivisionId} />}
+        {divisions.length > 0 && <AdaptiveSelect label="Visibility" value={issue.visibility} onChange={(value) => update('visibility', value)} options={[
+          { value: 'workspace', label: 'Entire workspace' },
+          { value: 'division', label: 'Owning division' },
+          { value: 'restricted', label: 'Restricted' },
+        ]} includeBlank={false} />}
+        {divisions.length > 0 && <p className="text-xs leading-5 text-slate-500 sm:col-span-2">{issue.visibility === 'workspace' ? 'Every active workspace member can access this Issue.' : issue.visibility === 'division' ? 'Administrators, the creator, members of the owning division and explicit grants can access it once division rules are active.' : 'Only administrators, the creator and explicitly shared colleagues or divisions can access it once division rules are active.'}</p>}
       </Section>
 
       <DisclosureSection title="Notes" description="Optional context can be added now or later." defaultOpen={isEditing}>
@@ -155,34 +170,9 @@ function Textarea({ label, value, onChange, error, required, rows = 3, className
 }
 
 function Select({ label, value, onChange, options, error, required }) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-sm font-medium text-slate-700">
-        {label}
-        {required && <span className="text-red-700"> *</span>}
-      </span>
-      <select value={value || ''} onChange={(event) => onChange(event.target.value)} className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900">
-        <option value="">Select</option>
-        {options.map((option) => (
-          <option key={option} value={option}>
-            {option}
-          </option>
-        ))}
-      </select>
-      {error && <span className="mt-1 block text-xs text-red-700">{error}</span>}
-    </label>
-  );
+  return <AdaptiveSelect label={label} value={value} onChange={onChange} options={options} error={error} required={required} controlClassName="h-9" />;
 }
 
 function OfficerSelect({ label, value, officers, onChange }) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-sm font-medium text-slate-700">{label}</span>
-      <select value={value || ''} onChange={(event) => onChange(event.target.value)} className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900">
-        <option value="">Not assigned</option>
-        {officers.map((officer) => <option key={officer.id} value={officer.id}>{officer.name}</option>)}
-      </select>
-      {!officers.length && <span className="mt-1 block text-xs text-slate-500">Add officers in Settings to allocate this Issue.</span>}
-    </label>
-  );
+  return <AdaptiveSelect label={label} value={value} onChange={onChange} options={officers.map((officer) => ({ value: officer.id, label: officer.designation ? `${officer.name} - ${officer.designation}` : officer.name }))} placeholder="Not assigned" hint={!officers.length ? 'Add officers in Settings to allocate this Issue.' : ''} controlClassName="h-9" />;
 }

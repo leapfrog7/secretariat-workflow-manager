@@ -6,7 +6,7 @@ import { formatDisplayDate, getIssueAgeDays } from '../../utils/dateUtils';
 import { isScheduledIssue } from '../../utils/scheduleUtils';
 import SourceSearchMatch from './SourceSearchMatch';
 
-export default function IssueTable({ issues, officers = [], registerMode = 'Current', workingId = '', canEdit = true, onRestore, onBringBack, onArchive, onDelete }) {
+export default function IssueTable({ issues, officers = [], registerMode = 'Current', workingId = '', canEdit = true, showDivision = false, onRestore, onBringBack, onArchive, onDelete }) {
   const showReturnDate = ['Scheduled', 'All'].includes(registerMode);
   return (
     <div className="surface hidden overflow-hidden rounded-md md:block">
@@ -23,7 +23,7 @@ export default function IssueTable({ issues, officers = [], registerMode = 'Curr
           </thead>
           <tbody className="divide-y divide-[#e3ebe9] bg-white">
             {issues.map((issue) => (
-              <IssueRow key={issue.id} issue={issue} officers={officers} showReturnDate={showReturnDate} working={workingId === issue.id} canEdit={canEdit} onRestore={onRestore} onBringBack={onBringBack} onArchive={onArchive} onDelete={onDelete} />
+              <IssueRow key={issue.id} issue={issue} officers={officers} showReturnDate={showReturnDate} showDivision={showDivision} working={workingId === issue.id} canEdit={canEdit && issue.accessLevel !== 'viewer'} onRestore={onRestore} onBringBack={onBringBack} onArchive={onArchive} onDelete={onDelete} />
             ))}
           </tbody>
         </table>
@@ -32,16 +32,19 @@ export default function IssueTable({ issues, officers = [], registerMode = 'Curr
   );
 }
 
-function IssueRow({ issue, officers, showReturnDate, working, canEdit, onRestore, onBringBack, onArchive, onDelete }) {
+function IssueRow({ issue, officers, showReturnDate, showDivision, working, canEdit, onRestore, onBringBack, onArchive, onDelete }) {
   const officer = officers.find((item) => item.id === issue.assignedOfficerId);
   const ageDays = getIssueAgeDays(issue);
   const scheduled = isScheduledIssue(issue);
   return (
     <tr className="transition-colors hover:bg-[#f5faf8]">
                 <td className="max-w-[520px] px-4 py-3.5">
-                  <Link to={`/issues/${issue.id}`} className="font-semibold text-[#174f5b] hover:text-teal-800 hover:underline" title={issue.subject}>
-                    <span className="block truncate">{issue.shortTitle}</span>
-                  </Link>
+                  <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                    <Link to={`/issues/${issue.id}`} className="min-w-0 max-w-full font-semibold text-[#174f5b] hover:text-teal-800 hover:underline" title={issue.subject}>
+                      <span className="block truncate">{issue.shortTitle}</span>
+                    </Link>
+                    {showDivision && <DivisionTag name={issue.divisionName} />}
+                  </div>
                   {issue.isArchived && <span className="mt-1 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">Archived</span>}
                   {scheduled && <span className="mt-1 inline-flex rounded-full bg-cyan-100 px-2 py-0.5 text-[11px] font-semibold text-cyan-800">Scheduled</span>}
                   <SourceSearchMatch match={issue.searchMatch} />
@@ -72,6 +75,10 @@ function IssueRow({ issue, officers, showReturnDate, working, canEdit, onRestore
                 </div></td>}
     </tr>
   );
+}
+
+function DivisionTag({ name }) {
+  return <span title={name ? `Owning division: ${name}` : 'No owning division assigned'} className={`inline-flex max-w-44 shrink-0 truncate rounded px-1.5 py-0.5 text-[11px] font-semibold ${name ? 'bg-teal-50 text-teal-800 ring-1 ring-inset ring-teal-200' : 'bg-slate-100 text-slate-500 ring-1 ring-inset ring-slate-200'}`}>{name || 'Unassigned'}</span>;
 }
 
 function ActionIcon({ label, tone = 'slate', onClick, children }) {

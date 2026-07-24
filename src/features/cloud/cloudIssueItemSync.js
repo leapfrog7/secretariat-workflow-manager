@@ -5,6 +5,8 @@ import { normalizeMilestone } from '../../utils/milestoneUtils';
 import { normalizeReference } from '../../utils/referenceUtils';
 import { normalizeIssueSummary } from '../../utils/summaryUtils';
 import { listCloudIssueItems, markCloudIssueItemDeleted, upsertCloudIssueItem } from './cloudIssueItemApi';
+import { clearSyncConflict, getSyncConflict, recordSyncConflict } from '../../db/syncConflictRepository';
+import { isCloudRevisionConflict } from './cloudRevisionConflict';
 
 const ITEM_CONFIG = {
   communication: { table: 'communications', normalize: normalizeCommunication },
@@ -25,7 +27,10 @@ function report(status, detail = {}) {
 }
 
 function itemTimestamp(item) {
-  return new Date(item?.updatedAt || item?.createdAt || item?.recordedAt || 0).getTime();
+  return Math.max(
+    new Date(item?.updatedAt || item?.createdAt || item?.recordedAt || 0).getTime(),
+    new Date(item?.cloudUpdatedAt || 0).getTime(),
+  );
 }
 
 function itemKey(type, id) {
@@ -34,43 +39,80 @@ function itemKey(type, id) {
 
 export function queueCloudIssueItemUpsert(itemType, item) {
   const current = runtime;
-  if (!current || current.canEdit === false || !ITEM_CONFIG[itemType] || !item?.id || !item.issueId) return;
-  report('syncing');
-  upsertCloudIssueItem({ workspaceId: current.workspaceId, userId: current.userId, itemType, item })
-    .then(() => report('synced', { syncedAt: new Date().toISOString() }))
-    .catch((error) => report('error', { error: error.message || `Unable to sync ${itemType}.` }));
+  if (!current || current.canEdit === false || !ITEM_CONFIG[itemType] || !item?.id || !item.issueId) return Promise.resolve(null);
+  return getSyncConflict('issue', item.issueId).then((parentConflict) => {
+    if (parentConflict) return null;
+    report('syncing');
+    return upsertCloudIssueItem({ workspaceId: current.workspaceId, userId: current.userId, itemType, item });
+  })
+    .then(async (result) => {
+      if (!result) return null;
+      await db[ITEM_CONFIG[itemType].table].update(item.id, {
+        cloudRevision: Number(result.revision || 0),
+        cloudUpdatedAt: result.updated_at || '',
+        cloudUpdatedBy: result.updated_by || '',
+      });
+      await clearSyncConflict(itemType, item.id, item.issueId);
+      report('synced', { syncedAt: new Date().toISOString() });
+      return result;
+    })
+    .catch(async (error) => {
+      if (isCloudRevisionConflict(error)) {
+        await recordSyncConflict(error.conflict);
+        report('error', { error: error.message });
+        throw error;
+      }
+      report('error', { error: error.message || `Unable to sync ${itemType}.` });
+      return null;
+    });
 }
 
-export function queueCloudIssueItemDelete(itemType, itemId) {
+export async function queueCloudIssueItemDelete(itemType, item) {
   const current = runtime;
-  if (!ITEM_CONFIG[itemType] || !itemId) return;
+  if (!ITEM_CONFIG[itemType] || !item?.id) return null;
   const deletedAt = new Date().toISOString();
-  const tombstone = { id: `item:${itemType}:${itemId}`, entityType: itemType, itemId, deletedAt };
-  const persist = db.syncTombstones.put(tombstone);
+  const tombstone = { id: `item:${itemType}:${item.id}`, entityType: itemType, itemId: item.id, issueId: item.issueId, payload: item, deletedAt };
+  await db.syncTombstones.put(tombstone);
   if (!current || current.canEdit === false) {
-    persist.catch(() => {});
-    return;
+    return null;
   }
   report('syncing');
-  persist
-    .then(() => markCloudIssueItemDeleted({ workspaceId: current.workspaceId, userId: current.userId, itemType, itemId, deletedAt }))
-    .then(() => db.syncTombstones.delete(tombstone.id))
-    .then(() => report('synced', { syncedAt: deletedAt }))
-    .catch((error) => report('error', { error: error.message || `Unable to sync ${itemType} deletion.` }));
+  try {
+    await markCloudIssueItemDeleted({ workspaceId: current.workspaceId, itemType, item, deletedAt });
+    await db.syncTombstones.delete(tombstone.id);
+    await clearSyncConflict(itemType, item.id, item.issueId);
+    report('synced', { syncedAt: deletedAt });
+    return true;
+  } catch (error) {
+    if (isCloudRevisionConflict(error)) {
+      await recordSyncConflict(error.conflict);
+      report('error', { error: error.message });
+      throw error;
+    }
+    report('error', { error: error.message || `Unable to sync ${itemType} deletion.` });
+    return null;
+  }
 }
 
 async function flushItemTombstones({ workspaceId, userId, canEdit }) {
   if (!canEdit) return;
   const tombstones = (await db.syncTombstones.toArray()).filter((item) => ITEM_CONFIG[item.entityType]);
   for (const tombstone of tombstones) {
-    await markCloudIssueItemDeleted({
-      workspaceId,
-      userId,
-      itemType: tombstone.entityType,
-      itemId: tombstone.itemId,
-      deletedAt: tombstone.deletedAt,
-    });
-    await db.syncTombstones.delete(tombstone.id);
+    try {
+      await markCloudIssueItemDeleted({
+        workspaceId,
+        itemType: tombstone.entityType,
+        item: tombstone.payload || { id: tombstone.itemId, issueId: tombstone.issueId },
+        deletedAt: tombstone.deletedAt,
+      });
+      await db.syncTombstones.delete(tombstone.id);
+    } catch (error) {
+      if (isCloudRevisionConflict(error)) {
+        await recordSyncConflict(error.conflict);
+        continue;
+      }
+      throw error;
+    }
   }
 }
 
@@ -111,12 +153,23 @@ export async function syncWorkspaceIssueItems({ workspaceId, userId, canEdit = t
           deleted += 1;
         }
       } else if (!local || cloudUpdatedAt > itemTimestamp(local)) {
-        const normalized = config.normalize(row.payload);
+        const normalized = config.normalize({
+          ...row.payload,
+          cloudRevision: Number(row.revision || 0),
+          cloudUpdatedAt: row.updated_at || '',
+          cloudUpdatedBy: row.updated_by || '',
+        });
         const remapped = remapOfficerReferences(row.item_type, normalized, officerIdMap);
         const downloadedItem = config.normalize(remapped.item);
+        if (await getSyncConflict(row.item_type, row.id)) continue;
         await table.put(downloadedItem);
         if (remapped.changed && canEdit) {
-          await upsertCloudIssueItem({ workspaceId, userId, itemType: row.item_type, item: downloadedItem });
+          const result = await upsertCloudIssueItem({ workspaceId, userId, itemType: row.item_type, item: downloadedItem });
+          await table.update(row.id, {
+            cloudRevision: result.revision,
+            cloudUpdatedAt: result.updated_at,
+            cloudUpdatedBy: result.updated_by,
+          });
         }
         downloaded += 1;
       }
@@ -127,15 +180,43 @@ export async function syncWorkspaceIssueItems({ workspaceId, userId, canEdit = t
       for (let index = 0; index < configs.length; index += 1) {
         const [type, config] = configs[index];
         for (const raw of localCollections[index]) {
-          const item = config.normalize(raw);
+          let item = config.normalize(raw);
           if (!activeIssueIds.has(item.issueId)) continue;
+          if (await getSyncConflict('issue', item.issueId)) continue;
           const cloud = cloudByKey.get(itemKey(type, item.id));
+          if (cloud && !item.cloudRevision) {
+            item = config.normalize({
+              ...item,
+              cloudRevision: Number(cloud.revision || 0),
+              cloudUpdatedAt: cloud.updated_at || '',
+              cloudUpdatedBy: cloud.updated_by || '',
+            });
+            await db[config.table].update(item.id, {
+              cloudRevision: item.cloudRevision,
+              cloudUpdatedAt: item.cloudUpdatedAt,
+              cloudUpdatedBy: item.cloudUpdatedBy,
+            });
+          }
           const cloudUpdatedAt = new Date(cloud?.updated_at || 0).getTime();
           const tombstoneAt = new Date(cloud?.deleted_at || 0).getTime();
           if (cloud?.deleted_at && tombstoneAt >= itemTimestamp(item)) continue;
           if (!cloud || itemTimestamp(item) > cloudUpdatedAt) {
-            await upsertCloudIssueItem({ workspaceId, userId, itemType: type, item });
-            uploaded += 1;
+            if (await getSyncConflict(type, item.id)) continue;
+            try {
+              const result = await upsertCloudIssueItem({ workspaceId, userId, itemType: type, item });
+              await db[config.table].update(item.id, {
+                cloudRevision: result.revision,
+                cloudUpdatedAt: result.updated_at,
+                cloudUpdatedBy: result.updated_by,
+              });
+              uploaded += 1;
+            } catch (error) {
+              if (isCloudRevisionConflict(error)) {
+                await recordSyncConflict(error.conflict);
+                continue;
+              }
+              throw error;
+            }
           }
         }
       }

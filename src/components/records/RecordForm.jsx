@@ -3,6 +3,7 @@ import { LoaderCircle, Save, X } from 'lucide-react';
 import { RECORD_DIRECTIONS, RECORD_TYPES } from '../../constants/issueConstants';
 import { createBlankRecord, normalizeRecord, validateRecord } from '../../utils/recordUtils';
 import DisclosureSection from '../common/DisclosureSection';
+import AdaptiveSelect from '../common/AdaptiveSelect';
 
 export default function RecordForm({ issueId, initialRecord, onSubmit, onCancel, isSaving = false }) {
   const startingRecord = useMemo(() => normalizeRecord(initialRecord || createBlankRecord(issueId)), [initialRecord, issueId]);
@@ -77,16 +78,5 @@ function Textarea({ label, value, onChange, className = '' }) {
 }
 
 function Select({ label, value, onChange, options, error, required }) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-sm font-medium text-slate-700">
-        {label}
-        {required && <span className="text-red-700"> *</span>}
-      </span>
-      <select value={value || ''} onChange={(event) => onChange(event.target.value)} className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm">
-        {options.map((option) => <option key={option} value={option}>{option}</option>)}
-      </select>
-      {error && <span className="mt-1 block text-xs text-red-700">{error}</span>}
-    </label>
-  );
+  return <AdaptiveSelect label={label} value={value} onChange={onChange} options={options} includeBlank={false} error={error} required={required} controlClassName="h-9" />;
 }

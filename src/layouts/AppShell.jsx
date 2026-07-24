@@ -7,6 +7,7 @@ import { Cloud, CloudOff, LogOut, RefreshCw, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../features/auth/AuthContext';
 import NotificationCenter from '../components/notifications/NotificationCenter';
 import LoadingState from '../components/common/LoadingState';
+import SyncConflictCenter from '../components/cloud/SyncConflictCenter';
 
 export default function AppShell() {
   const auth = useAuth();
@@ -51,6 +52,7 @@ export default function AppShell() {
             {auth.syncState?.status === 'syncing' && <div className="absolute inset-x-0 bottom-0 h-0.5 overflow-hidden bg-cyan-100" role="status" aria-label="Synchronizing workspace"><span className="sync-progress block h-full w-1/3 bg-cyan-600" /></div>}
           </header>
           <main className="mx-auto w-full max-w-[1240px] px-3 py-5 pb-20 sm:px-4 md:px-7 md:py-7 md:pb-10">
+            <SyncConflictCenter />
             <Suspense fallback={<LoadingState message="Opening page..." />}>
               <Outlet />
             </Suspense>

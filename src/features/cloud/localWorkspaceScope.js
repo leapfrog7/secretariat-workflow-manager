@@ -13,6 +13,7 @@ const SHARED_TABLES = [
   'officers',
   'chronology',
   'syncTombstones',
+  'syncConflicts',
   'settings',
 ];
 

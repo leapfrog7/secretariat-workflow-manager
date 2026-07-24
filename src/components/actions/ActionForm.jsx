@@ -3,6 +3,7 @@ import { LoaderCircle, Save, X } from 'lucide-react';
 import { ACTION_STATUSES, PRIORITIES, REVIEW_STATUSES } from '../../constants/issueConstants';
 import { createBlankAction, normalizeAction, validateAction } from '../../utils/actionUtils';
 import DisclosureSection from '../common/DisclosureSection';
+import AdaptiveSelect from '../common/AdaptiveSelect';
 
 export default function ActionForm({ issueId, initialAction, officers = [], onSubmit, onCancel, isSaving = false }) {
   const startingAction = useMemo(() => normalizeAction(initialAction || createBlankAction(issueId)), [initialAction, issueId]);
@@ -80,15 +81,7 @@ export default function ActionForm({ issueId, initialAction, officers = [], onSu
 }
 
 function OfficerSelect({ label, value, officers, onChange }) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-sm font-medium text-slate-700">{label}</span>
-      <select value={value || ''} onChange={(event) => onChange(event.target.value)} className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm">
-        <option value="">Select officer</option>
-        {officers.map((officer) => <option key={officer.id} value={officer.id}>{officer.name}{officer.isActive ? '' : ' (inactive)'}</option>)}
-      </select>
-    </label>
-  );
+  return <AdaptiveSelect label={label} value={value} onChange={onChange} options={officers.map((officer) => ({ value: officer.id, label: `${officer.name}${officer.isActive ? '' : ' (inactive)'}` }))} placeholder="Select officer" controlClassName="h-9" />;
 }
 
 function toDateTimeLocal(value) {
@@ -123,14 +116,5 @@ function Textarea({ label, value, onChange, className = '' }) {
 }
 
 function Select({ label, value, onChange, options }) {
-  return (
-    <label className="block">
-      <span className="mb-1 block text-sm font-medium text-slate-700">{label}</span>
-      <select value={value || ''} onChange={(event) => onChange(event.target.value)} className="h-9 w-full rounded-md border border-slate-300 bg-white px-3 text-sm">
-        {options.map((option) => (
-          <option key={option} value={option}>{option}</option>
-        ))}
-      </select>
-    </label>
-  );
+  return <AdaptiveSelect label={label} value={value} onChange={onChange} options={options} includeBlank={false} controlClassName="h-9" />;
 }

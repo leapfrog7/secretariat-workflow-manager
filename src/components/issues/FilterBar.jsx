@@ -1,11 +1,16 @@
 import { ISSUE_STATUSES } from '../../constants/issueConstants';
 import { X } from 'lucide-react';
+import AdaptiveSelect from '../common/AdaptiveSelect';
 
-export default function FilterBar({ filters, onChange, onClear }) {
+export default function FilterBar({ filters, divisions = [], onChange, onClear }) {
   const update = (key, value) => onChange({ ...filters, [key]: value });
   return (
-    <div className="grid gap-2 sm:grid-cols-[170px_170px_40px] sm:items-end">
+    <div className="grid gap-2 sm:grid-cols-[170px_minmax(190px,240px)_170px_40px] sm:items-end">
         <Select label="Status" value={filters.status} onChange={(value) => update('status', value)} options={ISSUE_STATUSES} />
+        <AdaptiveSelect label="Division" value={filters.divisionId} onChange={(value) => update('divisionId', value)} options={[
+          { value: '__unassigned__', label: 'Unassigned' },
+          ...divisions.map((division) => ({ value: division.id, label: division.is_active ? division.name : `${division.name} (inactive)` })),
+        ]} placeholder="All divisions" />
         <Select label="Sort" value={filters.sort} onChange={(value) => update('sort', value)} options={['Recently updated', 'Next appearance', 'Date opened', 'Title']} includeAll={false} />
           <button type="button" title="Clear filters" aria-label="Clear filters" onClick={onClear} className="flex h-10 w-10 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 transition-colors hover:border-teal-300 hover:bg-teal-50 hover:text-teal-800"><X className="h-4 w-4" /></button>
     </div>

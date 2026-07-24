@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import AdaptiveSelect from '../components/common/AdaptiveSelect';
 import PageHeader from '../components/common/PageHeader';
 import LoadingState from '../components/common/LoadingState';
 import ErrorState from '../components/common/ErrorState';
@@ -123,15 +124,7 @@ export default function ReviewPage() {
 
 function Select({ label, value, onChange, options, includeAll = false }) {
   const items = options.map((option) => (typeof option === 'string' ? { label: option, value: option } : option));
-  return (
-    <label className="block">
-      <span className="mb-1 block text-xs font-medium text-slate-600">{label}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)} className="h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-sm">
-        {includeAll && <option value="">All</option>}
-        {items.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-      </select>
-    </label>
-  );
+  return <AdaptiveSelect label={label} value={value} onChange={onChange} options={items} includeBlank={includeAll} placeholder="All" controlClassName="h-9" labelClassName="text-xs font-medium text-slate-600" />;
 }
 
 function IssueList({ title, issues }) {

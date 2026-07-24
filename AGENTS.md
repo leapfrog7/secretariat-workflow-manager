@@ -73,11 +73,15 @@ human review instead of silently overwriting a colleague's newer work.
 
 Current implementation status:
 
-- Phase 0 is implemented in the application.
-- Phase 1 application controls are implemented. Migration
-  `009_division_access_foundation.sql` prepares the disabled database foundation
-  and must be applied through the normal migration process before Phase 2 work.
-- Phases 2 through 4 are not yet implemented.
+- Phases 0 through 3 are implemented in the application.
+- Migrations `009_division_access_foundation.sql` and
+  `010_shared_issue_access.sql` must be applied through the normal migration
+  process before using collaboration controls.
+- Division enforcement remains off until a workspace administrator creates
+  divisions, assigns active members and Issues, passes the readiness report, and
+  explicitly enables it.
+- Phase 4 optimistic concurrency and human conflict resolution are implemented.
+  Access audit views, notifications and handover tools remain future work.
 
 ### Phase 0: Record safety
 
@@ -110,7 +114,10 @@ Current implementation status:
 
 ### Phase 4: Collaboration hardening
 
-- Add optimistic concurrency and conflict resolution.
+- Optimistic concurrency and conflict resolution are implemented for Issues,
+  communications, references, milestones, summaries and drafts. Cloud rows use
+  monotonic revisions; stale saves and deletes are retained locally and shown in
+  a global review panel with **Keep cloud version** and **Use my change** actions.
 - Add access-change audit views and notifications.
 - Add temporary access expiry, handover and bulk division reassignment.
 - Test revocation, suspended users, cross-division sharing and offline recovery.

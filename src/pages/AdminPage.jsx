@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BarChart3, Bot, Building2, CheckCircle2, LoaderCircle, RefreshCw, Save, ShieldCheck, UserRoundCog } from 'lucide-react';
+import { BarChart3, Bot, Building2, CheckCircle2, LoaderCircle, RefreshCw, Save, ShieldCheck, UserRoundCog, Users } from 'lucide-react';
 import PageHeader from '../components/common/PageHeader';
 import { listProfiles, updateProfileAccess } from '../features/auth/accountApi';
 import { useAuth } from '../features/auth/AuthContext';
 import { listWorkspaceMembers, setWorkspaceMember } from '../features/cloud/workspaceApi';
 import { CLOUD_AI_PROVIDERS, getAIUsageSummary, listAIProviderSettings, listAIUserPermissions, saveAIProviderSettings, setAIUserPermission } from '../features/ai/cloudAIAdminApi';
+import DivisionAdminPanel from '../components/collaboration/DivisionAdminPanel';
 
 export default function AdminPage() {
   const auth = useAuth();
@@ -13,6 +14,7 @@ export default function AdminPage() {
   const [aiProviders, setAIProviders] = useState([]);
   const [aiPermissions, setAIPermissions] = useState([]);
   const [aiUsage, setAIUsage] = useState([]);
+  const [activeTab, setActiveTab] = useState('people');
   const [state, setState] = useState({ loading: true, saving: '', error: '', message: '' });
 
   const counts = useMemo(() => ({
@@ -120,12 +122,44 @@ export default function AdminPage() {
     <>
       <PageHeader title="Administration" description="Approve registered users and control access to official workspaces." />
       <div className="mb-4 flex items-center gap-3 rounded-md border border-teal-200 bg-teal-50 px-4 py-3 text-sm text-teal-950"><Building2 className="h-5 w-5 shrink-0" /><div><p className="font-semibold">{auth.workspace?.name}</p><p className="mt-0.5 text-xs text-teal-800">Workspace code: {auth.workspace?.code}</p></div></div>
-      <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <nav className="mb-5 overflow-x-auto border-b border-slate-200" aria-label="Administration sections">
+        <div className="flex min-w-max gap-1">
+          {[
+            { id: 'people', label: 'People & Roles', icon: Users },
+            { id: 'divisions', label: 'Divisions & Sharing', icon: Building2 },
+            { id: 'ai', label: 'AI Controls', icon: Bot },
+          ].map(({ id, label, icon: Icon }) => (
+            <button key={id} type="button" onClick={() => setActiveTab(id)} aria-current={activeTab === id ? 'page' : undefined} className={`inline-flex h-11 items-center gap-2 border-b-2 px-3 text-sm font-semibold transition-colors ${activeTab === id ? 'border-teal-700 text-teal-800' : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-800'}`}><Icon className="h-4 w-4" />{label}</button>
+          ))}
+        </div>
+      </nav>
+      {state.error && <p className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{state.error}</p>}
+      {state.message && <p className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{state.message}</p>}
+      {activeTab === 'people' && <AdminGuide title="People and roles" intro="Use this tab to decide who can enter the workspace and what they may do there." items={[
+        ['Approve the account', 'A new registration cannot open official work until a platform administrator approves it.'],
+        ['Choose workspace access', 'Viewer means read only. Officer means normal working access. Workspace administrator can also manage people, divisions and sharing.'],
+        ['Remove access', 'No workspace access keeps the account active but removes this workspace from the user. Suspend the account only when all cloud access should stop.'],
+      ]} />}
+      {activeTab === 'people' && <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Metric label="Registered" value={counts.total} />
         <Metric label="Pending" value={counts.pending} tone="amber" />
         <Metric label="Active" value={counts.active} tone="emerald" />
         <Metric label="Suspended" value={counts.suspended} tone="rose" />
-      </div>
+      </div>}
+      {activeTab === 'divisions' && <AdminGuide title="How division sharing works" intro="A division is a group of colleagues who normally handle the same set of Issues." items={[
+        ['1. Create divisions', 'Add practical units such as Administration, Finance or Establishment. The short code is only a compact label.'],
+        ['2. Add colleagues', 'An Editor may change Issues available to that division. A Viewer may only read them. A Division administrator may also manage that division.'],
+        ['3. Assign Issues', 'Open each Issue, use Share & Access, and select its owning division. Entire workspace remains visible to everyone; Owning division limits normal access to that division; Restricted requires an explicit grant.'],
+        ['4. Enable enforcement last', 'The application checks that every active Issue and colleague has been assigned. Until you enable enforcement, current workspace-wide access continues unchanged.'],
+      ]} />}
+      {activeTab === 'divisions' && <DivisionAdminPanel auth={auth} profiles={profiles} workspaceMembers={memberships} />}
+      {activeTab === 'ai' && <AdminGuide title="Cloud AI controls" intro="Use this tab to decide whether a paid cloud provider is available and who may use it." items={[
+        ['Workspace default', 'The provider policy sets the normal rule for everyone: administrators only, or administrators and officers.'],
+        ['Use workspace default', 'This means the person follows that normal provider rule. It does not grant or block anything separately.'],
+        ['Allow or block', 'Use an individual override only for an exception. Allow gives that person access; Block removes it even when their workspace role would normally allow it.'],
+        ['Limits and cost', 'Request limits prevent accidental overuse. Cost figures are estimates based on the rates entered here, not provider invoices.'],
+      ]} />}
+      {activeTab === 'ai' && <>
       <section className="surface mb-5 overflow-hidden rounded-md">
         <div className="flex items-start gap-2 border-b border-slate-200 px-4 py-3"><Bot className="mt-0.5 h-5 w-5 text-cyan-700" /><div><h2 className="text-sm font-semibold text-slate-950">Cloud AI providers</h2><p className="mt-1 text-xs text-slate-500">Enable providers, choose server-side models, and set workspace safeguards. API keys are configured only in Vercel.</p></div></div>
         <div className="grid divide-y divide-slate-200 lg:grid-cols-2 lg:divide-x lg:divide-y-0">
@@ -152,47 +186,79 @@ export default function AdminPage() {
         </div>
         <div className="flex gap-3 border-t border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-600"><BarChart3 className="mt-0.5 h-4 w-4 shrink-0 text-cyan-700" /><p>Usage records contain provider, model, token counts, estimated cost, operation and status. Official prompts and generated drafts are not stored in the AI log.</p></div>
       </section>
-      <section className="surface overflow-hidden rounded-md">
+      <AIUserAccess profiles={profiles} permissions={aiPermissions} saving={state.saving} onChange={changeAIPermission} />
+      </>}
+      {activeTab === 'people' && <section className="surface overflow-hidden rounded-md">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
           <div><h2 className="text-sm font-semibold text-slate-950">Registered users</h2><p className="mt-1 text-xs text-slate-500">New registrations remain pending until approved.</p></div>
           <button type="button" onClick={loadProfiles} disabled={state.loading} className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700"><RefreshCw className={`h-4 w-4 ${state.loading ? 'animate-spin' : ''}`} />Refresh</button>
         </div>
-        {state.error && <p className="border-b border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{state.error}</p>}
-        {state.message && <p className="border-b border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{state.message}</p>}
         {state.loading ? <div className="flex items-center justify-center gap-2 px-4 py-12 text-sm text-slate-600"><LoaderCircle className="h-5 w-5 animate-spin" />Loading registered users</div> : (
-          <div className="divide-y divide-slate-200">
+          <div>
+            <div className="hidden grid-cols-[minmax(0,1fr)_130px_130px_170px_auto] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-500 lg:grid"><span>Person</span><span>Account role</span><span>Status</span><span>Workspace access</span><span className="text-right">Account action</span></div>
+            <div className="divide-y divide-slate-200">
             {profiles.map((profile) => {
               const isSelf = profile.user_id === auth.user?.id;
               const saving = state.saving === profile.user_id;
               const membership = memberships.find((item) => item.user_id === profile.user_id);
               const membershipValue = membership?.status === 'active' ? membership.role : 'none';
               return (
-                <div key={profile.user_id} className="grid gap-3 px-4 py-4 lg:grid-cols-[minmax(0,1fr)_130px_130px_160px_220px_auto] lg:items-center">
+                <div key={profile.user_id} className="grid gap-3 px-4 py-4 lg:grid-cols-[minmax(0,1fr)_130px_130px_170px_auto] lg:items-center">
                   <div className="min-w-0"><p className="truncate text-sm font-semibold text-slate-900">{profile.display_name || 'Unnamed user'} {isSelf && <span className="font-normal text-slate-500">(you)</span>}</p><p className="mt-1 truncate text-xs text-slate-500">{profile.email}</p></div>
-                  <select aria-label={`Role for ${profile.email}`} value={profile.role} disabled={saving || isSelf} onChange={(event) => changeAccess(profile, profile.status, event.target.value)} className="h-9 rounded-md border border-slate-300 bg-white px-2 text-xs"><option value="user">User</option><option value="platform_admin">Platform admin</option></select>
+                  <select aria-label={`Role for ${profile.email}`} value={profile.role} disabled={saving || isSelf || !auth.isAdmin} onChange={(event) => changeAccess(profile, profile.status, event.target.value)} className="h-9 rounded-md border border-slate-300 bg-white px-2 text-xs disabled:bg-slate-100"><option value="user">User</option><option value="platform_admin">Platform admin</option></select>
                   <AccessStatus status={profile.status} />
                   <select aria-label={`Workspace access for ${profile.email}`} value={membershipValue} disabled={saving || isSelf || profile.status !== 'active'} onChange={(event) => changeMembership(profile, event.target.value)} className="h-9 rounded-md border border-slate-300 bg-white px-2 text-xs disabled:bg-slate-100"><option value="none">No workspace access</option><option value="viewer">Viewer</option><option value="officer">Officer</option><option value="workspace_admin">Workspace admin</option></select>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {CLOUD_AI_PROVIDERS.map((provider) => {
-                      const permission = aiPermissions.find((item) => item.user_id === profile.user_id && item.provider === provider.id);
-                      const value = permission ? permission.allowed ? 'allow' : 'block' : 'inherit';
-                      return <label key={provider.id} className="block"><span className="mb-1 block text-[10px] font-semibold uppercase text-slate-500">{provider.label}</span><select aria-label={`${provider.label} access for ${profile.email}`} value={value} disabled={state.saving === `ai:${profile.user_id}:${provider.id}` || profile.status !== 'active'} onChange={(event) => changeAIPermission(profile, provider.id, event.target.value)} className="h-8 w-full rounded border border-slate-300 bg-white px-1 text-[11px]"><option value="inherit">By role</option><option value="allow">Allow</option><option value="block">Block</option></select></label>;
-                    })}
-                  </div>
                   <div className="flex flex-wrap gap-2 lg:justify-end">
-                    {profile.status === 'pending' && <ActionButton disabled={saving} onClick={() => changeAccess(profile, 'active')} tone="approve">Approve</ActionButton>}
-                    {profile.status === 'active' && !isSelf && <ActionButton disabled={saving} onClick={() => changeAccess(profile, 'suspended')} tone="suspend">Suspend</ActionButton>}
-                    {profile.status === 'suspended' && <ActionButton disabled={saving} onClick={() => changeAccess(profile, 'active')} tone="approve">Restore</ActionButton>}
+                    {auth.isAdmin && profile.status === 'pending' && <ActionButton disabled={saving} onClick={() => changeAccess(profile, 'active')} tone="approve">Approve</ActionButton>}
+                    {auth.isAdmin && profile.status === 'active' && !isSelf && <ActionButton disabled={saving} onClick={() => changeAccess(profile, 'suspended')} tone="suspend">Suspend</ActionButton>}
+                    {auth.isAdmin && profile.status === 'suspended' && <ActionButton disabled={saving} onClick={() => changeAccess(profile, 'active')} tone="approve">Restore</ActionButton>}
                   </div>
                 </div>
               );
             })}
             {!profiles.length && <div className="px-4 py-12 text-center"><UserRoundCog className="mx-auto h-7 w-7 text-slate-400" /><p className="mt-2 text-sm text-slate-600">No registered users found.</p></div>}
+            </div>
           </div>
         )}
-      </section>
-      <div className="mt-4 flex gap-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-950"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" /><p>Approval activates the account and adds it to this workspace as an Officer. Viewers can inspect Issues but cannot change them; Officers can edit; Workspace admins can also manage access.</p></div>
+      </section>}
+      {activeTab === 'people' && <div className="mt-4 flex gap-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-950"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" /><p>Account approval and workspace access are separate. A person needs both an active account and active workspace access before official Issues can open.</p></div>}
     </>
+  );
+}
+
+function AdminGuide({ title, intro, items }) {
+  return (
+    <section className="mb-5 border-l-4 border-l-cyan-600 bg-cyan-50 px-4 py-4">
+      <h2 className="text-sm font-semibold text-cyan-950">{title}</h2>
+      <p className="mt-1 text-sm leading-6 text-cyan-900">{intro}</p>
+      <div className="mt-3 grid gap-3 md:grid-cols-2">
+        {items.map(([label, description]) => <div key={label}><p className="text-xs font-semibold text-cyan-950">{label}</p><p className="mt-1 text-xs leading-5 text-cyan-900">{description}</p></div>)}
+      </div>
+    </section>
+  );
+}
+
+function AIUserAccess({ profiles, permissions, saving, onChange }) {
+  return (
+    <section className="surface overflow-hidden rounded-md">
+      <div className="border-b border-slate-200 px-4 py-4">
+        <h2 className="text-sm font-semibold text-slate-950">Individual exceptions</h2>
+        <p className="mt-1 text-xs leading-5 text-slate-500">Most people should use the workspace default. Add an override only when one person needs different access.</p>
+      </div>
+      <div className="divide-y divide-slate-200">
+        {profiles.filter((profile) => profile.status === 'active').map((profile) => (
+          <div key={profile.user_id} className="grid gap-3 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_150px_150px] sm:items-end">
+            <div className="min-w-0"><p className="truncate text-sm font-semibold text-slate-900">{profile.display_name || 'Unnamed user'}</p><p className="mt-1 truncate text-xs text-slate-500">{profile.email}</p></div>
+            {CLOUD_AI_PROVIDERS.map((provider) => {
+              const permission = permissions.find((item) => item.user_id === profile.user_id && item.provider === provider.id);
+              const value = permission ? permission.allowed ? 'allow' : 'block' : 'inherit';
+              return <label key={provider.id} className="block"><span className="mb-1 block text-xs font-medium text-slate-600">{provider.label}</span><select aria-label={`${provider.label} access for ${profile.email}`} value={value} disabled={saving === `ai:${profile.user_id}:${provider.id}`} onChange={(event) => onChange(profile, provider.id, event.target.value)} className="h-10 w-full rounded-md border border-slate-300 bg-white px-2 text-xs disabled:bg-slate-100"><option value="inherit">Use workspace default</option><option value="allow">Allow this person</option><option value="block">Block this person</option></select></label>;
+            })}
+          </div>
+        ))}
+        {!profiles.some((profile) => profile.status === 'active') && <p className="px-4 py-8 text-center text-sm text-slate-500">No active users available.</p>}
+      </div>
+    </section>
   );
 }
 
