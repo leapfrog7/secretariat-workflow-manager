@@ -4,14 +4,15 @@ import AppShell from '../layouts/AppShell';
 import AccessGate from '../components/auth/AccessGate';
 import RequireAdmin from '../components/auth/RequireAdmin';
 import RequireEditor from '../components/auth/RequireEditor';
+import { getRouteImport } from './routePreload';
 
-const IssueRegisterPage = lazy(() => import('../pages/IssueRegisterPage'));
-const IssueFormPage = lazy(() => import('../pages/IssueFormPage'));
-const IssueWorkspacePage = lazy(() => import('../pages/IssueWorkspacePage'));
-const SettingsPage = lazy(() => import('../pages/SettingsPage'));
-const HelpPage = lazy(() => import('../pages/HelpPage'));
-const NotFoundPage = lazy(() => import('../pages/NotFoundPage'));
-const AdminPage = lazy(() => import('../pages/AdminPage'));
+const IssueRegisterPage = lazy(getRouteImport('/issues'));
+const IssueFormPage = lazy(getRouteImport('/issues/new'));
+const IssueWorkspacePage = lazy(getRouteImport('/issues/example'));
+const SettingsPage = lazy(getRouteImport('/settings'));
+const HelpPage = lazy(getRouteImport('/help'));
+const NotFoundPage = lazy(getRouteImport('/not-found'));
+const AdminPage = lazy(getRouteImport('/admin'));
 
 const router = createHashRouter([
   {

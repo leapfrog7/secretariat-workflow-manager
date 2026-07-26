@@ -21,7 +21,7 @@ export default function MilestoneStack({ milestones, total, expanded, loading, o
               <span className={`absolute -left-[7px] top-5 h-3 w-3 rounded-full ring-4 ring-white ${index === 0 ? 'bg-teal-600' : 'bg-slate-300'}`} aria-hidden="true" />
               <div>
                 <div className="text-xs font-semibold tabular-nums text-slate-600">{formatDateTime(milestone.recordedAt)}</div>
-                {index === 0 && <span className="mt-2 inline-flex rounded-full bg-teal-50 px-2 py-0.5 text-[11px] font-semibold text-teal-800 ring-1 ring-teal-200">Current</span>}
+                {index === 0 && <span className="mt-2 inline-flex rounded-full bg-teal-50 px-2 py-0.5 text-xs font-semibold text-teal-800 ring-1 ring-teal-200">Current</span>}
               </div>
               <div className={`rounded-md border p-3 ${index === 0 ? 'border-teal-200 bg-teal-50/40' : 'border-slate-200 bg-white'}`}>
                 <div className="flex flex-wrap items-center gap-2">

@@ -130,6 +130,13 @@ export default function DivisionAdminPanel({ auth, profiles, workspaceMembers })
     return profile?.display_name || profile?.email || id;
   };
   const divisionName = (id) => divisions.find((item) => item.id === id)?.name || 'Unknown division';
+  const readinessBlockers = readiness
+    ? [
+        readiness.active_divisions < 1 ? 'Create at least one active division.' : '',
+        readiness.unassigned_issues > 0 ? `Assign an owning division to ${readiness.unassigned_issues} Issue${readiness.unassigned_issues === 1 ? '' : 's'}.` : '',
+        readiness.active_members_without_division > 0 ? `Assign ${readiness.active_members_without_division} active member${readiness.active_members_without_division === 1 ? '' : 's'} to a division.` : '',
+      ].filter(Boolean)
+    : [];
 
   return (
     <section className="surface mb-5 overflow-hidden rounded-md">
@@ -171,10 +178,10 @@ export default function DivisionAdminPanel({ auth, profiles, workspaceMembers })
           <div className="mt-3 grid gap-3">
             <AdaptiveSelect label="Division" value={assignment.divisionId} onChange={(divisionId) => setAssignment((current) => ({ ...current, divisionId }))} options={divisions.filter((item) => item.is_active).map((item) => ({ value: item.id, label: item.name }))} />
             <AdaptiveSelect label="Workspace member" value={assignment.userId} onChange={(userId) => setAssignment((current) => ({ ...current, userId }))} options={activeUsers.map((profile) => ({ value: profile.user_id, label: profile.display_name || profile.email }))} />
-            <AdaptiveSelect label="Division role" value={assignment.role} onChange={(role) => setAssignment((current) => ({ ...current, role }))} includeBlank={false} options={[
-              { value: 'division_admin', label: 'Division administrator' },
-              { value: 'editor', label: 'Editor' },
-              { value: 'viewer', label: 'Viewer' },
+            <AdaptiveSelect label="Division role" value={assignment.role} onChange={(role) => setAssignment((current) => ({ ...current, role }))} hint={divisionRoleTip(assignment.role)} includeBlank={false} options={[
+              { value: 'division_admin', label: 'Division manager' },
+              { value: 'editor', label: 'Can edit' },
+              { value: 'viewer', label: 'Can view' },
             ]} />
           </div>
           <button type="submit" disabled={state.busy === 'member' || !assignment.divisionId || !assignment.userId} className="mt-3 inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-teal-700 px-3 text-sm font-semibold text-white disabled:bg-slate-400 sm:w-auto">{state.busy === 'member' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{state.busy === 'member' ? 'Saving...' : 'Save membership'}</button>
@@ -188,10 +195,10 @@ export default function DivisionAdminPanel({ auth, profiles, workspaceMembers })
             <div key={`${member.division_id}:${member.user_id}`} className="grid gap-2 py-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_190px] sm:items-center">
               <span className="truncate text-sm font-medium text-slate-800">{userName(member.user_id)}</span>
               <span className="text-xs text-slate-500">{divisionName(member.division_id)}</span>
-              <AdaptiveSelect value={member.role} ariaLabel={`Division role for ${userName(member.user_id)}`} includeBlank={false} options={[
-                { value: 'division_admin', label: 'Division administrator' },
-                { value: 'editor', label: 'Editor' },
-                { value: 'viewer', label: 'Viewer' },
+              <AdaptiveSelect value={member.role} ariaLabel={`Division role for ${userName(member.user_id)}`} hint={divisionRoleTip(member.role)} includeBlank={false} options={[
+                { value: 'division_admin', label: 'Division manager' },
+                { value: 'editor', label: 'Can edit' },
+                { value: 'viewer', label: 'Can view' },
                 { value: 'suspended', label: 'Remove from division' },
               ]} onChange={(value) => changeMembership(member, value)} disabled={state.busy === `member:${member.division_id}:${member.user_id}`} controlClassName="h-9" />
             </div>
@@ -204,14 +211,33 @@ export default function DivisionAdminPanel({ auth, profiles, workspaceMembers })
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-teal-700" /><h3 className="text-sm font-semibold text-slate-900">Division enforcement</h3></div>
-            <p className="mt-1 text-xs leading-5 text-slate-500">{readiness ? `${readiness.unassigned_issues} unassigned Issues; ${readiness.active_members_without_division} members without a division.` : 'Checking readiness...'}</p>
+            <p className="mt-1 text-xs leading-5 text-slate-500">
+              {!readiness
+                ? 'Checking readiness...'
+                : readiness.ready
+                  ? 'Ready to enable. Every Issue and active member has a division.'
+                  : readinessBlockers.join(' ')}
+            </p>
             <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-500">For division-only access, open each Issue's Share &amp; Access tab, select its owning division and choose Owning division visibility. Entire workspace is an intentional exception for matters everyone may access.</p>
           </div>
-          <button type="button" onClick={toggleEnforcement} disabled={state.busy === 'enforcement' || (!auth.workspace.division_access_enabled && !readiness?.ready)} className={`inline-flex h-10 w-full items-center justify-center gap-2 rounded-md px-3 text-sm font-semibold text-white disabled:bg-slate-400 sm:w-auto ${auth.workspace.division_access_enabled ? 'bg-rose-700' : 'bg-teal-700'}`}>{state.busy === 'enforcement' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}{state.busy === 'enforcement' ? 'Updating...' : auth.workspace.division_access_enabled ? 'Pause enforcement' : 'Enable division access'}</button>
+          <button type="button" title={!auth.workspace.division_access_enabled && readinessBlockers.length ? readinessBlockers.join(' ') : undefined} onClick={toggleEnforcement} disabled={state.busy === 'enforcement' || (!auth.workspace.division_access_enabled && !readiness?.ready)} className={`inline-flex h-10 w-full items-center justify-center gap-2 rounded-md px-3 text-sm font-semibold text-white disabled:bg-slate-400 sm:w-auto ${auth.workspace.division_access_enabled ? 'bg-rose-700' : 'bg-teal-700'}`}>{state.busy === 'enforcement' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}{state.busy === 'enforcement' ? 'Updating...' : auth.workspace.division_access_enabled ? 'Pause enforcement' : 'Enable division access'}</button>
         </div>
       </div>
     </section>
   );
+}
+
+function divisionRoleTip(role) {
+  if (role === 'viewer') {
+    return 'Can view Issues owned by this division. Cannot edit them unless given an explicit edit grant or they created the Issue.';
+  }
+  if (role === 'editor') {
+    return 'Can view and edit Issues owned by this division. This does not grant workspace management rights.';
+  }
+  if (role === 'division_admin') {
+    return 'Can edit this division’s Issues and manage its membership. This does not grant workspace-wide management.';
+  }
+  return '';
 }
 
 function Field({ label, value, onChange, placeholder }) {

@@ -11,51 +11,42 @@ export default function IssueCard({ issue, officers = [], working = false, canEd
   const ageDays = getIssueAgeDays(issue);
   const scheduled = isScheduledIssue(issue);
   return (
-    <article className={`surface rounded-md border-l-4 p-4 ${issue.isArchived ? 'border-l-slate-400' : scheduled ? 'border-l-cyan-600' : 'border-l-teal-600'}`}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-          <Link to={`/issues/${issue.id}`} className="min-w-0 max-w-full text-sm font-semibold text-[#17333b] hover:text-teal-800 hover:underline" title={issue.shortTitle}>
-            <span className="block truncate">{issue.shortTitle}</span>
-          </Link>
-          {showDivision && <span title={issue.divisionName ? `Owning division: ${issue.divisionName}` : 'No owning division assigned'} className={`inline-flex max-w-40 truncate rounded px-1.5 py-0.5 text-[10px] font-semibold ${issue.divisionName ? 'bg-teal-50 text-teal-800 ring-1 ring-inset ring-teal-200' : 'bg-slate-100 text-slate-500 ring-1 ring-inset ring-slate-200'}`}>{issue.divisionName || 'Unassigned'}</span>}
+    <article className={`surface rounded-md border-l-[3px] p-3 ${issue.isArchived ? 'border-l-slate-400' : scheduled ? 'border-l-cyan-600' : 'border-l-teal-600'}`}>
+      <Link to={`/issues/${issue.id}`} className="line-clamp-2 text-sm font-semibold leading-5 text-[#17333b] hover:text-teal-800 hover:underline" title={issue.shortTitle}>
+        {issue.shortTitle}
+      </Link>
+      <div className="mt-1.5 flex min-h-5 min-w-0 items-center justify-between gap-2">
+        <div className="min-w-0 truncate text-xs font-medium tabular-nums text-slate-500" title={issue.eFileNumber ? `eFile no. ${issue.eFileNumber}` : 'No eFile number'}>
+          {issue.eFileNumber ? `eFile ${issue.eFileNumber}` : 'eFile not set'}
         </div>
-        <div className="flex shrink-0 flex-col items-end gap-1">
-          {issue.isArchived && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">Archived</span>}
-          {scheduled && <span className="rounded-full bg-cyan-100 px-2 py-0.5 text-[11px] font-semibold text-cyan-800">Scheduled</span>}
+        <div className="flex shrink-0 items-center gap-1">
+          {showDivision && <span title={issue.divisionName ? `Owning division: ${issue.divisionName}` : 'No owning division assigned'} className={`inline-flex max-w-28 truncate rounded px-1.5 py-0.5 text-xs font-semibold ${issue.divisionName ? 'bg-teal-50 text-teal-800 ring-1 ring-inset ring-teal-200' : 'bg-slate-100 text-slate-500 ring-1 ring-inset ring-slate-200'}`}>{issue.divisionName || 'Unassigned'}</span>}
+          {issue.isArchived && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">Archived</span>}
+          {scheduled && <span className="rounded-full bg-cyan-100 px-2 py-0.5 text-xs font-semibold text-cyan-800">Scheduled</span>}
         </div>
       </div>
       <SourceSearchMatch match={issue.searchMatch} />
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
         <StatusBadge status={issue.status} />
         <DeadlineIndicator issue={issue} compact />
       </div>
-      <dl className="mt-4 grid grid-cols-2 gap-3 text-xs text-slate-600">
-        <div>
-          <dt className="font-medium text-slate-500">eFile no.</dt>
-          <dd className="truncate" title={issue.eFileNumber}>{issue.eFileNumber || 'Not set'}</dd>
+      <div className="mt-2.5 flex min-h-10 items-center justify-between gap-2 border-t border-[#e3ebe9] pt-2">
+        <div className="min-w-0 text-xs leading-4 text-slate-500">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span className="truncate font-medium text-slate-700" title={officer?.name}>{officer?.name || 'Not assigned'}</span>
+            <span className="shrink-0 border-l border-slate-300 pl-1.5 tabular-nums">{ageDays}d old</span>
+          </div>
+          {scheduled && <div className="truncate text-cyan-800">Returns {formatDisplayDate(issue.nextAppearanceDate)}</div>}
         </div>
-        <div>
-          <dt className="font-medium text-slate-500">Subject type</dt>
-          <dd className="truncate" title={issue.subjectType}>{issue.subjectType || 'Not specified'}</dd>
-        </div>
-        <div>
-          <dt className="font-medium text-slate-500">Assigned to</dt>
-          <dd className="truncate" title={officer?.name}>{officer?.name || 'Not assigned'}</dd>
-        </div>
-        <div>
-          <dt className="font-medium text-slate-500">Age</dt>
-          <dd>{ageDays} day{ageDays === 1 ? '' : 's'}</dd>
-        </div>
-        {scheduled && <div><dt className="font-medium text-slate-500">Returns</dt><dd>{formatDisplayDate(issue.nextAppearanceDate)}</dd></div>}
-      </dl>
-      {canEdit && <div className="mt-4 flex min-h-10 items-center justify-end gap-1 border-t border-[#e3ebe9] pt-3">
-        {working ? <span className="flex items-center gap-2 text-xs font-semibold text-cyan-800" role="status"><LoaderCircle className="h-4 w-4 animate-spin" />Updating Issue...</span> : <>
-          {issue.isArchived && <CardAction label="Restore Issue" onClick={() => onRestore(issue)}><RotateCcw className="h-4 w-4" /></CardAction>}
-          {scheduled && <CardAction label="Bring back now" onClick={() => onBringBack(issue)}><RotateCcw className="h-4 w-4" /></CardAction>}
-          {!issue.isArchived && <CardAction label="Archive Issue" onClick={() => onArchive(issue)}><Archive className="h-4 w-4" /></CardAction>}
-          <CardAction label="Delete Issue permanently" danger onClick={() => onDelete(issue)}><Trash2 className="h-4 w-4" /></CardAction>
-        </>}
-      </div>}
+        {canEdit && <div className="flex shrink-0 items-center justify-end gap-0.5">
+          {working ? <span className="flex items-center gap-1 text-xs font-semibold text-cyan-800" role="status"><LoaderCircle className="h-3.5 w-3.5 animate-spin" />Updating</span> : <>
+            {issue.isArchived && <CardAction label="Restore Issue" onClick={() => onRestore(issue)}><RotateCcw className="h-4 w-4" /></CardAction>}
+            {scheduled && <CardAction label="Bring back now" onClick={() => onBringBack(issue)}><RotateCcw className="h-4 w-4" /></CardAction>}
+            {!issue.isArchived && <CardAction label="Archive Issue" onClick={() => onArchive(issue)}><Archive className="h-4 w-4" /></CardAction>}
+            <CardAction label="Delete Issue permanently" danger onClick={() => onDelete(issue)}><Trash2 className="h-4 w-4" /></CardAction>
+          </>}
+        </div>}
+      </div>
     </article>
   );
 }

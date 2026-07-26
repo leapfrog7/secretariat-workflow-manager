@@ -26,7 +26,14 @@ import { useAuth } from '../features/auth/AuthContext';
 import AdaptiveSelect from '../components/common/AdaptiveSelect';
 import { getIssueAccessLevel } from '../features/collaboration/accessApi';
 
-const tabs = ['Current Position', 'Running Summary', 'Record of Communication', 'References', 'AI Context', 'Share & Access'];
+const tabs = [
+  { label: 'Current Position', mobileLabel: 'Position' },
+  { label: 'Running Summary', mobileLabel: 'Summary' },
+  { label: 'Record of Communication', mobileLabel: 'Comms' },
+  { label: 'References', mobileLabel: 'References' },
+  { label: 'AI Context', mobileLabel: 'AI Drafting' },
+  { label: 'Share & Access', mobileLabel: 'Access' },
+];
 
 export default function IssueWorkspacePage() {
   const { issueId } = useParams();
@@ -292,19 +299,48 @@ export default function IssueWorkspacePage() {
       />
       {!canEditIssue && <div className="mb-4 rounded-md border border-cyan-200 bg-cyan-50 px-3 py-3 text-sm text-cyan-950">Viewing access only. You can inspect the complete Issue record, but changes are disabled.</div>}
 
-      <div className="mb-5 overflow-x-auto border-b border-[#d7e3e1]">
-        <div className="flex min-w-max gap-1" role="tablist" aria-label="Issue workspace">
+      <div className="mb-4 border-b border-[#d7e3e1] pb-3 md:mb-5 md:pb-0">
+        <div className="grid grid-cols-3 gap-1.5 md:hidden" role="tablist" aria-label="Issue workspace">
           {tabs.map((tab) => {
-            const count = tab === 'Running Summary'
+            const count = tab.label === 'Running Summary'
               ? state.summaryVersionCount
-              : tab === 'Record of Communication'
+              : tab.label === 'Record of Communication'
                 ? state.communications.length
-                : tab === 'References'
+                : tab.label === 'References'
+                  ? state.references.length
+                  : null;
+            const active = state.activeTab === tab.label;
+            return (
+              <button
+                key={tab.label}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setState((current) => ({ ...current, activeTab: tab.label }))}
+                className={`flex min-h-11 min-w-0 items-center justify-center gap-1 rounded-md border px-1.5 py-2 text-xs font-semibold leading-4 transition-colors ${
+                  active
+                    ? 'border-teal-600 bg-teal-50 text-teal-900 shadow-sm'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                }`}
+              >
+                <span className="truncate">{tab.mobileLabel}</span>
+                {count !== null && <span className={`shrink-0 rounded px-1 py-0.5 text-xs tabular-nums ${active ? 'bg-teal-700 text-white' : 'bg-slate-100 text-slate-500'}`}>{count}</span>}
+              </button>
+            );
+          })}
+        </div>
+        <div className="hidden min-w-max gap-1 md:flex" role="tablist" aria-label="Issue workspace">
+          {tabs.map((tab) => {
+            const count = tab.label === 'Running Summary'
+              ? state.summaryVersionCount
+              : tab.label === 'Record of Communication'
+                ? state.communications.length
+                : tab.label === 'References'
                   ? state.references.length
                   : null;
             return (
-              <button key={tab} type="button" role="tab" aria-selected={state.activeTab === tab} onClick={() => setState((current) => ({ ...current, activeTab: tab }))} className={`border-b-2 px-3 py-3 text-xs font-semibold transition-colors sm:px-4 sm:text-sm ${state.activeTab === tab ? 'border-teal-700 text-teal-800' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
-                {tab}{count !== null && <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs tabular-nums text-slate-600">{count}</span>}
+              <button key={tab.label} type="button" role="tab" aria-selected={state.activeTab === tab.label} onClick={() => setState((current) => ({ ...current, activeTab: tab.label }))} className={`border-b-2 px-3 py-3 text-xs font-semibold transition-colors sm:px-4 sm:text-sm ${state.activeTab === tab.label ? 'border-teal-700 text-teal-800' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
+                {tab.label}{count !== null && <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs tabular-nums text-slate-600">{count}</span>}
               </button>
             );
           })}

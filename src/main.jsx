@@ -4,6 +4,9 @@ import './index.css';
 import AppRoutes from './routes/AppRoutes';
 import { ToastProvider } from './components/common/ToastProvider';
 import { AuthProvider } from './features/auth/AuthContext';
+import { initializeTextSize } from './utils/appearanceUtils';
+
+initializeTextSize();
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

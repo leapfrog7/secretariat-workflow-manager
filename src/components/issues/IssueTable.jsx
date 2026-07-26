@@ -11,14 +11,15 @@ export default function IssueTable({ issues, officers = [], registerMode = 'Curr
   return (
     <div className="surface hidden overflow-hidden rounded-md md:block">
       <div className="overflow-x-auto">
-        <table className="min-w-[1180px] divide-y divide-[#dce6e4] text-sm">
+        <table className="w-full min-w-[860px] table-fixed divide-y divide-[#dce6e4] text-sm">
           <thead className="bg-[#edf4f2] text-left text-xs font-semibold uppercase tracking-wide text-[#526b70]">
             <tr>
-              {['Issue', 'eFile no.', 'Subject type', 'Stage', 'Assigned officer', 'Age', 'Deadline', ...(showReturnDate ? ['Returns'] : []), ...(canEdit ? ['Actions'] : [])].map((header) => (
-                <th key={header} scope="col" className={`px-4 py-3 ${header === 'Actions' ? 'text-right' : ''}`}>
-                  {header}
-                </th>
-              ))}
+              <th scope="col" className="w-[34%] px-4 py-3">Issue</th>
+              <th scope="col" className="w-[15%] px-4 py-3">Stage</th>
+              <th scope="col" className="w-[18%] px-4 py-3">Assigned officer</th>
+              <th scope="col" className="w-[19%] px-4 py-3">Age &amp; deadline</th>
+              {showReturnDate && <th scope="col" className="w-[14%] px-4 py-3">Returns</th>}
+              {canEdit && <th scope="col" className="w-28 px-4 py-3 text-right">Actions</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-[#e3ebe9] bg-white">
@@ -45,25 +46,21 @@ function IssueRow({ issue, officers, showReturnDate, showDivision, working, canE
                     </Link>
                     {showDivision && <DivisionTag name={issue.divisionName} />}
                   </div>
-                  {issue.isArchived && <span className="mt-1 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">Archived</span>}
-                  {scheduled && <span className="mt-1 inline-flex rounded-full bg-cyan-100 px-2 py-0.5 text-[11px] font-semibold text-cyan-800">Scheduled</span>}
+                  {issue.eFileNumber && <div className="mt-1 truncate text-xs font-medium tabular-nums text-slate-500" title={`eFile no. ${issue.eFileNumber}`}>eFile {issue.eFileNumber}</div>}
+                  {issue.isArchived && <span className="mt-1 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">Archived</span>}
+                  {scheduled && <span className="mt-1 inline-flex rounded-full bg-cyan-100 px-2 py-0.5 text-xs font-semibold text-cyan-800">Scheduled</span>}
                   <SourceSearchMatch match={issue.searchMatch} />
-                </td>
-                <td className="max-w-[150px] px-4 py-3.5 text-slate-700" title={issue.eFileNumber}>
-                  <span className="block truncate font-medium">{issue.eFileNumber || '-'}</span>
-                </td>
-                <td className="max-w-[180px] px-4 py-3.5 text-slate-600" title={issue.subjectType}>
-                  <span className="block truncate">{issue.subjectType || 'Not specified'}</span>
                 </td>
                 <td className="px-4 py-3.5"><StatusBadge status={issue.status} /></td>
                 <td className="max-w-[200px] px-4 py-3.5 text-slate-700" title={officer?.name}>
                   <span className="block truncate">{officer?.name || 'Not assigned'}</span>
                 </td>
                 <td className="px-4 py-3.5">
-                  <span className="block font-semibold tabular-nums text-[#17333b]">{ageDays}</span>
-                  <span className="block text-xs text-slate-500">day{ageDays === 1 ? '' : 's'}</span>
+                  <div className="mb-1.5 text-xs text-slate-500">
+                    <span className="font-semibold tabular-nums text-[#17333b]">{ageDays}</span> day{ageDays === 1 ? '' : 's'} old
+                  </div>
+                  <DeadlineIndicator issue={issue} compact />
                 </td>
-                <td className="px-4 py-3.5"><DeadlineIndicator issue={issue} compact /></td>
                 {showReturnDate && <td className="px-4 py-3.5"><span className="block font-semibold tabular-nums text-cyan-900">{scheduled ? formatDisplayDate(issue.nextAppearanceDate) : '-'}</span>{scheduled && <span className="block text-xs text-slate-500">{issue.recurrenceType}</span>}</td>}
                 {canEdit && <td className="px-4 py-3.5"><div className="flex items-center justify-end gap-1">
                   {working ? <span className="flex h-8 items-center justify-center gap-2 px-1 text-xs font-semibold text-cyan-800" role="status"><LoaderCircle className="h-4 w-4 animate-spin" /><span>Updating</span></span> : <>
@@ -78,7 +75,7 @@ function IssueRow({ issue, officers, showReturnDate, showDivision, working, canE
 }
 
 function DivisionTag({ name }) {
-  return <span title={name ? `Owning division: ${name}` : 'No owning division assigned'} className={`inline-flex max-w-44 shrink-0 truncate rounded px-1.5 py-0.5 text-[11px] font-semibold ${name ? 'bg-teal-50 text-teal-800 ring-1 ring-inset ring-teal-200' : 'bg-slate-100 text-slate-500 ring-1 ring-inset ring-slate-200'}`}>{name || 'Unassigned'}</span>;
+  return <span title={name ? `Owning division: ${name}` : 'No owning division assigned'} className={`inline-flex max-w-44 shrink-0 truncate rounded px-1.5 py-0.5 text-xs font-semibold ${name ? 'bg-teal-50 text-teal-800 ring-1 ring-inset ring-teal-200' : 'bg-slate-100 text-slate-500 ring-1 ring-inset ring-slate-200'}`}>{name || 'Unassigned'}</span>;
 }
 
 function ActionIcon({ label, tone = 'slate', onClick, children }) {

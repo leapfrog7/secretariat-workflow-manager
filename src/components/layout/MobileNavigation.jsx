@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
-import { BookOpenCheck, ClipboardList, FilePlus2, Settings, UserRoundCog } from 'lucide-react';
+import { BookOpenCheck, ClipboardList, FilePlus2, LoaderCircle, Settings, UserRoundCog } from 'lucide-react';
 import { useAuth } from '../../features/auth/AuthContext';
+import { useNavigationFeedback } from '../common/NavigationFeedback';
 
 const navItems = [
   { label: 'Issues', to: '/issues', icon: ClipboardList },
@@ -12,6 +13,7 @@ const navItems = [
 export default function MobileNavigation() {
   const { pathname } = useLocation();
   const auth = useAuth();
+  const { pendingPath } = useNavigationFeedback();
   const permittedItems = auth.canEdit ? navItems : navItems.filter((item) => item.to !== '/issues/new');
   const visibleItems = auth.isAdmin || auth.isWorkspaceAdmin ? [...permittedItems, { label: 'Administration', mobileLabel: 'Admin', to: '/admin', icon: UserRoundCog }] : permittedItems;
   return (
@@ -22,17 +24,19 @@ export default function MobileNavigation() {
           const isActive = item.to === '/issues'
             ? pathname === '/issues' || (pathname.startsWith('/issues/') && pathname !== '/issues/new')
             : pathname === item.to;
+          const isPending = pendingPath === item.to;
           return (
             <Link
               key={item.label}
               to={item.to}
               aria-current={isActive ? 'page' : undefined}
-              className={`flex min-h-14 min-w-0 flex-col items-center justify-center gap-1 border-t-2 px-1 py-1.5 text-[11px] font-medium transition-colors ${
+              aria-busy={isPending || undefined}
+              className={`flex min-h-[52px] min-w-0 flex-col items-center justify-center gap-0.5 border-t-2 px-1 py-1 text-xs font-medium transition-colors ${
                   isActive ? 'border-teal-600 bg-teal-50/70 text-teal-800' : 'border-transparent text-slate-500 hover:bg-slate-50'
                 }`}
             >
-              <Icon className={`h-5 w-5 transition-transform ${isActive ? 'scale-105' : ''}`} aria-hidden="true" />
-              <span className="max-w-full truncate">{item.mobileLabel || item.label}</span>
+              {isPending ? <LoaderCircle className="h-[18px] w-[18px] animate-spin" aria-hidden="true" /> : <Icon className={`h-[18px] w-[18px] transition-transform ${isActive ? 'scale-105' : ''}`} aria-hidden="true" />}
+              <span className="max-w-full truncate">{isPending ? 'Opening' : item.mobileLabel || item.label}</span>
             </Link>
           );
         })}

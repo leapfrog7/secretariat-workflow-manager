@@ -3,11 +3,13 @@ import { Outlet } from 'react-router-dom';
 import { APP_NAME } from '../constants/issueConstants';
 import Sidebar from '../components/layout/Sidebar';
 import MobileNavigation from '../components/layout/MobileNavigation';
-import { Cloud, CloudOff, LogOut, RefreshCw, ShieldCheck } from 'lucide-react';
+import { ClipboardCheck, Cloud, CloudOff, LogOut, RefreshCw, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../features/auth/AuthContext';
 import NotificationCenter from '../components/notifications/NotificationCenter';
 import LoadingState from '../components/common/LoadingState';
 import SyncConflictCenter from '../components/cloud/SyncConflictCenter';
+import WelcomeBanner from '../components/common/WelcomeBanner';
+import { NavigationFeedbackProvider } from '../components/common/NavigationFeedback';
 
 export default function AppShell() {
   const auth = useAuth();
@@ -24,16 +26,19 @@ export default function AppShell() {
   };
 
   return (
+    <NavigationFeedbackProvider>
     <div className="min-h-screen bg-[#f2f6f5] text-slate-900">
       <div className="flex min-h-screen">
         <Sidebar />
         <div className="min-w-0 flex-1">
-          <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-[#dce6e4] bg-white/95 px-4 backdrop-blur md:px-7">
-            <div className="min-w-0">
-              <div className="truncate text-sm font-semibold text-[#17333b] md:hidden">{APP_NAME}</div>
-              <div className="hidden items-center gap-2 text-sm font-medium text-slate-600 md:flex">
-                <span className="h-2 w-2 rounded-full bg-teal-500" aria-hidden="true" />
-                <span className="max-w-56 truncate">{auth.workspace?.name || 'Issue tracking'}</span>
+          <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-[#d5e2df] bg-white/95 px-3 shadow-[0_1px_8px_rgb(15_49_56_/_0.04)] backdrop-blur sm:px-4 md:px-7">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[#17333b] text-white shadow-sm">
+                <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
+              </div>
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold leading-4 text-[#17333b]"><span className="md:hidden">SWM</span><span className="hidden md:inline">{APP_NAME}</span></div>
+                <div className="mt-0.5 max-w-40 truncate text-xs leading-4 text-slate-500 sm:max-w-56">{auth.workspace?.name || 'Issue tracking workspace'}</div>
               </div>
             </div>
             <div className="flex min-w-0 items-center gap-2">
@@ -43,7 +48,7 @@ export default function AppShell() {
                 <>
                   <NotificationCenter />
                   <button type="button" title={auth.syncState?.status === 'error' ? auth.syncState.error : auth.syncState?.status === 'syncing' ? 'Synchronizing workspace' : 'Workspace synchronized'} aria-label="Synchronize workspace" onClick={() => auth.syncNow()} disabled={auth.syncState?.status === 'syncing'} className={`flex h-8 w-8 items-center justify-center rounded-md border bg-white ${auth.syncState?.status === 'error' ? 'border-red-200 text-red-700' : 'border-slate-200 text-slate-600 hover:text-slate-900'}`}>{auth.syncState?.status === 'error' ? <CloudOff className="h-4 w-4" /> : auth.syncState?.status === 'syncing' ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Cloud className="h-4 w-4" />}</button>
-                  {auth.isAdmin && <span title="Platform administrator" className="hidden rounded-full bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800 sm:inline-flex sm:items-center sm:gap-1"><ShieldCheck className="h-3.5 w-3.5" />Admin</span>}
+                  {auth.isAdmin && <span title="System administrator" className="hidden rounded-full bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800 sm:inline-flex sm:items-center sm:gap-1"><ShieldCheck className="h-3.5 w-3.5" />System admin</span>}
                   <span className="hidden max-w-44 truncate text-xs font-medium text-slate-600 sm:block">{auth.profile?.display_name || auth.user?.email}</span>
                   <button type="button" title={signingOut ? 'Signing out' : 'Sign out'} aria-label={signingOut ? 'Signing out' : 'Sign out'} onClick={signOut} disabled={signingOut} className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 hover:text-slate-900 disabled:cursor-wait disabled:opacity-60">{signingOut ? <RefreshCw className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}</button>
                 </>
@@ -51,7 +56,8 @@ export default function AppShell() {
             </div>
             {auth.syncState?.status === 'syncing' && <div className="absolute inset-x-0 bottom-0 h-0.5 overflow-hidden bg-cyan-100" role="status" aria-label="Synchronizing workspace"><span className="sync-progress block h-full w-1/3 bg-cyan-600" /></div>}
           </header>
-          <main className="mx-auto w-full max-w-[1240px] px-3 py-5 pb-20 sm:px-4 md:px-7 md:py-7 md:pb-10">
+          <main className="mx-auto w-full max-w-[1240px] px-3 py-4 pb-20 sm:px-4 sm:py-5 md:px-7 md:py-7 md:pb-10">
+            {auth.mode === 'cloud' && auth.user?.id && auth.workspace?.id && <WelcomeBanner userId={auth.user.id} canEdit={auth.canEdit} />}
             <SyncConflictCenter />
             <Suspense fallback={<LoadingState message="Opening page..." />}>
               <Outlet />
@@ -61,5 +67,6 @@ export default function AppShell() {
       </div>
       <MobileNavigation />
     </div>
+    </NavigationFeedbackProvider>
   );
 }

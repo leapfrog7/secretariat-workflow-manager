@@ -22,13 +22,33 @@ test('officer identity ignores harmless case and whitespace differences', () => 
   assert.equal(getOfficerIdentityKey(first), getOfficerIdentityKey(second));
 });
 
-test('officer identity preserves materially different directory entries', () => {
-  const active = { name: 'Yatin Kumar', designation: 'Section Officer', role: 'Other', isActive: true };
-  const inactive = { name: 'Yatin Kumar', designation: 'Section Officer', role: 'Other', isActive: false };
-  const differentPost = { name: 'Yatin Kumar', designation: 'Under Secretary', role: 'Other', isActive: true };
+test('officer identity ignores mutable directory metadata from another device', () => {
+  const minimal = {
+    name: 'Yatin Kumar',
+    designation: 'Section Officer',
+    section: '',
+    role: 'Other',
+    isActive: true,
+  };
+  const enriched = {
+    name: 'Yatin Kumar',
+    designation: 'Section Officer',
+    section: 'Administration',
+    role: 'Section Officer',
+    telephone: '12345',
+    isActive: false,
+  };
 
-  assert.notEqual(getOfficerIdentityKey(active), getOfficerIdentityKey(inactive));
-  assert.notEqual(getOfficerIdentityKey(active), getOfficerIdentityKey(differentPost));
+  assert.equal(getOfficerIdentityKey(minimal), getOfficerIdentityKey(enriched));
+});
+
+test('officer identity preserves entries with a different name or designation', () => {
+  const officer = { name: 'Yatin Kumar', designation: 'Section Officer' };
+  const differentPost = { name: 'Yatin Kumar', designation: 'Under Secretary' };
+  const differentName = { name: 'Sethi', designation: 'Section Officer' };
+
+  assert.notEqual(getOfficerIdentityKey(officer), getOfficerIdentityKey(differentPost));
+  assert.notEqual(getOfficerIdentityKey(officer), getOfficerIdentityKey(differentName));
 });
 
 test('milestones retain a synchronization timestamp when remapped', () => {

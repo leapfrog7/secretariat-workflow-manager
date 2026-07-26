@@ -11,10 +11,12 @@ export function settingsScopeChanges(existing, settings) {
       localAI: existing?.localAI,
       aiPreferences: existing?.aiPreferences,
       reminders: existing?.reminders,
+      appearance: existing?.appearance,
     }) !== JSON.stringify({
       localAI: settings?.localAI,
       aiPreferences: settings?.aiPreferences,
       reminders: settings?.reminders,
+      appearance: settings?.appearance,
     }),
   };
 }

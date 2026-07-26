@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, BellRing, Bot, Building2, CheckCircle2, Database, Download, HardDrive, LoaderCircle, Pencil, Plus, RefreshCw, Save, ShieldCheck, Trash2, Upload, Users } from 'lucide-react';
+import { AlertTriangle, BellRing, Bot, Building2, CheckCircle2, Database, Download, HardDrive, LoaderCircle, Pencil, Plus, RefreshCw, Save, ShieldCheck, Trash2, Type, Upload, Users } from 'lucide-react';
 import PageHeader from '../components/common/PageHeader';
 import LoadingState from '../components/common/LoadingState';
 import ErrorState from '../components/common/ErrorState';
@@ -10,7 +10,7 @@ import GeminiTaskLevelControl from '../components/ai/GeminiTaskLevelControl';
 import AIModeControl from '../components/ai/AIModeControl';
 import AdaptiveSelect from '../components/common/AdaptiveSelect';
 import { useToast } from '../components/common/ToastProvider';
-import { APP_NAME, DB_NAME, DB_VERSION, DEFAULT_AI_PREFERENCES, DEFAULT_LOCAL_AI_SETTINGS, DEFAULT_OFFICE_PROFILE, DEFAULT_REMINDER_SETTINGS } from '../constants/issueConstants';
+import { APP_NAME, DB_NAME, DB_VERSION, DEFAULT_AI_PREFERENCES, DEFAULT_APPEARANCE_SETTINGS, DEFAULT_LOCAL_AI_SETTINGS, DEFAULT_OFFICE_PROFILE, DEFAULT_REMINDER_SETTINGS } from '../constants/issueConstants';
 import { getIssueStatistics } from '../db/issueRepository';
 import {
   buildBackupPayload,
@@ -33,13 +33,14 @@ import { normalizeOfficeProfile } from '../utils/governmentDraftUtils';
 import { queueCloudSettingsUpsert } from '../features/cloud/cloudSettingsSync';
 import { useAuth } from '../features/auth/AuthContext';
 import { getCloudAIStatus } from '../services/cloudAIClient';
+import { applyTextSize, normalizeTextSize } from '../utils/appearanceUtils';
 
 export default function SettingsPage() {
   const fileRef = useRef(null);
   const { showToast } = useToast();
   const auth = useAuth();
   const canMutateWorkspace = auth.mode !== 'cloud' || auth.canEdit;
-  const [activeTab, setActiveTab] = useState('officers');
+  const [activeTab, setActiveTab] = useState('display');
   const [state, setState] = useState({
     loading: true,
     busy: '',
@@ -60,6 +61,7 @@ export default function SettingsPage() {
     cloudProvidersStatus: 'idle',
     cloudProvidersError: '',
     reminderSettings: DEFAULT_REMINDER_SETTINGS,
+    appearance: DEFAULT_APPEARANCE_SETTINGS,
     aiModels: [],
     aiStatus: 'idle',
     aiMessage: '',
@@ -75,6 +77,8 @@ export default function SettingsPage() {
         getBackupStatus(),
         getSettings(),
       ]);
+      const appearance = { ...DEFAULT_APPEARANCE_SETTINGS, ...(settings.appearance || {}) };
+      applyTextSize(appearance.textSize);
       setState((current) => ({
         ...current,
         loading: false,
@@ -88,6 +92,7 @@ export default function SettingsPage() {
         aiSettings: normalizeLocalAISettings(settings.localAI),
         aiPreferences: { ...DEFAULT_AI_PREFERENCES, ...(settings.aiPreferences || {}) },
         reminderSettings: { ...DEFAULT_REMINDER_SETTINGS, ...(settings.reminders || {}) },
+        appearance,
         officeProfile: normalizeOfficeProfile(settings.officeProfile),
       }));
     } catch (error) {
@@ -314,6 +319,23 @@ export default function SettingsPage() {
     }
   };
 
+  const selectTextSize = async (textSize) => {
+    const previous = state.appearance.textSize;
+    const appearance = { textSize: normalizeTextSize(textSize) };
+    applyTextSize(appearance.textSize);
+    setState((current) => ({ ...current, appearance, busy: 'appearance-save' }));
+    try {
+      const settings = await getSettings();
+      const saved = await saveSettings({ ...settings, appearance });
+      queueCloudSettingsUpsert(saved, 'user');
+      setState((current) => ({ ...current, appearance: saved.appearance, busy: '' }));
+    } catch (error) {
+      applyTextSize(previous);
+      setState((current) => ({ ...current, appearance: { textSize: previous }, busy: '' }));
+      showToast(error.message || 'Unable to save display preference.', 'error');
+    }
+  };
+
   const updateOfficeProfile = (field, value) => {
     setState((current) => ({ ...current, officeProfile: { ...current.officeProfile, [field]: value } }));
   };
@@ -356,6 +378,7 @@ export default function SettingsPage() {
   const backup = state.backupStatus;
   const canDeleteOfficers = auth.mode !== 'cloud' || auth.isWorkspaceAdmin;
   const tabs = [
+    { id: 'display', label: 'Display', icon: Type },
     { id: 'officers', label: 'Officers', icon: Users },
     { id: 'profile', label: 'Office profile', icon: Building2 },
     { id: 'ai', label: 'AI settings', icon: Bot },
@@ -383,6 +406,42 @@ export default function SettingsPage() {
         </div>
       </nav>
       <div>
+        {activeTab === 'display' && <section className="surface rounded-md border-t-4 border-t-teal-600 p-4 sm:p-5">
+          <div className="flex items-start gap-3 border-b border-slate-200 pb-4">
+            <Type className="mt-0.5 h-5 w-5 shrink-0 text-teal-700" aria-hidden="true" />
+            <div>
+              <h2 className="text-base font-semibold text-slate-950">Text size</h2>
+              <p className="mt-1 text-sm leading-6 text-slate-600">Choose a comfortable reading size. The setting applies across the application and follows your account.</p>
+            </div>
+          </div>
+          <fieldset className="mt-4">
+            <legend className="sr-only">Application text size</legend>
+            <div className="grid grid-cols-3 gap-2" role="group" aria-label="Application text size">
+              {[
+                { value: 'small', label: 'Small', sampleClass: 'text-xs' },
+                { value: 'normal', label: 'Normal', sampleClass: 'text-sm' },
+                { value: 'large', label: 'Large', sampleClass: 'text-base' },
+              ].map((option) => {
+                const selected = state.appearance.textSize === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    aria-pressed={selected}
+                    disabled={state.busy === 'appearance-save'}
+                    onClick={() => selectTextSize(option.value)}
+                    className={`flex min-h-20 flex-col items-center justify-center gap-1 rounded-md border px-2 py-3 transition-colors disabled:cursor-wait disabled:opacity-70 ${selected ? 'border-teal-600 bg-teal-50 text-teal-900 ring-1 ring-teal-600' : 'border-slate-300 bg-white text-slate-700 hover:border-teal-300 hover:bg-teal-50/50'}`}
+                  >
+                    <span className={`${option.sampleClass} font-semibold`}>Aa</span>
+                    <span className="text-xs font-semibold">{option.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-3 text-xs leading-5 text-slate-500">Browser zoom and operating-system accessibility settings continue to work with this preference.</p>
+          </fieldset>
+        </section>}
+
         {activeTab === 'officers' && <section className="surface rounded-md border-t-4 border-t-teal-600 p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -413,7 +472,7 @@ export default function SettingsPage() {
                     <span className="sr-only">Edit {officer.name}</span>
                     <Pencil className="h-4 w-4" aria-hidden="true" />
                   </button>
-                  <button type="button" title={canDeleteOfficers ? 'Delete officer' : 'Only a workspace administrator can delete cloud officers'} disabled={!canDeleteOfficers} onClick={() => setState((current) => ({ ...current, officerToDelete: officer }))} className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-300 text-slate-500 transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-40">
+                  <button type="button" title={canDeleteOfficers ? 'Delete officer' : 'Only a Workspace manager can delete cloud officers'} disabled={!canDeleteOfficers} onClick={() => setState((current) => ({ ...current, officerToDelete: officer }))} className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-300 text-slate-500 transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-40">
                     <span className="sr-only">Delete {officer.name}</span>
                     <Trash2 className="h-4 w-4" aria-hidden="true" />
                   </button>
@@ -422,7 +481,7 @@ export default function SettingsPage() {
             ))}
             {!state.officers.length && <p className="py-4 text-sm text-slate-500">No officers added.</p>}
           </div>
-          {!canDeleteOfficers && <p className="mt-3 text-xs text-slate-500">Workspace officers can be edited here. Permanent deletion is limited to workspace administrators.</p>}
+          {!canDeleteOfficers && <p className="mt-3 text-xs text-slate-500">Workspace officers can be edited here. Permanent deletion is limited to Workspace managers.</p>}
         </section>}
 
         {activeTab === 'profile' && <section className="surface rounded-md border-t-4 border-t-amber-500 p-4">
@@ -430,7 +489,7 @@ export default function SettingsPage() {
             <Building2 className="mt-0.5 h-5 w-5 text-amber-700" aria-hidden="true" />
             <div><h2 className="text-sm font-semibold text-slate-950">Official drafting profile</h2><p className="mt-1 text-sm text-slate-600">Office identity and officers authorized to sign generated communications.</p></div>
           </div>
-          {!canMutateWorkspace && <p className="mt-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">You can view this shared profile. An officer or workspace administrator can change it.</p>}
+          {!canMutateWorkspace && <p className="mt-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">You can view this shared profile. A user with editing access or a Workspace manager can change it.</p>}
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <ProfileInput disabled={!canMutateWorkspace} label="Government heading" value={state.officeProfile.governmentName} onChange={(value) => updateOfficeProfile('governmentName', value)} />
             <ProfileInput disabled={!canMutateWorkspace} label="Government heading (Hindi transliteration)" value={state.officeProfile.governmentHindiName} onChange={(value) => updateOfficeProfile('governmentHindiName', value)} />
@@ -493,7 +552,7 @@ export default function SettingsPage() {
                 <p className="mt-2 text-xs leading-5 text-slate-500">Moderate suits most official communication. Simple is faster for routine work; Hard uses stronger reasoning and may take longer or consume more paid tokens later.</p>
               </div>
             )}
-            <p className="text-xs leading-5 text-slate-500 sm:col-span-2">Cloud providers are controlled by the workspace administrator. The provider API key remains on the server and is never sent to this browser.</p>
+            <p className="text-xs leading-5 text-slate-500 sm:col-span-2">Cloud providers are controlled by Workspace managers. The provider API key remains on the server and is never sent to this browser.</p>
           </div>}
           <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
             {state.aiPreferences.mode === 'local' && <button type="button" onClick={testLocalAI} disabled={state.busy === 'ai-test'} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md border border-cyan-200 bg-cyan-50 px-3 text-sm font-semibold text-cyan-900 hover:bg-cyan-100 disabled:opacity-60 sm:w-auto">{state.busy === 'ai-test' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}{state.busy === 'ai-test' ? 'Testing...' : 'Test connection'}</button>}

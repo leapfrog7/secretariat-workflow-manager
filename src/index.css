@@ -3,9 +3,22 @@
 :root {
   color: #18323a;
   background: #f2f6f5;
+  font-size: 16px;
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
+}
+
+:root[data-text-size="small"] {
+  font-size: 15px;
+}
+
+:root[data-text-size="normal"] {
+  font-size: 16px;
+}
+
+:root[data-text-size="large"] {
+  font-size: 18px;
 }
 
 * {
@@ -71,6 +84,21 @@ button:disabled {
   100% { transform: translateX(420%); }
 }
 
+@keyframes route-progress {
+  0% {
+    transform: translateX(-100%);
+    width: 35%;
+  }
+  55% {
+    transform: translateX(80%);
+    width: 55%;
+  }
+  100% {
+    transform: translateX(285%);
+    width: 35%;
+  }
+}
+
 @keyframes toast-in {
   from { opacity: 0; transform: translateY(8px) scale(0.98); }
   to { opacity: 1; transform: translateY(0) scale(1); }
@@ -102,6 +130,27 @@ button:disabled {
 
 .sync-progress {
   animation: sync-slide 1.15s ease-in-out infinite;
+}
+
+.route-progress > span,
+span.route-progress {
+  animation: route-progress 1.1s ease-in-out infinite;
+  transform-origin: left;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-progress > span,
+  span.route-progress,
+  .loading-shimmer::after,
+  .sync-progress {
+    animation: none;
+    transform: none;
+  }
+
+  .route-progress > span,
+  span.route-progress {
+    width: 65%;
+  }
 }
 
 .toast-enter {

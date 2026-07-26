@@ -8,6 +8,7 @@ const settings = {
   localAI: { baseUrl: '/lmstudio', model: 'local-model' },
   aiPreferences: { mode: 'local', cloudProvider: 'gemini', geminiTaskLevel: 'moderate' },
   reminders: { inAppEnabled: true },
+  appearance: { textSize: 'normal' },
 };
 
 test('changing only AI provider preferences advances the user settings scope', () => {
@@ -29,5 +30,16 @@ test('workspace profile changes do not incorrectly advance personal settings', (
   assert.deepEqual(settingsScopeChanges(settings, next), {
     workspaceChanged: true,
     userChanged: false,
+  });
+});
+
+test('changing text size advances the personal settings scope', () => {
+  const next = {
+    ...settings,
+    appearance: { textSize: 'large' },
+  };
+  assert.deepEqual(settingsScopeChanges(settings, next), {
+    workspaceChanged: false,
+    userChanged: true,
   });
 });

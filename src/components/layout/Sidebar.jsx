@@ -1,7 +1,8 @@
 import { Link, useLocation } from 'react-router-dom';
-import { BookOpenCheck, ClipboardCheck, ClipboardList, FilePlus2, Settings, UserRoundCog } from 'lucide-react';
+import { BookOpenCheck, ClipboardCheck, ClipboardList, FilePlus2, LoaderCircle, Settings, UserRoundCog } from 'lucide-react';
 import { APP_NAME } from '../../constants/issueConstants';
 import { useAuth } from '../../features/auth/AuthContext';
+import { useNavigationFeedback } from '../common/NavigationFeedback';
 
 const navItems = [
   { label: 'Issues', to: '/issues', icon: ClipboardList },
@@ -13,6 +14,7 @@ const navItems = [
 export default function Sidebar() {
   const { pathname } = useLocation();
   const auth = useAuth();
+  const { pendingPath } = useNavigationFeedback();
   const permittedItems = auth.canEdit ? navItems : navItems.filter((item) => item.to !== '/issues/new');
   const visibleItems = auth.isAdmin || auth.isWorkspaceAdmin ? [...permittedItems, { label: 'Administration', to: '/admin', icon: UserRoundCog }] : permittedItems;
   return (
@@ -34,17 +36,19 @@ export default function Sidebar() {
           const isActive = item.to === '/issues'
             ? pathname === '/issues' || (pathname.startsWith('/issues/') && pathname !== '/issues/new')
             : pathname === item.to;
+          const isPending = pendingPath === item.to;
           return (
             <Link
               key={item.label}
               to={item.to}
               aria-current={isActive ? 'page' : undefined}
+              aria-busy={isPending || undefined}
               className={`flex items-center gap-3 rounded-md border px-3 py-2.5 text-sm font-medium transition-colors ${
                   isActive ? 'border-teal-400/30 bg-teal-400/15 text-white' : 'border-transparent text-slate-300 hover:bg-white/7 hover:text-white'
                 }`}
             >
-              <Icon className="h-4 w-4" aria-hidden="true" />
-              {item.label}
+              {isPending ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Icon className="h-4 w-4" aria-hidden="true" />}
+              {isPending ? `Opening ${item.label}` : item.label}
             </Link>
           );
         })}

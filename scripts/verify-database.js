@@ -5,7 +5,7 @@ if (!process.env.DATABASE_URL) {
 }
 
 const sql = neon(process.env.DATABASE_URL);
-const [tables, policies, functions, migrations, workspaces, memberships] = await Promise.all([
+const [tables, policies, functions, migrations, triggers, workspaces, memberships] = await Promise.all([
   sql`
     SELECT count(*)::int AS count
     FROM information_schema.tables
@@ -36,7 +36,10 @@ const [tables, policies, functions, migrations, workspaces, memberships] = await
         'save_cloud_issue_revision',
         'save_cloud_issue_item_revision',
         'delete_cloud_issue_revision',
-        'delete_cloud_issue_item_revision'
+        'delete_cloud_issue_item_revision',
+        'preserve_last_profile_administrator',
+        'preserve_last_workspace_administrator',
+        'require_issue_division_when_enforced'
       )
   `,
   sql`
@@ -55,8 +58,20 @@ const [tables, policies, functions, migrations, workspaces, memberships] = await
       '010_shared_issue_access.sql',
       '011_reload_data_api_schema.sql',
       '012_optimistic_concurrency.sql',
-      '013_security_and_sync_hardening.sql'
+      '013_security_and_sync_hardening.sql',
+      '014_preserve_last_administrators.sql',
+      '015_require_issue_division_when_enforced.sql'
     )
+  `,
+  sql`
+    SELECT count(*)::int AS count
+    FROM pg_trigger
+    WHERE NOT tgisinternal
+      AND tgname IN (
+        'preserve_last_profile_administrator_trigger',
+        'preserve_last_workspace_administrator_trigger',
+        'require_issue_division_when_enforced_trigger'
+      )
   `,
   sql`SELECT count(*)::int AS count FROM public.workspaces WHERE is_active = true`,
   sql`SELECT count(*)::int AS count FROM public.workspace_members WHERE status = 'active'`,
@@ -67,11 +82,18 @@ const result = {
   policies: policies[0].count,
   functions: functions[0].count,
   migrationRecords: migrations[0].count,
+  securityGuardTriggers: triggers[0].count,
   activeWorkspaces: workspaces[0].count,
   activeMemberships: memberships[0].count,
 };
 
-const expected = { tables: 17, policies: 43, functions: 18, migrationRecords: 13 };
+const expected = {
+  tables: 17,
+  policies: 43,
+  functions: 21,
+  migrationRecords: 15,
+  securityGuardTriggers: 3,
+};
 const valid = Object.entries(expected).every(([key, value]) => result[key] === value);
 
 console.log(JSON.stringify(result, null, 2));

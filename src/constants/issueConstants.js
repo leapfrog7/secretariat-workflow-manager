@@ -134,6 +134,10 @@ export const DEFAULT_REMINDER_SETTINGS = {
   digestFrequency: 'weekly',
 };
 
+export const DEFAULT_APPEARANCE_SETTINGS = {
+  textSize: 'normal',
+};
+
 export const DEFAULT_OFFICE_PROFILE = {
   governmentName: 'Government of India',
   governmentHindiName: 'Bharat Sarkar',
@@ -154,6 +158,7 @@ export const DEFAULT_SETTINGS = {
   localAI: DEFAULT_LOCAL_AI_SETTINGS,
   aiPreferences: DEFAULT_AI_PREFERENCES,
   reminders: DEFAULT_REMINDER_SETTINGS,
+  appearance: DEFAULT_APPEARANCE_SETTINGS,
   officeProfile: DEFAULT_OFFICE_PROFILE,
   workspaceSettingsUpdatedAt: '',
   userSettingsUpdatedAt: '',

@@ -9,22 +9,24 @@ import { createIssue, getIssueById, updateIssue } from '../db/issueRepository';
 import { getAllOfficers } from '../db/officerRepository';
 import { useToast } from '../components/common/ToastProvider';
 import { useAuth } from '../features/auth/AuthContext';
-import { getIssueAccessLevel, listDivisions } from '../features/collaboration/accessApi';
+import { getIssueAccessLevel, listDivisionMembers, listDivisions } from '../features/collaboration/accessApi';
+import { getDefaultOwningDivisionId } from '../utils/accessUtils';
 
 export default function IssueFormPage({ mode }) {
   const { issueId } = useParams();
   const navigate = useNavigate();
   const { showToast } = useToast();
   const auth = useAuth();
-  const [state, setState] = useState({ loading: true, saveStatus: 'idle', error: '', issue: null, settings: null, officers: [], divisions: [], saveError: '' });
+  const [state, setState] = useState({ loading: true, saveStatus: 'idle', error: '', issue: null, settings: null, officers: [], divisions: [], defaultOwningDivisionId: '', saveError: '' });
 
   useEffect(() => {
     async function load() {
       try {
-        const [settings, officers, divisions, accessLevel] = await Promise.all([
+        const [settings, officers, divisions, divisionMembers, accessLevel] = await Promise.all([
           getSettings(),
           getAllOfficers({ includeInactive: false }),
           auth.workspace?.id ? listDivisions(auth.workspace.id) : Promise.resolve([]),
+          auth.workspace?.id ? listDivisionMembers(auth.workspace.id) : Promise.resolve([]),
           mode === 'edit' && auth.workspace?.id && auth.workspace.division_access_enabled
             ? getIssueAccessLevel(auth.workspace.id, issueId)
             : Promise.resolve(auth.canEdit ? 'editor' : 'viewer'),
@@ -32,9 +34,13 @@ export default function IssueFormPage({ mode }) {
         const issue = mode === 'edit' ? await getIssueById(issueId) : null;
         if (mode === 'edit' && !issue) throw new Error('Issue not found.');
         if (mode === 'edit' && (!auth.canEdit || accessLevel !== 'editor')) throw new Error('You have viewing access to this Issue, but not editing access.');
-        setState({ loading: false, saveStatus: 'idle', error: '', issue, settings, officers, divisions: divisions.filter((division) => division.is_active), saveError: '' });
+        const activeDivisions = divisions.filter((division) => division.is_active);
+        const defaultOwningDivisionId = mode === 'create'
+          ? getDefaultOwningDivisionId({ divisions: activeDivisions, memberships: divisionMembers, userId: auth.user?.id })
+          : '';
+        setState({ loading: false, saveStatus: 'idle', error: '', issue, settings, officers, divisions: activeDivisions, defaultOwningDivisionId, saveError: '' });
       } catch (error) {
-        setState({ loading: false, saveStatus: 'idle', error: error.message, issue: null, settings: null, officers: [], divisions: [], saveError: '' });
+        setState({ loading: false, saveStatus: 'idle', error: error.message, issue: null, settings: null, officers: [], divisions: [], defaultOwningDivisionId: '', saveError: '' });
       }
     }
     load();
@@ -67,6 +73,7 @@ export default function IssueFormPage({ mode }) {
         settings={state.settings}
         officers={state.officers}
         divisions={state.divisions}
+        defaultOwningDivisionId={state.defaultOwningDivisionId}
         divisionAccessEnabled={Boolean(auth.workspace?.division_access_enabled)}
         onSubmit={save}
         onCancel={() => navigate(mode === 'edit' ? `/issues/${issueId}` : '/issues')}

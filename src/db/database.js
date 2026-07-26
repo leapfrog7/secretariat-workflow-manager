@@ -1,5 +1,5 @@
 import Dexie from 'dexie';
-import { DB_NAME, DB_VERSION, DEFAULT_AI_PREFERENCES, DEFAULT_LOCAL_AI_SETTINGS, DEFAULT_OFFICE_PROFILE, DEFAULT_REMINDER_SETTINGS, DEFAULT_SETTINGS, SETTINGS_ID } from '../constants/issueConstants';
+import { DB_NAME, DB_VERSION, DEFAULT_AI_PREFERENCES, DEFAULT_APPEARANCE_SETTINGS, DEFAULT_LOCAL_AI_SETTINGS, DEFAULT_OFFICE_PROFILE, DEFAULT_REMINDER_SETTINGS, DEFAULT_SETTINGS, SETTINGS_ID } from '../constants/issueConstants';
 import { settingsScopeChanges } from '../utils/settingsUtils';
 
 export const db = new Dexie(DB_NAME);
@@ -232,6 +232,7 @@ export async function getSettings() {
     localAI: { ...DEFAULT_LOCAL_AI_SETTINGS, ...(settings.localAI || {}) },
     aiPreferences: { ...DEFAULT_AI_PREFERENCES, ...(settings.aiPreferences || {}) },
     reminders: { ...DEFAULT_REMINDER_SETTINGS, ...(settings.reminders || {}) },
+    appearance: { ...DEFAULT_APPEARANCE_SETTINGS, ...(settings.appearance || {}) },
     officeProfile: {
       ...DEFAULT_OFFICE_PROFILE,
       ...(settings.officeProfile || {}),
@@ -252,6 +253,7 @@ export async function saveSettings(settings) {
     localAI: { ...DEFAULT_LOCAL_AI_SETTINGS, ...(settings.localAI || {}) },
     aiPreferences: { ...DEFAULT_AI_PREFERENCES, ...(settings.aiPreferences || {}) },
     reminders: { ...DEFAULT_REMINDER_SETTINGS, ...(settings.reminders || {}) },
+    appearance: { ...DEFAULT_APPEARANCE_SETTINGS, ...(settings.appearance || {}) },
     officeProfile: {
       ...DEFAULT_OFFICE_PROFILE,
       ...(settings.officeProfile || {}),

@@ -72,7 +72,7 @@ export default function HelpPage() {
           <HelpSection id="access" icon={Users} title="Account and workspace access" tone="blue">
             <GuideLocation>Sign-in screen and the workspace name in the application header</GuideLocation>
             <GuideRows rows={[
-              ['Create an account', 'Register with your email address and password. A new account remains in Approval pending until a platform administrator activates it.'],
+              ['Create an account', 'Register with your email address and password. A new account remains in Approval pending until a system administrator activates it.'],
               ['Workspace access', 'After account approval, the user must also belong to an official workspace. The workspace name in the header identifies the shared register currently in use.'],
               ['Check again', 'Use Check again on an approval or workspace-access screen after an administrator has changed your access. There is no need to create a second account.'],
               ['Across laptops', 'Sign in to the same account and workspace on another laptop to receive the complete Issue workspace, shared officer directory and saved drafting context.'],

@@ -65,12 +65,12 @@ export default function NotificationCenter() {
     <div ref={containerRef} className="relative">
       <button type="button" title="Notifications" aria-label={`${unread} unread notifications`} aria-expanded={state.open} onClick={() => setState((current) => ({ ...current, open: !current.open }))} className="relative flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 hover:text-slate-900">
         <Bell className="h-4 w-4" />
-        {unread > 0 && <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">{unread > 9 ? '9+' : unread}</span>}
+        {unread > 0 && <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-xs font-bold text-white">{unread > 9 ? '9+' : unread}</span>}
       </button>
       {state.open && (
         <div className="absolute right-0 top-10 z-50 w-[min(360px,calc(100vw-24px))] overflow-hidden rounded-md border border-slate-200 bg-white shadow-xl">
           <div className="flex h-12 items-center justify-between border-b border-slate-200 px-3">
-            <div><h2 className="text-sm font-semibold text-[#17333b]">Notifications</h2><p className="text-[11px] text-slate-500">Deadlines, returns and digests</p></div>
+            <div><h2 className="text-sm font-semibold text-[#17333b]">Notifications</h2><p className="text-xs text-slate-500">Deadlines, returns and digests</p></div>
             {(unread > 0 || state.markingAll) && <button type="button" onClick={readAll} disabled={state.markingAll} title="Mark all as read" className="flex h-9 w-9 items-center justify-center rounded-md text-teal-700 hover:bg-teal-50 disabled:cursor-wait"><CheckCheck className={`h-4 w-4 ${state.markingAll ? 'animate-pulse' : ''}`} /></button>}
           </div>
           <div className="max-h-[420px] overflow-y-auto">
@@ -78,7 +78,7 @@ export default function NotificationCenter() {
             {state.error && <div className="px-4 py-5 text-sm text-red-700">{state.error}</div>}
             {!state.loading && !state.error && !state.items.length && <div className="px-4 py-10 text-center"><Inbox className="mx-auto h-6 w-6 text-slate-400" /><p className="mt-2 text-sm font-medium text-slate-700">Nothing needs your attention</p></div>}
             {state.items.map((item) => {
-              const content = <div className="flex items-start gap-2"><span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${item.read_at ? 'bg-slate-300' : 'bg-teal-600'}`} /><div className="min-w-0"><div className="text-sm font-semibold text-slate-900">{item.title}</div><p className="mt-1 text-xs leading-5 text-slate-600">{item.message}</p><time className="mt-1.5 block text-[11px] text-slate-400">{formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}</time></div></div>;
+              const content = <div className="flex items-start gap-2"><span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${item.read_at ? 'bg-slate-300' : 'bg-teal-600'}`} /><div className="min-w-0"><div className="text-sm font-semibold text-slate-900">{item.title}</div><p className="mt-1 text-xs leading-5 text-slate-600">{item.message}</p><time className="mt-1.5 block text-xs text-slate-400">{formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}</time></div></div>;
               return item.issue_id ? <Link key={item.id} to={`/issues/${item.issue_id}`} onClick={() => readOne(item)} className={`block border-b border-slate-100 px-3 py-3 hover:bg-slate-50 ${item.read_at ? 'bg-white' : 'bg-teal-50/60'}`}>{content}</Link> : <button key={item.id} type="button" onClick={() => readOne(item)} className={`block w-full border-b border-slate-100 px-3 py-3 text-left hover:bg-slate-50 ${item.read_at ? 'bg-white' : 'bg-teal-50/60'}`}>{content}</button>;
             })}
           </div>

@@ -7,6 +7,16 @@ function time(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function completeness(officer) {
+  return [
+    officer.designation,
+    officer.telephone,
+    officer.email,
+    officer.section,
+    officer.role && officer.role !== 'Other' ? officer.role : '',
+  ].filter((value) => String(value || '').trim()).length;
+}
+
 function replaceId(value, replacements) {
   return replacements.get(value) || value || '';
 }
@@ -36,8 +46,10 @@ export async function consolidateDuplicateOfficers({ preferredIds = new Set() } 
   for (const group of groups.values()) {
     if (group.length < 2) continue;
     const ordered = [...group].sort((a, b) => {
+      const detail = completeness(b) - completeness(a);
       const preferred = Number(preferredIds.has(b.id)) - Number(preferredIds.has(a.id));
-      return preferred || time(a.createdAt) - time(b.createdAt) || String(a.id).localeCompare(String(b.id));
+      const recent = time(b.updatedAt) - time(a.updatedAt);
+      return detail || preferred || recent || time(a.createdAt) - time(b.createdAt) || String(a.id).localeCompare(String(b.id));
     });
     const canonical = ordered[0];
     ordered.slice(1).forEach((duplicate) => {

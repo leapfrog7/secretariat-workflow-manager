@@ -59,7 +59,7 @@ export default function IssueAccessPanel({ auth, issue, canEdit, onUpdateIssue }
   )), [auth.user?.id, members, profiles]);
   const myDivisionIds = new Set(divisionMembers.filter((member) => member.user_id === auth.user?.id && member.status === 'active').map((member) => member.division_id));
   const accessReason = auth.isWorkspaceAdmin
-    ? 'Workspace administrator'
+    ? 'Workspace manager'
     : issue.createdBy === auth.user?.id
       ? 'Issue creator'
       : grants.some((item) => item.principal_type === 'user' && item.principal_id === auth.user?.id)
@@ -130,7 +130,7 @@ export default function IssueAccessPanel({ auth, issue, canEdit, onUpdateIssue }
       </div>
       {state.error && <p className="border-b border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{state.error}</p>}
       {state.message && <p className="border-b border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{state.message}</p>}
-      {!auth.workspace?.division_access_enabled && <div className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900"><strong>Division rules are not active.</strong> These settings can be prepared now, but Officers retain workspace-wide access until an administrator enables Division access.</div>}
+      {!auth.workspace?.division_access_enabled && <div className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900"><strong>Division rules are not active.</strong> These settings can be prepared now, but users with editing access retain workspace-wide access until a manager enables Division access.</div>}
       {state.loading ? <div className="flex items-center justify-center gap-2 px-4 py-12 text-sm text-slate-600"><LoaderCircle className="h-5 w-5 animate-spin" />Loading access</div> : (
         <>
           <form onSubmit={savePolicy} className="grid gap-3 border-b border-slate-200 px-4 py-4 sm:grid-cols-2 sm:px-5">
@@ -141,7 +141,7 @@ export default function IssueAccessPanel({ auth, issue, canEdit, onUpdateIssue }
               { value: 'restricted', label: 'Restricted to explicit access' },
             ]} />
             <p className="text-xs leading-5 text-slate-500 sm:col-span-2">{policy.visibility === 'workspace' ? 'Entire workspace is a deliberate exception: every active member can access this Issue.' : policy.visibility === 'division' ? 'Members of the owning division receive access according to their division role.' : 'Only administrators, the creator and explicit grants receive access.'}</p>
-            <div className="flex items-center gap-2 text-xs leading-5 text-slate-500 sm:col-span-2"><LockKeyhole className="h-4 w-4 shrink-0" />Restricted Issues remain available to workspace administrators, their creator, and the people or divisions listed below.</div>
+            <div className="flex items-center gap-2 text-xs leading-5 text-slate-500 sm:col-span-2"><LockKeyhole className="h-4 w-4 shrink-0" />Restricted Issues remain available to workspace managers, their creator, and the people or divisions listed below.</div>
             {canEdit && <div className="sm:col-span-2 sm:text-right"><button type="submit" disabled={state.busy === 'policy'} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-teal-700 px-3 text-sm font-semibold text-white disabled:bg-slate-400 sm:w-auto">{state.busy === 'policy' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{state.busy === 'policy' ? 'Saving...' : 'Save access policy'}</button></div>}
           </form>
 
