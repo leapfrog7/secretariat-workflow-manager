@@ -22,7 +22,13 @@ User browser
   +-- LM Studio on the same laptop
         Optional local draft generation
 
-Vercel daily function
+Vercel application and server functions
+  |
+  +-- Vite frontend
+  |     Production application and hash-routed client
+  |
+  +-- Protected Cloud AI endpoints
+  |     Provider availability, authorization, quota and generation
   |
   +-- Neon PostgreSQL
   |     Scheduled Issue reactivation and durable notifications
@@ -35,7 +41,8 @@ The central architectural idea is:
 
 > The browser works against IndexedDB first, then synchronizes that local working copy with Neon. Background work runs separately on Vercel and writes directly to Neon.
 
-There is no Express application server. Vercel currently hosts only the small scheduled function.
+There is no long-running Express application server. Vercel hosts the static Vite
+application plus small serverless functions for scheduled automation and Cloud AI.
 
 ## 2. Four Layers to Keep in Mind
 
@@ -87,9 +94,18 @@ const router = createHashRouter([
 
 Hash routing is used because the main frontend is hosted on GitHub Pages. A URL after `#` is handled entirely by React and does not require server-side route rewriting.
 
+Routes are lazy-loaded. `src/routes/routePreload.js` owns the matching import
+functions so navigation can preload the same chunks on hover, pointer-down or
+touch without creating a second import map.
+
 ### `src/layouts/AppShell.jsx`
 
 The shell owns the persistent desktop sidebar, mobile navigation and top header. The cloud sync control and notification inbox live here because they apply to the whole workspace.
+
+The shell also installs `NavigationFeedbackProvider`. It captures internal link
+transitions globally, starts the top progress indicator immediately, and lets
+the desktop and mobile navigation show an `Opening` state. Once the route mounts,
+`LoadingState` provides the destination's API/IndexedDB loading feedback.
 
 ## 4. The Main User Workflow
 
@@ -101,6 +117,7 @@ This is the operational home screen. It:
 - calculates dashboard totals;
 - searches Issue and eReceipt metadata;
 - separates Current, Scheduled and Archived views;
+- paginates Archived results at 25, 50 or 100 rows on both desktop and mobile;
 - provides direct archive, restore and permanent-delete row actions; and
 - passes the resulting rows to `IssueTable` or `IssueCard`.
 
@@ -114,6 +131,9 @@ const filtered = useMemo(() => {
 }, [data.issues, filters]);
 ```
 
+Archived pagination currently limits rendered rows, not data retrieval. The
+register still loads every Issue and communication into memory before filtering.
+
 The register does not own persistence. It asks repository functions such as `getAllIssues`, `restoreIssue` and `bringBackIssue` to change data.
 
 ### `src/pages/IssueFormPage.jsx` and `src/components/issues/IssueForm.jsx`
@@ -122,16 +142,22 @@ The register does not own persistence. It asks repository functions such as `get
 
 New Issue defaults and allowed values come from `src/constants/issueConstants.js`. Domain normalization and final validation happen in `src/utils/issueUtils.js`, not only in the form.
 
+When division-based access is enforced, Owning division is required by both the
+form and PostgreSQL migration `015`. A stale client or direct API call therefore
+cannot create an unassigned cloud Issue.
+
 ### `src/pages/IssueWorkspacePage.jsx`
 
-This is the complete workspace for one Issue. Its four tabs define the current product model:
+This is the complete workspace for one Issue. Its six tabs define the current product model:
 
 ```js
 const tabs = [
   'Current Position',
+  'Running Summary',
   'Record of Communication',
   'References',
   'AI Context',
+  'Share & Access',
 ];
 ```
 
@@ -139,10 +165,15 @@ The page loads the Issue graph in parallel: Issue, officers, milestones, summari
 
 | Tab | Main component | Stored information |
 | --- | --- | --- |
-| Current Position | `MilestoneStack`, `RunningSummaryPanel` | present stage plus preserved history |
+| Current Position | `MilestoneStack` | present stage, schedule and preserved stage history |
+| Running Summary | `RunningSummaryPanel` | versioned narrative summary |
 | Record of Communication | `CommunicationTab` | chronology, eReceipt and source metadata |
 | References | `ReferenceTab` | rules, O.M.s, directions and citations |
 | AI Context | `AIContextPreview` | selected context and generated drafts |
+| Share & Access | `IssueAccessPanel` | owning division, visibility and explicit grants |
+
+On mobile these tabs render as a compact multi-row chip grid rather than one
+long horizontal scroller.
 
 ## 5. Domain Rules and Local Persistence
 
@@ -269,7 +300,45 @@ Turns authentication state into the screens the user sees: sign-in, approval pen
 
 ### `src/pages/AdminPage.jsx`
 
-Provides platform-administrator controls for approving accounts and assigning workspace roles. Its API calls are in `src/features/auth/accountApi.js` and `src/features/cloud/workspaceApi.js`.
+Provides account approval, workspace membership, division administration and
+Cloud AI policy controls. Its API calls are in `src/features/auth/accountApi.js`,
+`src/features/cloud/workspaceApi.js`, `src/features/collaboration/accessApi.js`
+and `src/features/ai`.
+
+Stored role values and current display labels are:
+
+| Scope | Stored value | Display meaning |
+| --- | --- | --- |
+| Platform | `platform_admin` | System administrator |
+| Workspace | `viewer` | View only for workspace-visible Issues |
+| Workspace | `officer` | Can edit workspace-visible Issues |
+| Workspace | `workspace_admin` | Workspace manager |
+| Division | `viewer` | Can view owning-division Issues |
+| Division | `editor` | Can edit owning-division Issues |
+| Division | `division_admin` | Division manager |
+
+The word “officer” remains a domain identity in the officer directory and Issue
+assignment fields. In permission selectors it is displayed as “Can edit”.
+
+Workspace and division permissions are scoped rather than a single hierarchy.
+Once division access is enforced, a workspace editor with a division viewer role
+can edit workspace-visible Issues but can only view Issues restricted to that
+division. Explicit Issue grants can add view or edit access. Effective access is
+the highest applicable permission.
+
+### Division enforcement
+
+`division_access_enabled` is a security switch, not a display preference:
+
+```text
+Disabled -> workspace roles determine broad access; division assignments are preparatory
+Enabled  -> each Issue visibility, owning division, division role and grants determine access
+```
+
+The enable control remains locked until there is at least one active division,
+every non-deleted Issue has an owning division, and every active non-manager
+member belongs to a division. PostgreSQL rechecks readiness when the switch is
+changed.
 
 ## 7. How Cloud Synchronization Works
 
@@ -375,6 +444,8 @@ Migrations are the authoritative cloud schema. Important stages are:
 | `010_shared_issue_access.sql` | effective Issue permissions and inherited RLS |
 | `012_optimistic_concurrency.sql` | revision-aware saves, deletes and conflict detection |
 | `013_security_and_sync_hardening.sql` | active-membership enforcement and protected child-record ownership |
+| `014_preserve_last_administrators.sql` | prevents removal of the last active System or Workspace manager |
+| `015_require_issue_division_when_enforced.sql` | requires an active owning division while enforcement is enabled |
 
 ### Row-level security
 
@@ -393,7 +464,7 @@ Never solve a browser permission problem by putting `DATABASE_URL` in frontend c
 
 ### `scripts/migrate.js` and `scripts/verify-database.js`
 
-`migrate.js` applies ordered SQL files once and records them in `swm_migrations`. `verify-database.js` checks expected table, policy, function and migration counts.
+`migrate.js` applies ordered SQL files once and records them in `swm_migrations`. `verify-database.js` checks expected table, policy, function, trigger and migration counts.
 
 These scripts are trusted administrative tools and use server-side `DATABASE_URL`.
 
@@ -500,13 +571,81 @@ OpenAI and Gemini use protected Vercel functions under `api/ai`. Neon authorizes
 | --- | --- |
 | `vite.config.js` | React/Tailwind plugins, GitHub Pages base path and LM Studio dev proxy |
 | `.github/workflows/deploy-pages.yml` | builds and deploys the frontend from `main` |
-| `vercel.json` | deploys and schedules the backend function |
+| `vercel.json` | builds the Vite production application and configures serverless functions and cron |
+| `.nvmrc` | selects Node 22 for local development |
 | `.env.example` | documents browser-safe and server-only environment names |
 | `.vercelignore` | prevents local caches and dependencies entering deployments |
 
 Frontend variables start with `VITE_` and become visible to the browser. `DATABASE_URL`, `CRON_SECRET` and provider API keys are server-only secrets.
 
-## 12. Where to Make Common Changes
+The same `main` branch is published to both GitHub Pages and Vercel:
+
+- GitHub Actions builds the Pages deployment.
+- Vercel production is linked to `leapfrog20/secretariat-workflow-manager`.
+- `npm run build` must pass before release.
+- `npm run db:migrate` and `npm run db:verify` apply and verify Neon changes.
+
+Vercel warns that `engines.node: ">=22"` can automatically adopt future major
+Node versions. `.nvmrc` pins local work to Node 22, but a future hardening pass
+should consider a bounded Vercel engine range if automatic major upgrades are
+not desired.
+
+## 12. Responsive UI and Accessibility
+
+The application uses one component tree with responsive representations:
+
+- `IssueTable` is the desktop register; `IssueCard` is the compact mobile register.
+- Portrait tablets use the mobile representation even above the old 768px
+  breakpoint; landscape tablets switch the shell, register and Issue tabs to
+  desktop mode together.
+- The desktop/landscape sidebar can be collapsed to an icon rail. The preference
+  is remembered in `localStorage`, and compact landscape tablets default to the
+  collapsed state.
+- Mobile Issue titles allow two lines, with eFile, stage, deadline, officer and age
+  grouped into dense metadata rows.
+- Search and filters share one mobile row.
+- Archived pagination applies to both representations.
+- `AdaptiveSelect` changes to searchable input behavior for longer option lists.
+- `LoadingState` supplies stable skeleton geometry and route/data progress.
+- `NavigationFeedbackProvider` acknowledges taps before lazy routes or API data arrive.
+
+Text size is a user preference:
+
+```text
+Small / Normal / Large
+  -> src/utils/appearanceUtils.js
+  -> data-text-size on the document root
+  -> personal cloud settings and localStorage
+```
+
+Respect `prefers-reduced-motion`: progress remains visible, but continuous
+loading and shimmer animations stop.
+
+## 13. Scaling Boundaries
+
+The application is comfortable with hundreds to low thousands of records in the
+browser, especially after Archived rendering pagination, but it is not yet
+server-paged:
+
+- `getAllIssues()` uses `db.issues.toArray()`.
+- the register loads all communications for source-document search;
+- cloud Issue reconciliation fetches the complete visible Issue collection; and
+- child synchronization loads every local/cloud Issue item collection.
+
+Pagination currently solves DOM and rendering cost only. The next scale phase
+should add:
+
+1. explicitly paged cloud API reads, avoiding provider row caps;
+2. incremental synchronization using `updated_at`/revision cursors and tombstones;
+3. indexed Dexie queries for Current, Scheduled and Archived views;
+4. repository-level pagination plus separate count queries;
+5. debounced or indexed communication search; and
+6. pagination for notifications, administration lists and long histories.
+
+The large main JavaScript chunk reported by Vite is another known boundary.
+Continue route/dependency code splitting before adding substantial shared libraries.
+
+## 14. Where to Make Common Changes
 
 ### Add a field to an Issue
 
@@ -551,30 +690,34 @@ Pay special attention to which stages count as closed.
 4. Reuse `aiContextUtils` and `governmentDraftUtils` rather than creating a second drafting format.
 5. Add explicit cost, consent, limits and audit handling.
 
-## 13. Practical Reading Order
+## 15. Practical Reading Order
 
 For a first deep reading, use this sequence:
 
 1. `src/routes/AppRoutes.jsx`
 2. `src/pages/IssueRegisterPage.jsx`
 3. `src/pages/IssueWorkspacePage.jsx`
-4. `src/db/issueRepository.js`
-5. `src/db/database.js`
-6. `src/features/auth/ConfiguredAuthProvider.jsx`
-7. `src/features/cloud/cloudIssueSync.js`
-8. `src/features/cloud/cloudIssueItemSync.js`
-9. `db/migrations/001_identity_and_access.sql`
-10. `db/migrations/006_complete_workspace_sync.sql`
-11. `api/lib/dailyAutomation.js`
-12. `src/components/issues/AIContextPreview.jsx`
-13. `src/utils/governmentDraftUtils.js`
+4. `src/pages/AdminPage.jsx`
+5. `src/db/issueRepository.js`
+6. `src/db/database.js`
+7. `src/features/auth/ConfiguredAuthProvider.jsx`
+8. `src/features/cloud/cloudIssueSync.js`
+9. `src/features/cloud/cloudIssueItemSync.js`
+10. `db/migrations/001_identity_and_access.sql`
+11. `db/migrations/010_shared_issue_access.sql`
+12. `db/migrations/012_optimistic_concurrency.sql`
+13. `api/lib/dailyAutomation.js`
+14. `src/components/issues/AIContextPreview.jsx`
+15. `src/utils/governmentDraftUtils.js`
 
 After these files, the remaining components should feel like implementation detail rather than a maze.
 
-## 14. Five Rules That Prevent Architectural Mistakes
+## 16. Seven Rules That Prevent Architectural Mistakes
 
 1. Pages coordinate UI; repositories own persistence and lifecycle rules.
 2. IndexedDB is the browser working copy; Neon is the shared cloud record.
 3. RLS protects browser access; privileged database credentials never enter React.
 4. Shared office settings and personal user settings must remain separate.
 5. Official document structure belongs in deterministic code; the model supplies draft prose that the officer must verify.
+6. Division and Issue permissions are enforced in PostgreSQL; UI labels and disabled controls are explanatory safeguards.
+7. Client pagination is not data pagination; inspect repository and sync collection size before claiming scale.

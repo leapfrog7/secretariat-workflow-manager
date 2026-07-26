@@ -74,6 +74,51 @@ button:disabled {
   cursor: not-allowed;
 }
 
+.app-sidebar,
+.issue-register-table,
+.issue-tabs-desktop,
+.app-brand-desktop {
+  display: none;
+}
+
+.app-mobile-navigation,
+.issue-register-cards,
+.app-brand-mobile {
+  display: block;
+}
+
+@media (min-width: 1200px), (min-width: 768px) and (orientation: landscape) {
+  .app-sidebar,
+  .issue-register-table {
+    display: block;
+  }
+
+  .issue-tabs-desktop {
+    display: flex;
+  }
+
+  .app-brand-desktop {
+    display: inline;
+  }
+
+  .app-mobile-navigation,
+  .issue-register-cards,
+  .issue-tabs-mobile,
+  .app-brand-mobile {
+    display: none;
+  }
+
+  .app-header {
+    padding-right: 1.75rem;
+    padding-left: 1.75rem;
+  }
+
+  .app-main {
+    padding: 1.75rem;
+    padding-bottom: 2.5rem;
+  }
+}
+
 @keyframes loading-sweep {
   0% { transform: translateX(-110%); }
   100% { transform: translateX(320%); }

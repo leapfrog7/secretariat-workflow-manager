@@ -465,7 +465,7 @@ export default function IssueRegisterPage() {
               onArchive={archive}
               onDelete={setDeleteTarget}
             />
-            <div className="space-y-2 md:hidden">
+            <div className="issue-register-cards space-y-2">
               {pagedIssues.map((issue) => (
                 <IssueCard
                   key={issue.id}

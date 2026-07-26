@@ -9,7 +9,7 @@ import SourceSearchMatch from './SourceSearchMatch';
 export default function IssueTable({ issues, officers = [], registerMode = 'Current', workingId = '', canEdit = true, showDivision = false, onRestore, onBringBack, onArchive, onDelete }) {
   const showReturnDate = ['Scheduled', 'All'].includes(registerMode);
   return (
-    <div className="surface hidden overflow-hidden rounded-md md:block">
+    <div className="issue-register-table surface overflow-hidden rounded-md">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[860px] table-fixed divide-y divide-[#dce6e4] text-sm">
           <thead className="bg-[#edf4f2] text-left text-xs font-semibold uppercase tracking-wide text-[#526b70]">

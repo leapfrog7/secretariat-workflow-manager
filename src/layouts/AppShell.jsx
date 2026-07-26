@@ -31,13 +31,13 @@ export default function AppShell() {
       <div className="flex min-h-screen">
         <Sidebar />
         <div className="min-w-0 flex-1">
-          <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-[#d5e2df] bg-white/95 px-3 shadow-[0_1px_8px_rgb(15_49_56_/_0.04)] backdrop-blur sm:px-4 md:px-7">
+          <header className="app-header sticky top-0 z-30 flex h-14 items-center justify-between border-b border-[#d5e2df] bg-white/95 px-3 shadow-[0_1px_8px_rgb(15_49_56_/_0.04)] backdrop-blur sm:px-4">
             <div className="flex min-w-0 items-center gap-2.5">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[#17333b] text-white shadow-sm">
                 <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
               </div>
               <div className="min-w-0">
-                <div className="truncate text-sm font-semibold leading-4 text-[#17333b]"><span className="md:hidden">SWM</span><span className="hidden md:inline">{APP_NAME}</span></div>
+                <div className="truncate text-sm font-semibold leading-4 text-[#17333b]"><span className="app-brand-mobile">SWM</span><span className="app-brand-desktop">{APP_NAME}</span></div>
                 <div className="mt-0.5 max-w-40 truncate text-xs leading-4 text-slate-500 sm:max-w-56">{auth.workspace?.name || 'Issue tracking workspace'}</div>
               </div>
             </div>
@@ -56,7 +56,7 @@ export default function AppShell() {
             </div>
             {auth.syncState?.status === 'syncing' && <div className="absolute inset-x-0 bottom-0 h-0.5 overflow-hidden bg-cyan-100" role="status" aria-label="Synchronizing workspace"><span className="sync-progress block h-full w-1/3 bg-cyan-600" /></div>}
           </header>
-          <main className="mx-auto w-full max-w-[1240px] px-3 py-4 pb-20 sm:px-4 sm:py-5 md:px-7 md:py-7 md:pb-10">
+          <main className="app-main mx-auto w-full max-w-[1240px] px-3 py-4 pb-20 sm:px-4 sm:py-5">
             {auth.mode === 'cloud' && auth.user?.id && auth.workspace?.id && <WelcomeBanner userId={auth.user.id} canEdit={auth.canEdit} />}
             <SyncConflictCenter />
             <Suspense fallback={<LoadingState message="Opening page..." />}>

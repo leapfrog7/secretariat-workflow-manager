@@ -299,8 +299,8 @@ export default function IssueWorkspacePage() {
       />
       {!canEditIssue && <div className="mb-4 rounded-md border border-cyan-200 bg-cyan-50 px-3 py-3 text-sm text-cyan-950">Viewing access only. You can inspect the complete Issue record, but changes are disabled.</div>}
 
-      <div className="mb-4 border-b border-[#d7e3e1] pb-3 md:mb-5 md:pb-0">
-        <div className="grid grid-cols-3 gap-1.5 md:hidden" role="tablist" aria-label="Issue workspace">
+      <div className="mb-4 border-b border-[#d7e3e1] pb-3">
+        <div className="issue-tabs-mobile grid grid-cols-3 gap-1.5" role="tablist" aria-label="Issue workspace">
           {tabs.map((tab) => {
             const count = tab.label === 'Running Summary'
               ? state.summaryVersionCount
@@ -329,7 +329,7 @@ export default function IssueWorkspacePage() {
             );
           })}
         </div>
-        <div className="hidden min-w-max gap-1 md:flex" role="tablist" aria-label="Issue workspace">
+        <div className="issue-tabs-desktop min-w-max gap-1" role="tablist" aria-label="Issue workspace">
           {tabs.map((tab) => {
             const count = tab.label === 'Running Summary'
               ? state.summaryVersionCount
