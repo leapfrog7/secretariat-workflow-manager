@@ -15,6 +15,7 @@ const SHARED_TABLES = [
   'chronology',
   'syncTombstones',
   'syncConflicts',
+  'syncMutations',
   'settings',
 ];
 

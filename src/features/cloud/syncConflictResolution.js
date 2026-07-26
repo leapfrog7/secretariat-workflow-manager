@@ -8,6 +8,7 @@ import { normalizeIssueSummary } from '../../utils/summaryUtils';
 import { clearSyncConflict } from '../../db/syncConflictRepository';
 import { markCloudIssueDeleted, upsertCloudIssue } from './cloudIssueApi';
 import { markCloudIssueItemDeleted, upsertCloudIssueItem } from './cloudIssueItemApi';
+import { clearSyncMutation } from '../../db/syncMutationRepository';
 
 const ITEM_CONFIG = {
   communication: { table: 'communications', normalize: normalizeCommunication },
@@ -30,6 +31,7 @@ async function finish(conflict) {
     ? `issue:${conflict.itemId}`
     : `item:${conflict.entityType}:${conflict.itemId}`);
   await clearSyncConflict(conflict.entityType, conflict.itemId, conflict.issueId);
+  await clearSyncMutation(conflict.entityType, conflict.itemId);
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('swm:workspace-synced'));
   }

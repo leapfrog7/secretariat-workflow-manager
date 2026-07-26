@@ -62,7 +62,7 @@ export default function SyncConflictCenter() {
         <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
         <div>
           <h2 id="sync-conflict-title" className="text-sm font-semibold text-amber-950">Changes need review</h2>
-          <p className="mt-0.5 text-xs leading-5 text-amber-900">A colleague saved a newer version while you were working. Nothing has been discarded.</p>
+          <p className="mt-0.5 text-xs leading-5 text-amber-900">Another device or user saved a materially different version while a local change was still pending. Nothing has been discarded.</p>
         </div>
       </div>
       <div className="divide-y divide-amber-200">

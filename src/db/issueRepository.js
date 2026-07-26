@@ -17,10 +17,10 @@ import { calculateNextAppearance, isScheduledIssue } from '../utils/scheduleUtil
 import { queueCloudIssueDelete, queueCloudIssueUpsert } from '../features/cloud/cloudIssueSync';
 import { queueCloudIssueItemUpsert } from '../features/cloud/cloudIssueItemSync';
 
-async function queueMilestoneRecordedAt(issueId, recordedAt) {
+async function queueMilestoneRecordedAt(issueId, recordedAt, options) {
   const milestones = await db.issueMilestones.where('issueId').equals(issueId).toArray();
   const milestone = milestones.find((item) => item.recordedAt === recordedAt);
-  if (milestone) await queueCloudIssueItemUpsert('milestone', normalizeMilestone(milestone));
+  if (milestone) await queueCloudIssueItemUpsert('milestone', normalizeMilestone(milestone), options);
 }
 
 function requireValidIssue(input) {
@@ -88,8 +88,8 @@ export async function reactivateScheduledIssues({ issueId, referenceDate = today
     }
     return reactivated;
   });
-  await Promise.all(reactivatedIssues.map(queueCloudIssueUpsert));
-  await Promise.all(reactivatedIssues.map((issue) => queueMilestoneRecordedAt(issue.id, issue.updatedAt)));
+  await Promise.all(reactivatedIssues.map((issue) => queueCloudIssueUpsert(issue, { trackMutation: false })));
+  await Promise.all(reactivatedIssues.map((issue) => queueMilestoneRecordedAt(issue.id, issue.updatedAt, { trackMutation: false })));
   return count;
 }
 
@@ -515,7 +515,20 @@ export async function importDatabase(payload) {
         }))
         .filter((draft) => issueIds.has(draft.issueId))
     : [];
-  await db.transaction('rw', db.issues, db.records, db.actions, db.communications, db.references, db.issueMilestones, db.issueSummaries, db.drafts, db.syncTombstones, db.syncConflicts, db.officers, db.chronology, db.settings, async () => {
+  const importedMutations = [
+    ...issues.map((item) => ({ entityType: 'issue', itemId: item.id, issueId: item.id })),
+    ...communications.map((item) => ({ entityType: 'communication', itemId: item.id, issueId: item.issueId })),
+    ...references.map((item) => ({ entityType: 'reference', itemId: item.id, issueId: item.issueId })),
+    ...issueMilestones.map((item) => ({ entityType: 'milestone', itemId: item.id, issueId: item.issueId })),
+    ...issueSummaries.map((item) => ({ entityType: 'summary', itemId: item.id, issueId: item.issueId })),
+    ...drafts.map((item) => ({ entityType: 'draft', itemId: item.id, issueId: item.issueId })),
+  ].map((mutation) => ({
+    ...mutation,
+    id: `${mutation.entityType}:${mutation.itemId}`,
+    operation: 'save',
+    createdAt: now,
+  }));
+  await db.transaction('rw', db.issues, db.records, db.actions, db.communications, db.references, db.issueMilestones, db.issueSummaries, db.drafts, db.syncTombstones, db.syncConflicts, db.syncMutations, db.officers, db.chronology, db.settings, async () => {
     await db.issues.clear();
     await db.records.clear();
     await db.actions.clear();
@@ -527,6 +540,7 @@ export async function importDatabase(payload) {
     await db.drafts.clear();
     await db.syncTombstones.clear();
     await db.syncConflicts.clear();
+    await db.syncMutations.clear();
     await db.officers.clear();
     await db.issues.bulkPut(issues);
     if (records.length) await db.records.bulkPut(records);
@@ -538,6 +552,7 @@ export async function importDatabase(payload) {
     if (issueSummaries.length) await db.issueSummaries.bulkPut(issueSummaries);
     if (drafts.length) await db.drafts.bulkPut(drafts);
     if (officers.length) await db.officers.bulkPut(officers);
+    if (importedMutations.length) await db.syncMutations.bulkPut(importedMutations);
     if (payload.data.settings) await saveSettings(payload.data.settings);
   });
   return {

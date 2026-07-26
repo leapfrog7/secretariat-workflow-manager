@@ -366,14 +366,20 @@ status. Revision conflicts are surfaced to the user instead of being hidden.
 
 ### Full reconciliation
 
-On startup or manual sync, each synchronizer compares local and cloud sync
-timestamps:
+On startup or manual sync, cloud records normally refresh the IndexedDB working
+copy automatically. Genuine local saves are tracked separately in the
+`syncMutations` IndexedDB outbox:
 
 ```text
-Cloud newer -> download to IndexedDB
-Local newer -> upload to Neon
+No pending mutation -> cloud refreshes IndexedDB
+Pending local mutation -> upload using its expected cloud revision
 Cloud deletion newer -> remove local record
 ```
+
+Local timestamps are not treated as proof of a user edit. Normalization, officer
+ID remapping, device clock differences and scheduled maintenance therefore do
+not create false conflicts. Backup import deliberately creates outbox entries
+because importing is an explicit request to restore those records.
 
 ### Tombstones
 
@@ -387,10 +393,12 @@ browser's expected revision is still current.
 
 When the revisions differ:
 
-1. `cloudRevisionConflict.js` describes the stale local and current cloud copies.
-2. `syncConflictRepository.js` retains that comparison in IndexedDB.
-3. `SyncConflictCenter.jsx` shows the global **Changes need review** panel.
-4. `syncConflictResolution.js` applies **Keep cloud version** or retries the
+1. Materially equivalent payloads automatically accept the latest cloud revision.
+2. Legacy conflict rows without a corresponding pending mutation are cleared.
+3. `cloudRevisionConflict.js` describes genuinely different local and cloud copies.
+4. `syncConflictRepository.js` retains that comparison in IndexedDB.
+5. `SyncConflictCenter.jsx` shows the global **Changes need review** panel.
+6. `syncConflictResolution.js` applies **Keep cloud version** or retries the
    user's latest local change against the newest revision.
 
 This prevents silent last-write-wins data loss. It is not live co-editing.

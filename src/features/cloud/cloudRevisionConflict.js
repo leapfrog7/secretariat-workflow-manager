@@ -1,6 +1,6 @@
 export class CloudRevisionConflict extends Error {
   constructor({ entityType, itemId, issueId, localPayload, cloudResult, operation = 'save' }) {
-    super('A colleague changed this record while you were working. Review both versions before continuing.');
+    super('Another device or user saved a newer version while you were working. Review both versions before continuing.');
     this.name = 'CloudRevisionConflict';
     this.conflict = {
       entityType,

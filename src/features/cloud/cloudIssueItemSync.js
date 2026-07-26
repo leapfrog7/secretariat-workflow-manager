@@ -7,6 +7,13 @@ import { normalizeIssueSummary } from '../../utils/summaryUtils';
 import { listCloudIssueItems, markCloudIssueItemDeleted, upsertCloudIssueItem } from './cloudIssueItemApi';
 import { clearSyncConflict, getSyncConflict, recordSyncConflict } from '../../db/syncConflictRepository';
 import { isCloudRevisionConflict } from './cloudRevisionConflict';
+import {
+  clearSyncMutation,
+  getSyncMutationMap,
+  rememberSyncMutation,
+  syncMutationKey,
+} from '../../db/syncMutationRepository';
+import { cloudPayloadsMatch } from './cloudPayloadUtils';
 
 const ITEM_CONFIG = {
   communication: { table: 'communications', normalize: normalizeCommunication },
@@ -37,9 +44,42 @@ function itemKey(type, id) {
   return `${type}:${id}`;
 }
 
-export function queueCloudIssueItemUpsert(itemType, item) {
+async function acceptEquivalentCloudItem(
+  itemType,
+  item,
+  conflict,
+  { force = false } = {},
+) {
+  if (!conflict.cloudPayload) return false;
+  if (!force && !cloudPayloadsMatch(item, conflict.cloudPayload)) return false;
+  const config = ITEM_CONFIG[itemType];
+  await db[config.table].put(config.normalize({
+    ...conflict.cloudPayload,
+    cloudRevision: conflict.cloudRevision,
+    cloudUpdatedAt: conflict.cloudUpdatedAt,
+    cloudUpdatedBy: conflict.cloudUpdatedBy,
+  }));
+  await clearSyncMutation(itemType, item.id);
+  await clearSyncConflict(itemType, item.id, item.issueId);
+  report('synced', { syncedAt: new Date().toISOString() });
+  return true;
+}
+
+export async function queueCloudIssueItemUpsert(
+  itemType,
+  item,
+  { trackMutation = true } = {},
+) {
   const current = runtime;
-  if (!current || current.canEdit === false || !ITEM_CONFIG[itemType] || !item?.id || !item.issueId) return Promise.resolve(null);
+  if (!ITEM_CONFIG[itemType] || !item?.id || !item.issueId) return null;
+  if (trackMutation) {
+    await rememberSyncMutation({
+      entityType: itemType,
+      itemId: item.id,
+      issueId: item.issueId,
+    });
+  }
+  if (!current || current.canEdit === false) return null;
   return getSyncConflict('issue', item.issueId).then((parentConflict) => {
     if (parentConflict) return null;
     report('syncing');
@@ -53,11 +93,18 @@ export function queueCloudIssueItemUpsert(itemType, item) {
         cloudUpdatedBy: result.updated_by || '',
       });
       await clearSyncConflict(itemType, item.id, item.issueId);
+      await clearSyncMutation(itemType, item.id);
       report('synced', { syncedAt: new Date().toISOString() });
       return result;
     })
     .catch(async (error) => {
       if (isCloudRevisionConflict(error)) {
+        if (
+          await acceptEquivalentCloudItem(itemType, item, error.conflict, {
+            force: !trackMutation,
+          })
+        )
+          return error.conflict.cloudPayload;
         await recordSyncConflict(error.conflict);
         report('error', { error: error.message });
         throw error;
@@ -73,6 +120,12 @@ export async function queueCloudIssueItemDelete(itemType, item) {
   const deletedAt = new Date().toISOString();
   const tombstone = { id: `item:${itemType}:${item.id}`, entityType: itemType, itemId: item.id, issueId: item.issueId, payload: item, deletedAt };
   await db.syncTombstones.put(tombstone);
+  await rememberSyncMutation({
+    entityType: itemType,
+    itemId: item.id,
+    issueId: item.issueId,
+    operation: 'delete',
+  });
   if (!current || current.canEdit === false) {
     return null;
   }
@@ -81,6 +134,7 @@ export async function queueCloudIssueItemDelete(itemType, item) {
     await markCloudIssueItemDeleted({ workspaceId: current.workspaceId, itemType, item, deletedAt });
     await db.syncTombstones.delete(tombstone.id);
     await clearSyncConflict(itemType, item.id, item.issueId);
+    await clearSyncMutation(itemType, item.id);
     report('synced', { syncedAt: deletedAt });
     return true;
   } catch (error) {
@@ -106,6 +160,7 @@ async function flushItemTombstones({ workspaceId, userId, canEdit }) {
         deletedAt: tombstone.deletedAt,
       });
       await db.syncTombstones.delete(tombstone.id);
+      await clearSyncMutation(tombstone.entityType, tombstone.itemId);
     } catch (error) {
       if (isCloudRevisionConflict(error)) {
         await recordSyncConflict(error.conflict);
@@ -130,9 +185,10 @@ export async function syncWorkspaceIssueItems({ workspaceId, userId, canEdit = t
   report('syncing');
   try {
     await flushItemTombstones({ workspaceId, userId, canEdit });
-    const [cloudRows, issues, ...localCollections] = await Promise.all([
+    const [cloudRows, issues, mutationMap, ...localCollections] = await Promise.all([
       listCloudIssueItems(workspaceId),
       db.issues.toArray(),
+      getSyncMutationMap(),
       ...Object.values(ITEM_CONFIG).map(({ table }) => db[table].toArray()),
     ]);
     const activeIssueIds = new Set(issues.filter((issue) => !issue.isDemo).map((issue) => issue.id));
@@ -141,18 +197,34 @@ export async function syncWorkspaceIssueItems({ workspaceId, userId, canEdit = t
     let uploaded = 0;
     let deleted = 0;
 
+    const existingConflicts = await db.syncConflicts.toArray();
+    await Promise.all(
+      existingConflicts
+        .filter((conflict) => (
+          ITEM_CONFIG[conflict.entityType]
+          && !mutationMap.has(syncMutationKey(conflict.entityType, conflict.itemId))
+        ))
+        .map((conflict) =>
+          clearSyncConflict(
+            conflict.entityType,
+            conflict.itemId,
+            conflict.issueId,
+          ),
+        ),
+    );
+
     for (const row of cloudRows) {
       const config = ITEM_CONFIG[row.item_type];
       if (!config || !activeIssueIds.has(row.issue_id)) continue;
       const table = db[config.table];
       const local = await table.get(row.id);
-      const cloudUpdatedAt = new Date(row.updated_at || 0).getTime();
+      const pendingMutation = mutationMap.get(syncMutationKey(row.item_type, row.id));
       if (row.deleted_at) {
         if (local && (!canEdit || new Date(row.deleted_at).getTime() >= itemTimestamp(local))) {
           await table.delete(row.id);
           deleted += 1;
         }
-      } else if (!local || !canEdit || cloudUpdatedAt > itemTimestamp(local)) {
+      } else if (!local || !canEdit || !pendingMutation) {
         const normalized = config.normalize({
           ...row.payload,
           cloudRevision: Number(row.revision || 0),
@@ -184,23 +256,11 @@ export async function syncWorkspaceIssueItems({ workspaceId, userId, canEdit = t
           if (!activeIssueIds.has(item.issueId)) continue;
           if (await getSyncConflict('issue', item.issueId)) continue;
           const cloud = cloudByKey.get(itemKey(type, item.id));
-          if (cloud && !item.cloudRevision) {
-            item = config.normalize({
-              ...item,
-              cloudRevision: Number(cloud.revision || 0),
-              cloudUpdatedAt: cloud.updated_at || '',
-              cloudUpdatedBy: cloud.updated_by || '',
-            });
-            await db[config.table].update(item.id, {
-              cloudRevision: item.cloudRevision,
-              cloudUpdatedAt: item.cloudUpdatedAt,
-              cloudUpdatedBy: item.cloudUpdatedBy,
-            });
-          }
-          const cloudUpdatedAt = new Date(cloud?.updated_at || 0).getTime();
+          const mutation = mutationMap.get(syncMutationKey(type, item.id));
+          if (!mutation || mutation.operation === 'delete') continue;
           const tombstoneAt = new Date(cloud?.deleted_at || 0).getTime();
           if (cloud?.deleted_at && tombstoneAt >= itemTimestamp(item)) continue;
-          if (!cloud || itemTimestamp(item) > cloudUpdatedAt) {
+          {
             if (await getSyncConflict(type, item.id)) continue;
             try {
               const result = await upsertCloudIssueItem({ workspaceId, userId, itemType: type, item });
@@ -209,9 +269,12 @@ export async function syncWorkspaceIssueItems({ workspaceId, userId, canEdit = t
                 cloudUpdatedAt: result.updated_at,
                 cloudUpdatedBy: result.updated_by,
               });
+              await clearSyncMutation(type, item.id);
               uploaded += 1;
             } catch (error) {
               if (isCloudRevisionConflict(error)) {
+                if (await acceptEquivalentCloudItem(type, item, error.conflict))
+                  continue;
                 await recordSyncConflict(error.conflict);
                 continue;
               }
