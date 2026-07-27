@@ -1,5 +1,6 @@
 import { cloudClient } from '../auth/cloudClient';
 import { CloudRevisionConflict } from './cloudRevisionConflict';
+import { shouldRetryMissingCloudIssueItem } from './cloudIssueItemRecovery';
 
 const CLOUD_ITEM_FIELDS = 'workspace_id, issue_id, item_type, id, payload, updated_by, updated_at, deleted_at, revision';
 
@@ -18,16 +19,43 @@ export async function listCloudIssueItems(workspaceId) {
   return data || [];
 }
 
-export async function upsertCloudIssueItem({ workspaceId, itemType, item }) {
+async function saveCloudIssueItem({ workspaceId, itemType, item, expectedRevision }) {
   const client = requireClient();
-  const { data, error } = await client.rpc('save_cloud_issue_item_revision', {
+  return client.rpc('save_cloud_issue_item_revision', {
     target_workspace_id: workspaceId,
     target_issue_id: item.issueId,
     target_item_type: itemType,
     target_item_id: item.id,
     target_payload: item,
-    expected_revision: Number(item.cloudRevision || 0),
+    expected_revision: expectedRevision,
   });
+}
+
+export async function upsertCloudIssueItem({
+  workspaceId,
+  itemType,
+  item,
+  expectedRevision: suppliedExpectedRevision,
+}) {
+  const expectedRevision = suppliedExpectedRevision === undefined
+    ? Number(item.cloudRevision || 0)
+    : Number(suppliedExpectedRevision || 0);
+  let { data, error } = await saveCloudIssueItem({
+    workspaceId,
+    itemType,
+    item,
+    expectedRevision,
+  });
+
+  if (shouldRetryMissingCloudIssueItem(error, expectedRevision)) {
+    ({ data, error } = await saveCloudIssueItem({
+      workspaceId,
+      itemType,
+      item,
+      expectedRevision: 0,
+    }));
+  }
+
   if (error) throw error;
   const result = data?.[0];
   if (!result?.saved) {

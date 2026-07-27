@@ -25,6 +25,14 @@ export default function AppShell() {
     }
   };
 
+  const syncWorkspace = async () => {
+    try {
+      await auth.syncNow?.();
+    } catch {
+      // ConfiguredAuthProvider already exposes the failure through syncState.
+    }
+  };
+
   return (
     <NavigationFeedbackProvider>
     <div className="min-h-screen bg-[#f2f6f5] text-slate-900">
@@ -47,7 +55,7 @@ export default function AppShell() {
               ) : (
                 <>
                   <NotificationCenter />
-                  <button type="button" title={auth.syncState?.status === 'error' ? auth.syncState.error : auth.syncState?.status === 'syncing' ? 'Synchronizing workspace' : 'Workspace synchronized'} aria-label="Synchronize workspace" onClick={() => auth.syncNow()} disabled={auth.syncState?.status === 'syncing'} className={`flex h-8 w-8 items-center justify-center rounded-md border bg-white ${auth.syncState?.status === 'error' ? 'border-red-200 text-red-700' : 'border-slate-200 text-slate-600 hover:text-slate-900'}`}>{auth.syncState?.status === 'error' ? <CloudOff className="h-4 w-4" /> : auth.syncState?.status === 'syncing' ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Cloud className="h-4 w-4" />}</button>
+                  <button type="button" title={auth.syncState?.status === 'error' ? auth.syncState.error : auth.syncState?.status === 'syncing' ? 'Synchronizing workspace' : 'Workspace synchronized'} aria-label="Synchronize workspace" onClick={syncWorkspace} disabled={auth.syncState?.status === 'syncing'} className={`flex h-8 w-8 items-center justify-center rounded-md border bg-white ${auth.syncState?.status === 'error' ? 'border-red-200 text-red-700' : 'border-slate-200 text-slate-600 hover:text-slate-900'}`}>{auth.syncState?.status === 'error' ? <CloudOff className="h-4 w-4" /> : auth.syncState?.status === 'syncing' ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Cloud className="h-4 w-4" />}</button>
                   {auth.isAdmin && <span title="System administrator" className="hidden rounded-full bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800 sm:inline-flex sm:items-center sm:gap-1"><ShieldCheck className="h-3.5 w-3.5" />System admin</span>}
                   <span className="hidden max-w-44 truncate text-xs font-medium text-slate-600 sm:block">{auth.profile?.display_name || auth.user?.email}</span>
                   <button type="button" title={signingOut ? 'Signing out' : 'Sign out'} aria-label={signingOut ? 'Signing out' : 'Sign out'} onClick={signOut} disabled={signingOut} className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 hover:text-slate-900 disabled:cursor-wait disabled:opacity-60">{signingOut ? <RefreshCw className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}</button>

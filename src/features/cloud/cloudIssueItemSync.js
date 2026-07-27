@@ -263,7 +263,13 @@ export async function syncWorkspaceIssueItems({ workspaceId, userId, canEdit = t
           {
             if (await getSyncConflict(type, item.id)) continue;
             try {
-              const result = await upsertCloudIssueItem({ workspaceId, userId, itemType: type, item });
+              const result = await upsertCloudIssueItem({
+                workspaceId,
+                userId,
+                itemType: type,
+                item,
+                expectedRevision: cloud ? undefined : 0,
+              });
               await db[config.table].update(item.id, {
                 cloudRevision: result.revision,
                 cloudUpdatedAt: result.updated_at,
