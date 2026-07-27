@@ -87,6 +87,15 @@ export async function getIssueAccessLevel(workspaceId, issueId) {
   return data || 'none';
 }
 
+export async function canManageIssueAccess(workspaceId, issueId) {
+  const { data, error } = await requireClient().rpc('can_manage_issue_access', {
+    candidate_workspace_id: workspaceId,
+    candidate_issue_id: issueId,
+  });
+  if (error) throw error;
+  return data === true;
+}
+
 export async function listMyIssueAccess(workspaceId) {
   const { data, error } = await requireClient().rpc('list_my_issue_access', { target_workspace_id: workspaceId });
   if (error) throw error;

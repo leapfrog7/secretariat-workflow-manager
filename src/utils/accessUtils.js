@@ -1,6 +1,7 @@
 export function canEditWorkspace(profile, workspace) {
   if (!workspace) return false;
-  return profile?.role === 'platform_admin' || workspace.membership?.role !== 'viewer';
+  return profile?.role === 'platform_admin'
+    || ['workspace_admin', 'officer'].includes(workspace.membership?.role);
 }
 
 export function getDefaultOwningDivisionId({ divisions = [], memberships = [], userId = '' } = {}) {

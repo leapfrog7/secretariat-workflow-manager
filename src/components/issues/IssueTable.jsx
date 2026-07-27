@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Archive, LoaderCircle, RotateCcw, Trash2 } from 'lucide-react';
 import StatusBadge from '../common/StatusBadge';
 import DeadlineIndicator from '../common/DeadlineIndicator';
@@ -34,11 +34,21 @@ export default function IssueTable({ issues, officers = [], registerMode = 'Curr
 }
 
 function IssueRow({ issue, officers, showReturnDate, showDivision, working, canEdit, onRestore, onBringBack, onArchive, onDelete }) {
+  const navigate = useNavigate();
   const officer = officers.find((item) => item.id === issue.assignedOfficerId);
   const ageDays = getIssueAgeDays(issue);
   const scheduled = isScheduledIssue(issue);
+  const openIssue = (event) => {
+    if (event.target.closest?.('a, button, input, select, textarea')) return;
+    navigate(`/issues/${issue.id}`);
+  };
+  const openIssueFromKeyboard = (event) => {
+    if (event.target !== event.currentTarget || !['Enter', ' '].includes(event.key)) return;
+    event.preventDefault();
+    navigate(`/issues/${issue.id}`);
+  };
   return (
-    <tr className="transition-colors hover:bg-[#f5faf8]">
+    <tr tabIndex={0} aria-label={`Open Issue: ${issue.shortTitle}`} onClick={openIssue} onKeyDown={openIssueFromKeyboard} className="cursor-pointer transition-colors hover:bg-[#f5faf8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-teal-600">
                 <td className="max-w-[520px] px-4 py-3.5">
                   <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                     <Link to={`/issues/${issue.id}`} className="min-w-0 max-w-full font-semibold text-[#174f5b] hover:text-teal-800 hover:underline" title={issue.subject}>

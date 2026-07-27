@@ -4,6 +4,7 @@ import AdaptiveSelect from '../common/AdaptiveSelect';
 import { listProfiles } from '../../features/auth/accountApi';
 import { listWorkspaceMembers } from '../../features/cloud/workspaceApi';
 import {
+  canManageIssueAccess,
   deleteIssueGrant,
   getIssueAccessLevel,
   listDivisionMembers,
@@ -21,17 +22,18 @@ export default function IssueAccessPanel({ auth, issue, canEdit, onUpdateIssue }
   const [accessLevel, setAccessLevel] = useState(canEdit ? 'editor' : 'viewer');
   const [policy, setPolicy] = useState({ owningDivisionId: issue.owningDivisionId || '', visibility: issue.visibility || 'workspace' });
   const [grant, setGrant] = useState({ principalType: 'user', principalId: '', accessLevel: 'viewer' });
-  const [state, setState] = useState({ loading: true, busy: '', error: '', message: '' });
+  const [state, setState] = useState({ loading: true, busy: '', error: '', message: '', canManageAccess: false });
 
   async function load() {
     if (!auth.workspace?.id) return;
     setState((current) => ({ ...current, loading: true, error: '' }));
     try {
-      const [divisionRows, divisionMemberRows, grantRows, level, profileRows, memberRows] = await Promise.all([
+      const [divisionRows, divisionMemberRows, grantRows, level, canManageAccess, profileRows, memberRows] = await Promise.all([
         listDivisions(auth.workspace.id),
         listDivisionMembers(auth.workspace.id),
         listIssueGrants(auth.workspace.id, issue.id),
         getIssueAccessLevel(auth.workspace.id, issue.id),
+        canManageIssueAccess(auth.workspace.id, issue.id),
         listProfiles(),
         listWorkspaceMembers(auth.workspace.id),
       ]);
@@ -42,7 +44,7 @@ export default function IssueAccessPanel({ auth, issue, canEdit, onUpdateIssue }
       setProfiles(profileRows);
       setMembers(memberRows);
       setPolicy({ owningDivisionId: issue.owningDivisionId || '', visibility: issue.visibility || 'workspace' });
-      setState((current) => ({ ...current, loading: false }));
+      setState((current) => ({ ...current, loading: false, canManageAccess }));
     } catch (error) {
       setState((current) => ({ ...current, loading: false, error: error.message || 'Unable to load sharing information.' }));
     }
@@ -117,6 +119,7 @@ export default function IssueAccessPanel({ auth, issue, canEdit, onUpdateIssue }
     const profile = profiles.find((person) => person.user_id === item.principal_id);
     return profile?.display_name || profile?.email || 'Unknown colleague';
   };
+  const canManage = state.canManageAccess;
 
   if (auth.mode !== 'cloud') {
     return <section className="surface rounded-md px-4 py-8 text-center"><Share2 className="mx-auto h-7 w-7 text-slate-400" /><p className="mt-2 text-sm font-medium text-slate-700">Sharing requires a cloud workspace</p><p className="mt-1 text-xs text-slate-500">Local-only Issues remain available only in this browser.</p></section>;
@@ -130,22 +133,23 @@ export default function IssueAccessPanel({ auth, issue, canEdit, onUpdateIssue }
       </div>
       {state.error && <p className="border-b border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{state.error}</p>}
       {state.message && <p className="border-b border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{state.message}</p>}
+      {!state.loading && !canManage && <p className="border-b border-cyan-200 bg-cyan-50 px-4 py-3 text-xs leading-5 text-cyan-950">You can see the access arrangement, but only a workspace manager or the owning division manager can change it.</p>}
       {!auth.workspace?.division_access_enabled && <div className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900"><strong>Division rules are not active.</strong> These settings can be prepared now, but users with editing access retain workspace-wide access until a manager enables Division access.</div>}
       {state.loading ? <div className="flex items-center justify-center gap-2 px-4 py-12 text-sm text-slate-600"><LoaderCircle className="h-5 w-5 animate-spin" />Loading access</div> : (
         <>
           <form onSubmit={savePolicy} className="grid gap-3 border-b border-slate-200 px-4 py-4 sm:grid-cols-2 sm:px-5">
-            <AdaptiveSelect label="Owning division" value={policy.owningDivisionId} onChange={(owningDivisionId) => setPolicy((current) => ({ ...current, owningDivisionId }))} options={divisions.filter((item) => item.is_active).map((item) => ({ value: item.id, label: item.name }))} placeholder="No division assigned" disabled={!canEdit} />
-            <AdaptiveSelect label="Visibility" value={policy.visibility} onChange={(visibility) => setPolicy((current) => ({ ...current, visibility }))} includeBlank={false} disabled={!canEdit} options={[
+            <AdaptiveSelect label="Owning division" value={policy.owningDivisionId} onChange={(owningDivisionId) => setPolicy((current) => ({ ...current, owningDivisionId }))} options={divisions.filter((item) => item.is_active).map((item) => ({ value: item.id, label: item.name }))} placeholder="No division assigned" disabled={!canManage} />
+            <AdaptiveSelect label="Visibility" value={policy.visibility} onChange={(visibility) => setPolicy((current) => ({ ...current, visibility }))} includeBlank={false} disabled={!canManage} options={[
               { value: 'workspace', label: 'Entire workspace' },
               { value: 'division', label: 'Owning division' },
               { value: 'restricted', label: 'Restricted to explicit access' },
             ]} />
             <p className="text-xs leading-5 text-slate-500 sm:col-span-2">{policy.visibility === 'workspace' ? 'Entire workspace is a deliberate exception: every active member can access this Issue.' : policy.visibility === 'division' ? 'Members of the owning division receive access according to their division role.' : 'Only administrators, the creator and explicit grants receive access.'}</p>
             <div className="flex items-center gap-2 text-xs leading-5 text-slate-500 sm:col-span-2"><LockKeyhole className="h-4 w-4 shrink-0" />Restricted Issues remain available to workspace managers, their creator, and the people or divisions listed below.</div>
-            {canEdit && <div className="sm:col-span-2 sm:text-right"><button type="submit" disabled={state.busy === 'policy'} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-teal-700 px-3 text-sm font-semibold text-white disabled:bg-slate-400 sm:w-auto">{state.busy === 'policy' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{state.busy === 'policy' ? 'Saving...' : 'Save access policy'}</button></div>}
+            {canManage && <div className="sm:col-span-2 sm:text-right"><button type="submit" disabled={state.busy === 'policy'} className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-teal-700 px-3 text-sm font-semibold text-white disabled:bg-slate-400 sm:w-auto">{state.busy === 'policy' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{state.busy === 'policy' ? 'Saving...' : 'Save access policy'}</button></div>}
           </form>
 
-          {canEdit && <form onSubmit={addGrant} className="grid gap-3 border-b border-slate-200 bg-slate-50 px-4 py-4 sm:grid-cols-3 sm:px-5">
+          {canManage && <form onSubmit={addGrant} className="grid gap-3 border-b border-slate-200 bg-slate-50 px-4 py-4 sm:grid-cols-3 sm:px-5">
             <AdaptiveSelect label="Share with" value={grant.principalType} onChange={(principalType) => setGrant((current) => ({ ...current, principalType, principalId: '' }))} includeBlank={false} options={[
               { value: 'user', label: 'Named colleague' },
               { value: 'division', label: 'Division' },
@@ -163,7 +167,7 @@ export default function IssueAccessPanel({ auth, issue, canEdit, onUpdateIssue }
           <div className="px-4 py-4 sm:px-5">
             <h3 className="text-sm font-semibold text-slate-900">Explicit access</h3>
             <div className="mt-3 divide-y divide-slate-200 border-y border-slate-200">
-              {grants.map((item) => <div key={item.id} className="flex items-center justify-between gap-3 py-3"><div className="min-w-0"><p className="truncate text-sm font-medium text-slate-800">{principalName(item)}</p><p className="mt-0.5 text-xs text-slate-500">{item.principal_type === 'division' ? 'Division' : 'Colleague'} - Can {item.access_level === 'editor' ? 'edit' : 'view'}</p></div>{canEdit && <button type="button" title="Remove access" onClick={() => removeGrant(item.id)} disabled={state.busy === item.id} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-red-50 hover:text-red-700 disabled:opacity-50">{state.busy === item.id ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}<span className="sr-only">Remove access for {principalName(item)}</span></button>}</div>)}
+              {grants.map((item) => <div key={item.id} className="flex items-center justify-between gap-3 py-3"><div className="min-w-0"><p className="truncate text-sm font-medium text-slate-800">{principalName(item)}</p><p className="mt-0.5 text-xs text-slate-500">{item.principal_type === 'division' ? 'Division' : 'Colleague'} - Can {item.access_level === 'editor' ? 'edit' : 'view'}</p></div>{canManage && <button type="button" title="Remove access" onClick={() => removeGrant(item.id)} disabled={state.busy === item.id} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-red-50 hover:text-red-700 disabled:opacity-50">{state.busy === item.id ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}<span className="sr-only">Remove access for {principalName(item)}</span></button>}</div>)}
               {!grants.length && <p className="py-4 text-sm text-slate-500">No explicit access grants. The visibility policy above determines access.</p>}
             </div>
           </div>

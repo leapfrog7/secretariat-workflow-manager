@@ -11,6 +11,7 @@
     "dev:web": "vite",
     "build": "vite build",
     "test": "node --test",
+    "test:collaboration": "node --test tests/integration/collaborationDatabase.test.js",
     "preview": "vite preview",
     "api:dev": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.vercel.local scripts/local-api-server.js",
     "db:migrate": "node --env-file-if-exists=.env.local scripts/migrate.js",

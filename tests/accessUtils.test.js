@@ -15,6 +15,12 @@ test('platform administrators retain edit access and missing workspaces do not',
   assert.equal(canEditWorkspace({ role: 'platform_admin' }, null), false);
 });
 
+test('missing or unknown workspace memberships fail closed', () => {
+  assert.equal(canEditWorkspace({ role: 'user' }, { id: 'workspace-1' }), false);
+  assert.equal(canEditWorkspace({ role: 'user' }, workspace(undefined)), false);
+  assert.equal(canEditWorkspace({ role: 'user' }, workspace('unexpected-role')), false);
+});
+
 test('a sole active division membership becomes the safe owning-division default', () => {
   const divisions = [
     { id: 'admin', is_active: true },

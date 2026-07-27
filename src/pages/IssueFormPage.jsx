@@ -9,7 +9,7 @@ import { createIssue, getIssueById, updateIssue } from '../db/issueRepository';
 import { getAllOfficers } from '../db/officerRepository';
 import { useToast } from '../components/common/ToastProvider';
 import { useAuth } from '../features/auth/AuthContext';
-import { getIssueAccessLevel, listDivisionMembers, listDivisions } from '../features/collaboration/accessApi';
+import { canManageIssueAccess, getIssueAccessLevel, listDivisionMembers, listDivisions } from '../features/collaboration/accessApi';
 import { getDefaultOwningDivisionId } from '../utils/accessUtils';
 
 export default function IssueFormPage({ mode }) {
@@ -17,12 +17,12 @@ export default function IssueFormPage({ mode }) {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const auth = useAuth();
-  const [state, setState] = useState({ loading: true, saveStatus: 'idle', error: '', issue: null, settings: null, officers: [], divisions: [], defaultOwningDivisionId: '', saveError: '' });
+  const [state, setState] = useState({ loading: true, saveStatus: 'idle', error: '', issue: null, settings: null, officers: [], divisions: [], defaultOwningDivisionId: '', canManageAccess: false, saveError: '' });
 
   useEffect(() => {
     async function load() {
       try {
-        const [settings, officers, divisions, divisionMembers, accessLevel] = await Promise.all([
+        const [settings, officers, divisions, divisionMembers, accessLevel, canManageAccess] = await Promise.all([
           getSettings(),
           getAllOfficers({ includeInactive: false }),
           auth.workspace?.id ? listDivisions(auth.workspace.id) : Promise.resolve([]),
@@ -30,6 +30,9 @@ export default function IssueFormPage({ mode }) {
           mode === 'edit' && auth.workspace?.id && auth.workspace.division_access_enabled
             ? getIssueAccessLevel(auth.workspace.id, issueId)
             : Promise.resolve(auth.canEdit ? 'editor' : 'viewer'),
+          mode === 'edit' && auth.workspace?.id
+            ? canManageIssueAccess(auth.workspace.id, issueId)
+            : Promise.resolve(mode === 'create'),
         ]);
         const issue = mode === 'edit' ? await getIssueById(issueId) : null;
         if (mode === 'edit' && !issue) throw new Error('Issue not found.');
@@ -38,9 +41,9 @@ export default function IssueFormPage({ mode }) {
         const defaultOwningDivisionId = mode === 'create'
           ? getDefaultOwningDivisionId({ divisions: activeDivisions, memberships: divisionMembers, userId: auth.user?.id })
           : '';
-        setState({ loading: false, saveStatus: 'idle', error: '', issue, settings, officers, divisions: activeDivisions, defaultOwningDivisionId, saveError: '' });
+        setState({ loading: false, saveStatus: 'idle', error: '', issue, settings, officers, divisions: activeDivisions, defaultOwningDivisionId, canManageAccess, saveError: '' });
       } catch (error) {
-        setState({ loading: false, saveStatus: 'idle', error: error.message, issue: null, settings: null, officers: [], divisions: [], defaultOwningDivisionId: '', saveError: '' });
+        setState({ loading: false, saveStatus: 'idle', error: error.message, issue: null, settings: null, officers: [], divisions: [], defaultOwningDivisionId: '', canManageAccess: false, saveError: '' });
       }
     }
     load();
@@ -75,6 +78,7 @@ export default function IssueFormPage({ mode }) {
         divisions={state.divisions}
         defaultOwningDivisionId={state.defaultOwningDivisionId}
         divisionAccessEnabled={Boolean(auth.workspace?.division_access_enabled)}
+        canManageAccess={state.canManageAccess}
         onSubmit={save}
         onCancel={() => navigate(mode === 'edit' ? `/issues/${issueId}` : '/issues')}
         saveStatus={state.saveStatus}

@@ -30,6 +30,7 @@ const [tables, policies, functions, migrations, triggers, workspaces, membership
         'issue_access_level',
         'can_read_issue',
         'can_edit_issue',
+        'can_manage_issue_access',
         'list_my_issue_access',
         'issue_access_readiness',
         'set_division_access_enabled',
@@ -60,7 +61,8 @@ const [tables, policies, functions, migrations, triggers, workspaces, membership
       '012_optimistic_concurrency.sql',
       '013_security_and_sync_hardening.sql',
       '014_preserve_last_administrators.sql',
-      '015_require_issue_division_when_enforced.sql'
+      '015_require_issue_division_when_enforced.sql',
+      '016_separate_issue_access_management.sql'
     )
   `,
   sql`
@@ -70,7 +72,8 @@ const [tables, policies, functions, migrations, triggers, workspaces, membership
       AND tgname IN (
         'preserve_last_profile_administrator_trigger',
         'preserve_last_workspace_administrator_trigger',
-        'require_issue_division_when_enforced_trigger'
+        'require_issue_division_when_enforced_trigger',
+        'enforce_issue_access_management_trigger'
       )
   `,
   sql`SELECT count(*)::int AS count FROM public.workspaces WHERE is_active = true`,
@@ -90,9 +93,9 @@ const result = {
 const expected = {
   tables: 17,
   policies: 43,
-  functions: 21,
-  migrationRecords: 15,
-  securityGuardTriggers: 3,
+  functions: 22,
+  migrationRecords: 16,
+  securityGuardTriggers: 4,
 };
 const valid = Object.entries(expected).every(([key, value]) => result[key] === value);
 

@@ -68,12 +68,12 @@ export default function NotificationCenter() {
         {unread > 0 && <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-xs font-bold text-white">{unread > 9 ? '9+' : unread}</span>}
       </button>
       {state.open && (
-        <div className="absolute right-0 top-10 z-50 w-[min(360px,calc(100vw-24px))] overflow-hidden rounded-md border border-slate-200 bg-white shadow-xl">
+        <div className="fixed inset-x-3 top-16 z-50 overflow-hidden rounded-md border border-slate-200 bg-white shadow-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-10 sm:w-[min(360px,calc(100vw-24px))]">
           <div className="flex h-12 items-center justify-between border-b border-slate-200 px-3">
             <div><h2 className="text-sm font-semibold text-[#17333b]">Notifications</h2><p className="text-xs text-slate-500">Deadlines, returns and digests</p></div>
             {(unread > 0 || state.markingAll) && <button type="button" onClick={readAll} disabled={state.markingAll} title="Mark all as read" className="flex h-9 w-9 items-center justify-center rounded-md text-teal-700 hover:bg-teal-50 disabled:cursor-wait"><CheckCheck className={`h-4 w-4 ${state.markingAll ? 'animate-pulse' : ''}`} /></button>}
           </div>
-          <div className="max-h-[420px] overflow-y-auto">
+          <div className="max-h-[calc(100dvh-8rem)] overflow-y-auto sm:max-h-[420px]">
             {state.loading && !state.items.length && <div className="flex items-center justify-center gap-2 px-4 py-10 text-sm text-slate-500"><LoaderCircle className="h-4 w-4 animate-spin" />Loading...</div>}
             {state.error && <div className="px-4 py-5 text-sm text-red-700">{state.error}</div>}
             {!state.loading && !state.error && !state.items.length && <div className="px-4 py-10 text-center"><Inbox className="mx-auto h-6 w-6 text-slate-400" /><p className="mt-2 text-sm font-medium text-slate-700">Nothing needs your attention</p></div>}

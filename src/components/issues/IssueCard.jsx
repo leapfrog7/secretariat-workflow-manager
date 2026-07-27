@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Archive, LoaderCircle, RotateCcw, Trash2 } from 'lucide-react';
 import StatusBadge from '../common/StatusBadge';
 import DeadlineIndicator from '../common/DeadlineIndicator';
@@ -7,11 +7,21 @@ import { isScheduledIssue } from '../../utils/scheduleUtils';
 import SourceSearchMatch from './SourceSearchMatch';
 
 export default function IssueCard({ issue, officers = [], working = false, canEdit = true, showDivision = false, onRestore, onBringBack, onArchive, onDelete }) {
+  const navigate = useNavigate();
   const officer = officers.find((item) => item.id === issue.assignedOfficerId);
   const ageDays = getIssueAgeDays(issue);
   const scheduled = isScheduledIssue(issue);
+  const openIssue = (event) => {
+    if (event.target.closest?.('a, button, input, select, textarea')) return;
+    navigate(`/issues/${issue.id}`);
+  };
+  const openIssueFromKeyboard = (event) => {
+    if (event.target !== event.currentTarget || !['Enter', ' '].includes(event.key)) return;
+    event.preventDefault();
+    navigate(`/issues/${issue.id}`);
+  };
   return (
-    <article className={`surface rounded-md border-l-[3px] p-3 ${issue.isArchived ? 'border-l-slate-400' : scheduled ? 'border-l-cyan-600' : 'border-l-teal-600'}`}>
+    <article tabIndex={0} aria-label={`Open Issue: ${issue.shortTitle}`} onClick={openIssue} onKeyDown={openIssueFromKeyboard} className={`surface cursor-pointer rounded-md border-l-[3px] p-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 ${issue.isArchived ? 'border-l-slate-400' : scheduled ? 'border-l-cyan-600' : 'border-l-teal-600'}`}>
       <Link to={`/issues/${issue.id}`} className="line-clamp-2 text-sm font-semibold leading-5 text-[#17333b] hover:text-teal-800 hover:underline" title={issue.shortTitle}>
         {issue.shortTitle}
       </Link>

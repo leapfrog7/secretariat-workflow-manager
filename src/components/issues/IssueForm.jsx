@@ -13,6 +13,7 @@ export default function IssueForm({
   divisions = [],
   defaultOwningDivisionId = '',
   divisionAccessEnabled = false,
+  canManageAccess = true,
   onSubmit,
   onCancel,
   submitLabel = 'Save Issue',
@@ -82,7 +83,7 @@ export default function IssueForm({
         <Input label="Deadline date" type="date" value={issue.nextDeadline} onChange={(value) => update('nextDeadline', value)} />
         {!isEditing && <OfficerSelect label="Assigned to" value={issue.assignedOfficerId} officers={officers} onChange={(value) => update('assignedOfficerId', value)} />}
         {!isEditing && <Select label="Current stage" value={issue.status} onChange={(value) => update('status', value)} options={ISSUE_STATUSES} required />}
-        {divisions.length > 0 && <AccessPolicyFields issue={issue} divisions={divisions} divisionAccessEnabled={divisionAccessEnabled} error={errors.owningDivisionId} onUpdate={update} />}
+        {divisions.length > 0 && <AccessPolicyFields issue={issue} divisions={divisions} divisionAccessEnabled={divisionAccessEnabled} readOnly={isEditing && !canManageAccess} error={errors.owningDivisionId} onUpdate={update} />}
       </Section>
 
       <DisclosureSection title="Notes" description="Optional context can be added now or later." defaultOpen={isEditing}>
@@ -173,7 +174,7 @@ function OfficerSelect({ label, value, officers, onChange }) {
   return <AdaptiveSelect label={label} value={value} onChange={onChange} options={officers.map((officer) => ({ value: officer.id, label: officer.designation ? `${officer.name} - ${officer.designation}` : officer.name }))} placeholder="Not assigned" hint={!officers.length ? 'Add officers in Settings to allocate this Issue.' : ''} controlClassName="h-9" />;
 }
 
-function AccessPolicyFields({ issue, divisions, divisionAccessEnabled, error, onUpdate }) {
+function AccessPolicyFields({ issue, divisions, divisionAccessEnabled, readOnly = false, error, onUpdate }) {
   const owningDivision = divisions.find((division) => division.id === issue.owningDivisionId);
   const options = [
     { value: 'division', label: 'Owning division', Icon: Building2 },
@@ -204,6 +205,7 @@ function AccessPolicyFields({ issue, divisions, divisionAccessEnabled, error, on
           options={divisions.map((division) => ({ value: division.id, label: `${division.name} (${division.code})` }))}
           placeholder="Select responsible division"
           required={divisionAccessEnabled}
+          disabled={readOnly}
           error={error}
           controlClassName="h-10"
         />
@@ -213,7 +215,7 @@ function AccessPolicyFields({ issue, divisions, divisionAccessEnabled, error, on
             {options.map(({ value, label, Icon }) => {
               const selected = issue.visibility === value;
               return (
-                <button key={value} type="button" aria-pressed={selected} onClick={() => onUpdate('visibility', value)} className={`flex min-h-10 min-w-0 items-center justify-center gap-1 rounded-md border px-1.5 py-1.5 text-xs font-semibold leading-4 transition-colors ${selected ? 'border-teal-600 bg-teal-50 text-teal-900' : 'border-slate-300 bg-white text-slate-600 hover:border-teal-300 hover:bg-teal-50/50'}`}>
+                <button key={value} type="button" aria-pressed={selected} disabled={readOnly} onClick={() => onUpdate('visibility', value)} className={`flex min-h-10 min-w-0 items-center justify-center gap-1 rounded-md border px-1.5 py-1.5 text-xs font-semibold leading-4 transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${selected ? 'border-teal-600 bg-teal-50 text-teal-900' : 'border-slate-300 bg-white text-slate-600 hover:border-teal-300 hover:bg-teal-50/50'}`}>
                   <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                   <span className="line-clamp-2">{label}</span>
                 </button>
@@ -222,6 +224,7 @@ function AccessPolicyFields({ issue, divisions, divisionAccessEnabled, error, on
           </div>
         </fieldset>
       </div>
+      {readOnly && <p className="mt-3 text-xs leading-5 text-cyan-900">Only a workspace manager or the owning division manager can change responsibility and access.</p>}
       <p className={`mt-3 flex items-start gap-2 text-xs leading-5 ${issue.visibility === 'restricted' && divisionAccessEnabled ? 'font-medium text-amber-900' : 'text-slate-500'}`}>
         {issue.visibility === 'restricted' && <LockKeyhole className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
         <span>{explanation}</span>

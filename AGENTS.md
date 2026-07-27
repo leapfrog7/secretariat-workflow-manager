@@ -42,7 +42,10 @@ share only when the Issue policy permits it.
 
 The UI must show who can access an Issue and why, for example `Editor through
 Administration Division`. Permission changes must be audited without storing
-Issue content in the audit event.
+Issue content in the audit event. At the current implementation stage, only
+workspace administrators and the administrator of the owning division may
+change Issue ownership, visibility or explicit grants. Content editors cannot
+delegate their access onward.
 
 ### Security and local cache
 
