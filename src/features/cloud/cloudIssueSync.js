@@ -11,6 +11,7 @@ import {
   syncMutationKey,
 } from '../../db/syncMutationRepository';
 import { cloudPayloadsMatch } from './cloudPayloadUtils';
+import { findInaccessibleLocalIssueIds } from './visibleIssueUtils';
 
 let runtime = null;
 const VISIBLE_ISSUES_KEY = 'swm:visible-cloud-issues';
@@ -174,16 +175,6 @@ function visibleStorageKey(workspaceId, userId) {
   return `${VISIBLE_ISSUES_KEY}:${workspaceId}:${userId}`;
 }
 
-function readPreviouslyVisibleIds(workspaceId, userId) {
-  if (typeof window === 'undefined') return [];
-  try {
-    const value = JSON.parse(window.localStorage.getItem(visibleStorageKey(workspaceId, userId)) || '[]');
-    return Array.isArray(value) ? value : [];
-  } catch {
-    return [];
-  }
-}
-
 function storeVisibleIds(workspaceId, userId, ids) {
   if (typeof window !== 'undefined') {
     window.localStorage.setItem(visibleStorageKey(workspaceId, userId), JSON.stringify(ids));
@@ -206,8 +197,16 @@ export async function syncWorkspaceIssues({ workspaceId, userId, canEdit = true,
     const defaultAccessLevel = canEdit ? 'editor' : 'viewer';
     const cloudById = new Map(cloudRows.map((row) => [row.id, row]));
     const visibleIds = new Set(cloudRows.filter((row) => !row.deleted_at).map((row) => row.id));
-    const revokedIds = readPreviouslyVisibleIds(workspaceId, userId).filter((id) => !visibleIds.has(id));
     const localById = new Map(localRows.map((issue) => [issue.id, normalizeIssue(issue)]));
+    const pendingSaveIssueIds = [...mutationMap.values()]
+      .filter((mutation) => mutation.entityType === 'issue' && mutation.operation === 'save')
+      .map((mutation) => mutation.itemId);
+    const revokedIds = findInaccessibleLocalIssueIds({
+      localIssues: [...localById.values()],
+      visibleIssueIds: [...visibleIds],
+      pendingSaveIssueIds,
+      canEdit,
+    });
     let downloaded = 0;
     let uploaded = 0;
     let deleted = 0;

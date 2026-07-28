@@ -9,6 +9,7 @@ import { getRouteImport } from './routePreload';
 const IssueRegisterPage = lazy(getRouteImport('/issues'));
 const IssueFormPage = lazy(getRouteImport('/issues/new'));
 const IssueWorkspacePage = lazy(getRouteImport('/issues/example'));
+const ReportsPage = lazy(getRouteImport('/reports'));
 const SettingsPage = lazy(getRouteImport('/settings'));
 const HelpPage = lazy(getRouteImport('/help'));
 const NotFoundPage = lazy(getRouteImport('/not-found'));
@@ -24,6 +25,7 @@ const router = createHashRouter([
       { path: 'issues/new', element: <RequireEditor><IssueFormPage mode="create" /></RequireEditor> },
       { path: 'issues/:issueId', element: <IssueWorkspacePage /> },
       { path: 'issues/:issueId/edit', element: <RequireEditor><IssueFormPage mode="edit" /></RequireEditor> },
+      { path: 'reports', element: <ReportsPage /> },
       { path: 'review', element: <Navigate to="/issues" replace /> },
       { path: 'tasks', element: <Navigate to="/issues" replace /> },
       { path: 'settings', element: <SettingsPage /> },

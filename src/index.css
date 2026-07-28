@@ -119,6 +119,58 @@ button:disabled {
   }
 }
 
+@media print {
+  @page {
+    margin: 14mm;
+  }
+
+  body {
+    background: white;
+  }
+
+  .app-sidebar,
+  .app-header,
+  .app-mobile-navigation,
+  .report-page > :first-child,
+  .report-controls,
+  .report-selection-controls,
+  .report-preview > header p:last-child {
+    display: none !important;
+  }
+
+  .activity-issue-excluded {
+    display: none !important;
+  }
+
+  .report-print-index {
+    display: block !important;
+  }
+
+  .app-main {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+
+  .report-preview {
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .report-preview > header {
+    background: white !important;
+    border-bottom: 2px solid #17333b !important;
+    color: #17333b !important;
+  }
+
+  .report-preview > header p {
+    color: #475569 !important;
+  }
+
+  .report-preview aside {
+    background: white !important;
+  }
+}
+
 @keyframes loading-sweep {
   0% { transform: translateX(-110%); }
   100% { transform: translateX(320%); }

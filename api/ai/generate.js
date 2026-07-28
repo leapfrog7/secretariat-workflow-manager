@@ -7,6 +7,7 @@ import {
   failGenerationLog,
   requireCloudAIDatabase,
   requestFingerprint,
+  reserveCloudAIReportRequest,
   reserveCloudAIRequest,
 } from '../lib/cloudAI.js';
 import { getGeminiTaskLevel, normalizeGeminiTaskLevel } from '../../shared/cloudAIModels.js';
@@ -20,7 +21,7 @@ export default async function handler(request, response) {
   let fingerprint = '';
   try {
     const token = requireBearerToken(request);
-    const { workspaceId, issueId = null, provider, operation, instructions, input, taskLevel } = request.body || {};
+    const { workspaceId, issueId = null, issueIds = [], provider, operation, instructions, input, taskLevel } = request.body || {};
     if (!workspaceId || typeof instructions !== 'string' || typeof input !== 'string') {
       throw Object.assign(new Error('Workspace, instructions and input are required.'), { status: 400, code: 'invalid_request' });
     }
@@ -28,7 +29,24 @@ export default async function handler(request, response) {
     requireCloudAIDatabase();
     requestId = randomUUID();
     fingerprint = requestFingerprint(instructions, input);
-    const authorization = await reserveCloudAIRequest({ token, workspaceId, issueId, provider, operation, requestId, promptCharacters });
+    const authorization = operation === 'report'
+      ? await reserveCloudAIReportRequest({
+        token,
+        workspaceId,
+        issueIds,
+        provider,
+        requestId,
+        promptCharacters,
+      })
+      : await reserveCloudAIRequest({
+        token,
+        workspaceId,
+        issueId,
+        provider,
+        operation,
+        requestId,
+        promptCharacters,
+      });
     await attachGenerationFingerprint({ requestId, fingerprint });
     const selectedTaskLevel = provider === 'gemini' ? normalizeGeminiTaskLevel(taskLevel) : null;
     const geminiTask = selectedTaskLevel ? getGeminiTaskLevel(selectedTaskLevel) : null;

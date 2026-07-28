@@ -11,6 +11,8 @@ const ids = {
   division: '20000000-0000-4000-8000-000000000001',
   issue: '30000000-0000-4000-8000-000000000001',
   grant: '40000000-0000-4000-8000-000000000001',
+  reportRequest: '50000000-0000-4000-8000-000000000001',
+  deniedReportRequest: '50000000-0000-4000-8000-000000000002',
 };
 
 async function applyMigrations() {
@@ -39,6 +41,15 @@ async function accessCapability(userId) {
   const result = await client.query(
     'SELECT public.can_manage_issue_access($1::uuid, $2::uuid) AS allowed',
     [ids.workspace, ids.issue],
+  );
+  return result.rows[0].allowed;
+}
+
+async function reportAccess(userId, issueIds = [ids.issue]) {
+  await useIdentity(userId);
+  const result = await client.query(
+    'SELECT public.can_refine_issue_report($1::uuid, $2::uuid[]) AS allowed',
+    [ids.workspace, issueIds],
   );
   return result.rows[0].allowed;
 }
@@ -131,6 +142,12 @@ before(async () => {
     ) VALUES ($1, $2, $3::jsonb, 'Pending', $4, 'division', 'admin', 'admin', 1)`,
     [ids.workspace, ids.issue, JSON.stringify({ id: ids.issue, shortTitle: 'Collaboration test', subject: 'Collaboration test' }), ids.division],
   );
+  await client.query(
+    `INSERT INTO public.cloud_ai_provider_settings (
+      workspace_id, provider, enabled, model, created_by, updated_by
+    ) VALUES ($1, 'gemini', true, 'test-model', 'admin', 'admin')`,
+    [ids.workspace],
+  );
 });
 
 after(async () => {
@@ -201,6 +218,39 @@ test('collaboration access is enforced by PostgreSQL policies and revision funct
     await assert.rejects(
       saveIssue({ userId: 'viewer', revision: 2, title: 'Viewer update attempt' }),
       /Issue editing access required/,
+    );
+  });
+
+  await context.test('report access includes readable Issues and rejects mixed or invalid sets', async () => {
+    assert.equal(await reportAccess('viewer'), true);
+    assert.equal(await reportAccess('target'), false);
+    assert.equal(await reportAccess('viewer', []), false);
+    assert.equal(await reportAccess('viewer', [ids.issue, null]), false);
+    assert.equal(
+      await reportAccess('viewer', [ids.issue, '30000000-0000-4000-8000-000000000099']),
+      false,
+    );
+  });
+
+  await context.test('Cloud AI report authorization checks Issue access and reserves usage atomically', async () => {
+    await useIdentity('editor');
+    const allowed = await client.query(
+      `SELECT * FROM public.authorize_cloud_ai_report_request(
+        $1::uuid, 'gemini', $2::uuid[], $3::uuid, 100
+      )`,
+      [ids.workspace, [ids.issue], ids.reportRequest],
+    );
+    assert.equal(allowed.rows[0].model, 'test-model');
+
+    await useIdentity('target');
+    await assert.rejects(
+      client.query(
+        `SELECT * FROM public.authorize_cloud_ai_report_request(
+          $1::uuid, 'gemini', $2::uuid[], $3::uuid, 100
+        )`,
+        [ids.workspace, [ids.issue], ids.deniedReportRequest],
+      ),
+      /Issue report access required/,
     );
   });
 

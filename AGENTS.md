@@ -81,6 +81,9 @@ Current implementation status:
   `010_shared_issue_access.sql`, `012_optimistic_concurrency.sql` and
   `013_security_and_sync_hardening.sql` must be applied through the normal
   migration process before using collaboration controls.
+- Migrations `017_cloud_ai_report_operation.sql` and
+  `018_report_permission_hardening.sql` must be applied before Cloud AI
+  report refinement is enabled. Local LLM report refinement does not require it.
 - Division enforcement remains off until a workspace administrator creates
   divisions, assigns active members and Issues, passes the readiness report, and
   explicitly enables it.

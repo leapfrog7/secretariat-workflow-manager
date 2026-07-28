@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { BookOpenCheck, ClipboardCheck, ClipboardList, FilePlus2, LoaderCircle, PanelLeftClose, PanelLeftOpen, Settings, UserRoundCog } from 'lucide-react';
+import { BookOpenCheck, ClipboardCheck, ClipboardList, FilePlus2, FileText, LoaderCircle, PanelLeftClose, PanelLeftOpen, Settings, UserRoundCog } from 'lucide-react';
 import { APP_NAME } from '../../constants/issueConstants';
 import { useAuth } from '../../features/auth/AuthContext';
 import { useNavigationFeedback } from '../common/NavigationFeedback';
@@ -8,6 +8,7 @@ import { useNavigationFeedback } from '../common/NavigationFeedback';
 const navItems = [
   { label: 'Issues', to: '/issues', icon: ClipboardList },
   { label: 'Create Issue', to: '/issues/new', icon: FilePlus2 },
+  { label: 'Reports', to: '/reports', icon: FileText },
   { label: 'How to use', to: '/help', icon: BookOpenCheck },
   { label: 'Settings', to: '/settings', icon: Settings },
 ];

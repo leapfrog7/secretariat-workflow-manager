@@ -1,6 +1,7 @@
 import { cloudClient } from '../features/auth/cloudClient';
 import { buildGovernmentDraftPrompt, constrainConservativeBody, formatGovernmentCommunication } from '../utils/governmentDraftUtils';
 import { GOVERNMENT_DRAFT_SYSTEM_PROMPT, PARAGRAPH_REWRITE_SYSTEM_PROMPT, RUNNING_SUMMARY_SYSTEM_PROMPT } from './lmStudioClient';
+import { buildReportRefinementInput, normalizeReportRefinement, REPORT_REFINEMENT_SYSTEM_PROMPT } from '../utils/reportAIUtils';
 
 function apiUrl(path) {
   const base = String(import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '');
@@ -50,11 +51,11 @@ export async function getCloudAIStatus(workspaceId, { signal } = {}) {
   return cloudRequest(`/api/ai/status?workspaceId=${encodeURIComponent(workspaceId)}`, { method: 'GET', signal });
 }
 
-async function generate({ workspaceId, issueId, provider, taskLevel, operation, instructions, input, signal }) {
+async function generate({ workspaceId, issueId, issueIds, provider, taskLevel, operation, instructions, input, signal }) {
   return cloudRequest('/api/ai/generate', {
     method: 'POST',
     signal,
-    body: JSON.stringify({ workspaceId, issueId, provider, taskLevel, operation, instructions, input }),
+    body: JSON.stringify({ workspaceId, issueId, issueIds, provider, taskLevel, operation, instructions, input }),
   });
 }
 
@@ -96,4 +97,25 @@ export async function summarizeCloudNotes({ workspaceId, issueId, provider, task
   const text = String(payload.text || '').replace(/```(?:markdown|md)?/gi, '').trim();
   if (!text) throw new Error('Cloud AI returned no summary text.');
   return { text, model: `${payload.provider}: ${payload.model}`, stats: payload.usage || {} };
+}
+
+export async function refineCloudReport({ workspaceId, provider, taskLevel, report, signal }) {
+  if (!workspaceId) throw new Error('An active cloud workspace is required.');
+  const input = buildReportRefinementInput(report);
+  const payload = await generate({
+    workspaceId,
+    issueId: null,
+    issueIds: (report.kind === 'activity' ? report.issues : report.rows).map((issue) => issue.id),
+    provider,
+    taskLevel,
+    operation: 'report',
+    instructions: REPORT_REFINEMENT_SYSTEM_PROMPT,
+    input,
+    signal,
+  });
+  return {
+    ...normalizeReportRefinement(payload.text, report),
+    model: `${payload.provider}: ${payload.model}`,
+    stats: payload.usage || {},
+  };
 }

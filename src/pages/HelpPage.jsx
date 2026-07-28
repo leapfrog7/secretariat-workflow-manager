@@ -24,6 +24,7 @@ const sections = [
   ['Account and workspace', 'access'],
   ['Create an Issue', 'create'],
   ['Issues register', 'issues'],
+  ['Reports', 'reports'],
   ['Issue workspace', 'workspace'],
   ['Periodic work', 'periodic'],
   ['Reminders', 'reminders'],
@@ -104,6 +105,29 @@ export default function HelpPage() {
               ['Deadline position', 'The table shows how many days have passed since creation and whether the matter is due on a future date or already overdue.'],
               ['Scheduled', 'Contains completed periodic Issues waiting for their next appearance date.'],
               ['Archive', 'Retains completed or inactive Issues outside the current register. Restore an archived Issue when fresh work or a new receipt arrives.'],
+            ]} />
+          </HelpSection>
+
+          <HelpSection id="reports" icon={FileText} title="Creating a report" tone="teal">
+            <GuideLocation link="/reports" label="Open Reports">Main navigation &gt; Reports</GuideLocation>
+            <GuideRows rows={[
+              ['Current position', 'Creates an as-on-date snapshot of the Issues currently visible in your register. This is the default and requires no setup.'],
+              ['Attention required', 'Narrows the report to overdue and upcoming deadlines, matters awaiting input or discussion, and High or Critical priority Issues.'],
+              ['Completed work', 'Shows completed Issues even when they have already been archived or scheduled to return later.'],
+              ['Division', 'Use the division choice when a report is required for one division. The report can include only Issues your account is already permitted to see.'],
+              ['Current-position text', 'Keep Include current position selected for a narrative report. Clear it for a shorter register-style statement.'],
+              ['Period progress', 'Choose Weekly for the last seven calendar days, Monthly for month-to-date, or Custom dates for another inclusive period. The report uses milestones, communications, eReceipts and running-summary versions recorded in that period.'],
+              ['Progress sections', 'The period report separates the opening position, milestone position updates, running summary, completed work, slippages and next-period priorities. Communications and summary-version events are not mixed into the developments timeline.'],
+              ['Choose Issues', 'All eligible Issues are included initially. Clear an Issue checkbox to remove it from report totals, print, Word and CSV output.'],
+              ['Choose report content', 'Use the four content controls to include or omit opening position, dated developments, the latest running summary available by the period end, and next-period priorities. These choices also control Word, CSV and AI input.'],
+              ['Covering note and CSV', 'Add an optional submission note above the period report. Use CSV when the receiving officer needs a register-style table for further analysis.'],
+              ['Improve with AI', 'After the factual report appears, choose Local LLM or Cloud API and select Improve with AI. The model creates a separate, clearer management-facing version; it does not alter the source report.'],
+              ['Source versus AI version', 'Use Source report to verify facts and AI refinement to review the improved wording. Changing dates, division, Issue selection or source records discards an outdated AI version automatically.'],
+              ['Cloud confirmation', 'Cloud refinement asks for confirmation before the selected report context leaves the workspace. The server rechecks access to every included Issue. Usage is logged, but the prompt and generated report text are not stored in the AI log.'],
+              ['Warnings and official review', 'The application warns when an Issue title is missing or the model uses inferential wording. These checks are helpful but not exhaustive; verify all facts, dates, totals and conclusions against the source report.'],
+              ['Exporting an AI version', 'Print and Word export use the version currently displayed. CSV always exports the deterministic period register.'],
+              ['Print or edit in Word', 'Print the clean report view or download the editable .docx file for editing, noting and submission through the normal official process.'],
+              ['AI availability', 'The present report is generated from recorded facts without AI. A later phase will allow optional Local LLM or Cloud API refinement while retaining the source report for verification.'],
             ]} />
           </HelpSection>
 

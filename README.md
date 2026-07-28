@@ -43,6 +43,23 @@ The project is currently a working multi-user proof of concept. Neon provides au
 
 Generated text is a drafting aid. The responsible officer must verify facts, citations, authority, classification, tone and approvals before issuing a communication.
 
+### Reports
+
+- Generate an operational snapshot without requiring AI or an API connection.
+- Switch between Current position, Attention required and Completed work views.
+- Produce weekly, month-to-date or custom-period progress reports from milestones, communications, eReceipts and running-summary versions.
+- Separate opening position, milestone position developments, running summary, completed work, slippages and next-period priorities.
+- Include or exclude individual Issues and add an optional covering note.
+- Independently include opening position, dated developments, the latest running summary available by period end, and next-period priorities.
+- Limit a report to an owning division while retaining the user's existing Issue-access boundary.
+- Review automatic deadline, allocation and stage observations.
+- Include or omit current-position text, print a clean report and download an editable Microsoft Word `.docx` file.
+- Export period activity as CSV for register-style analysis.
+- Optionally improve report structure through LM Studio or an administrator-enabled Cloud API while retaining the deterministic source report for verification.
+- Recheck access to every included Issue before Cloud AI receives report context and log report usage without storing report text in the AI log.
+
+See [REPORTING_MODULE.md](REPORTING_MODULE.md) for the phased path to weekly/monthly activity reports, optional AI refinement and governed recurring distribution.
+
 ### Accounts and administration
 
 - Register and sign in through Neon Auth.
@@ -242,7 +259,7 @@ lms server start --cors
 
 Only the context selected in the AI Context workspace is sent to LM Studio. It remains on that laptop unless LM Studio itself has been configured to expose the server elsewhere. Stop the server when it is not needed and do not bind it to a wider network without authentication.
 
-For cloud drafting, deploy the Vercel functions, apply migration `008_cloud_ai.sql`, add a server-only provider key, and enable that provider from Administration. Enter current provider token rates there when estimated-cost tracking is required.
+For cloud drafting, deploy the Vercel functions, apply migration `008_cloud_ai.sql`, add a server-only provider key, and enable that provider from Administration. Cloud report refinement additionally requires migrations `017_cloud_ai_report_operation.sql` and `018_report_permission_hardening.sql`. Enter current provider token rates there when estimated-cost tracking is required.
 
 ## Backup and Recovery
 
@@ -282,7 +299,7 @@ src/components/issues/     Issue workspace, history, records and AI context
 src/db/                    Dexie schema and local repositories
 src/features/auth/         Neon Auth and account integration
 src/features/cloud/        Issue and officer cloud reconciliation
-src/pages/                 Register, Issue, Settings, Help and Administration pages
+src/pages/                 Register, Issue, Reports, Settings, Help and Administration pages
 src/services/              LM Studio client and drafting requests
 ```
 
@@ -292,7 +309,8 @@ src/services/              LM Studio client and drafting requests
 - Reminder recipients are active workspace members; the officer directory is not yet mapped to individual user accounts.
 - Email delivery requires separate Resend configuration and a verified sending domain.
 - Cloud AI must be deployed on Vercel and configured with at least one server-side provider key before it becomes available to users.
-- Generated drafts have saved versions, but approval states and document export are not implemented yet.
+- Generated drafts have saved versions and Word-compatible export, but formal approval states are not implemented yet.
+- Reports provide operational snapshots, period-based activity and optional Local LLM or Cloud API refinement. Scheduled and governed distribution remains planned.
 - Workspace creation and delegated Workspace Administrator controls are not fully exposed in the UI.
 - Operational Issue changes do not yet have a complete actor-attributed cloud audit trail.
 - Automated test coverage and production monitoring still need to be added.

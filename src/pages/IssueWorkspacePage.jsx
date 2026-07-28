@@ -99,7 +99,7 @@ export default function IssueWorkspacePage() {
         draft: {
           status: issue.status,
           assignedOfficerId: issue.assignedOfficerId || '',
-          currentPosition: issue.currentPosition || '',
+          currentPosition: '',
           recurrenceType: issue.recurrenceType || '',
           nextAppearanceDate: issue.nextAppearanceDate || '',
           recurrenceAnchorDay: issue.recurrenceAnchorDay || null,
@@ -134,6 +134,7 @@ export default function IssueWorkspacePage() {
       const saved = await updateIssuePosition(issueId, {
         ...state.issue,
         ...state.draft,
+        positionNote: state.draft.currentPosition,
         assignedOn: assignmentChanged ? (state.draft.assignedOfficerId ? todayISO() : '') : state.issue.assignedOn,
       });
       const [milestones, milestoneCount] = await Promise.all([
@@ -146,7 +147,7 @@ export default function IssueWorkspacePage() {
         draft: {
           status: saved.status,
           assignedOfficerId: saved.assignedOfficerId || '',
-          currentPosition: saved.currentPosition || '',
+          currentPosition: '',
           recurrenceType: saved.recurrenceType || '',
           nextAppearanceDate: saved.nextAppearanceDate || '',
           recurrenceAnchorDay: saved.recurrenceAnchorDay || null,
@@ -378,7 +379,7 @@ export default function IssueWorkspacePage() {
           versions={state.summaryVersions}
           expanded={state.summariesExpanded}
           loading={state.loadingSummaries}
-          currentPosition={draft.currentPosition}
+          currentPosition={issue.currentPosition}
           readOnly={!canEditIssue}
           onSave={saveRunningSummary}
           onDelete={(item) => setState((current) => ({ ...current, deleteTarget: { kind: 'summary', item } }))}
@@ -425,7 +426,7 @@ function CurrentPositionTab({ issue, officers, draft, dirty, saveStatus, operati
           <Select label="Stage" value={draft.status} options={ISSUE_STATUSES} onChange={(value) => onUpdate('status', value)} />
           <div><AdaptiveSelect label="Assigned officer" value={draft.assignedOfficerId} onChange={(value) => onUpdate('assignedOfficerId', value)} options={officers.map((officer) => ({ value: officer.id, label: officer.designation ? `${officer.name} - ${officer.designation}` : officer.name }))} placeholder="Not assigned" />{!officers.length && <Link to="/settings" className="mt-1 block text-xs font-semibold text-teal-700 hover:underline">Add officers in Settings</Link>}</div>
         </div>
-        <label className="mt-4 block"><span className="mb-1 block text-sm font-medium text-slate-700">Notes / current position</span><textarea value={draft.currentPosition} onChange={(event) => onUpdate('currentPosition', event.target.value)} rows={6} placeholder="Record the latest position, internal sub-stage or anything the next person needs to know." className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm leading-6 text-slate-900" /></label>
+        <label className="mt-4 block"><span className="mb-1 block text-sm font-medium text-slate-700">Add position note</span><textarea value={draft.currentPosition} onChange={(event) => onUpdate('currentPosition', event.target.value)} rows={6} placeholder="Record the next update, internal sub-stage or anything the next person needs to know." className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm leading-6 text-slate-900" /></label>
         <details className="mt-4 rounded-md border border-slate-200 bg-slate-50">
           <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-3 text-sm font-semibold text-slate-700"><CalendarClock className="h-4 w-4 text-cyan-700" />Schedule return <span className="font-normal text-slate-500">(optional)</span></summary>
           <div className="grid gap-3 border-t border-slate-200 px-3 py-3 sm:grid-cols-2">

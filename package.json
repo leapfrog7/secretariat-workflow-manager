@@ -26,6 +26,7 @@
     "@vitejs/plugin-react": "latest",
     "date-fns": "latest",
     "dexie": "latest",
+    "docx": "^9.7.1",
     "lucide-react": "0.555.0",
     "pg": "^8.22.0",
     "react": "latest",
@@ -35,5 +36,8 @@
     "remark-gfm": "^4.0.1",
     "tailwindcss": "latest",
     "vite": "8.1.4"
+  },
+  "devDependencies": {
+    "jszip": "^3.10.1"
   }
 }

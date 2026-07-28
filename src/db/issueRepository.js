@@ -14,6 +14,7 @@ import { normalizeIssueSummary } from '../utils/summaryUtils';
 import { normalizeDraft } from '../utils/draftUtils';
 import { addChronologyEvent } from './chronologyRepository';
 import { calculateNextAppearance, isScheduledIssue } from '../utils/scheduleUtils';
+import { resolvePositionUpdate } from '../utils/positionUpdateUtils';
 import { queueCloudIssueDelete, queueCloudIssueUpsert } from '../features/cloud/cloudIssueSync';
 import { queueCloudIssueItemUpsert } from '../features/cloud/cloudIssueItemSync';
 
@@ -154,9 +155,11 @@ export async function updateIssuePosition(id, input) {
     if (!existingRaw) throw new Error('Issue not found.');
     const existing = normalizeIssue(existingRaw);
     const now = new Date().toISOString();
+    const positionUpdate = resolvePositionUpdate(existing, input);
     let prepared = normalizeIssue({
       ...existing,
       ...input,
+      currentPosition: positionUpdate.currentPosition,
       id,
       isDemo: existing.isDemo,
       createdAt: existing.createdAt,
@@ -182,7 +185,7 @@ export async function updateIssuePosition(id, input) {
     const becameScheduled = issue.isScheduled && !existing.isScheduled;
     const changed = issue.status !== existing.status ||
       issue.assignedOfficerId !== existing.assignedOfficerId ||
-      issue.currentPosition !== existing.currentPosition ||
+      positionUpdate.hasPositionNote ||
       issue.isScheduled !== existing.isScheduled;
     await db.issues.put(issue);
     if (changed) {
@@ -193,7 +196,7 @@ export async function updateIssuePosition(id, input) {
         status: issue.status,
         assignedOfficerId: issue.assignedOfficerId,
         assignedOfficerName: officer?.name || '',
-        note: issue.currentPosition,
+        note: positionUpdate.milestoneNote,
         recordedAt: issue.updatedAt,
         createdAt: issue.updatedAt,
       }));

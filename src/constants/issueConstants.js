@@ -181,6 +181,7 @@ export const ROUTES = {
   dashboard: '/',
   issues: '/issues',
   newIssue: '/issues/new',
+  reports: '/reports',
   settings: '/settings',
   review: '/review',
 };

@@ -41,6 +41,13 @@ export async function saveSummaryVersion(input) {
   return result;
 }
 
+export async function getAllSummaryVersions() {
+  const summaries = await db.issueSummaries.toArray();
+  return summaries
+    .map(normalizeIssueSummary)
+    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+}
+
 export async function deleteSummaryVersion(id) {
   const summary = await db.issueSummaries.get(id);
   if (!summary) return false;

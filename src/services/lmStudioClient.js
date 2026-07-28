@@ -1,5 +1,6 @@
 import { DEFAULT_LOCAL_AI_SETTINGS } from '../constants/issueConstants';
 import { buildGovernmentDraftPrompt, COMMUNICATION_TYPES, constrainConservativeBody, formatGovernmentCommunication } from '../utils/governmentDraftUtils';
+import { buildReportRefinementInput, normalizeReportRefinement, REPORT_REFINEMENT_SYSTEM_PROMPT } from '../utils/reportAIUtils';
 
 export { COMMUNICATION_TYPES };
 
@@ -159,4 +160,32 @@ export async function summarizeLocalNotes({ settings, notes, issueTitle, signal 
     .trim();
   if (!text) throw new Error('LM Studio returned no summary text.');
   return { text, model: payload.model_instance_id || config.model, stats: payload.stats || {} };
+}
+
+export async function refineLocalReport({ settings, report, signal }) {
+  const config = normalizeLocalAISettings(settings);
+  if (!config.model) throw new Error('Select a local model in Settings.');
+  const input = buildReportRefinementInput(report);
+  const payload = await request(config.baseUrl, '/api/v1/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    signal,
+    body: JSON.stringify({
+      model: config.model,
+      system_prompt: REPORT_REFINEMENT_SYSTEM_PROMPT,
+      input,
+      temperature: 0.1,
+      stream: false,
+      store: false,
+    }),
+  });
+  const rawText = (payload.output || [])
+    .filter((item) => item.type === 'message' && item.content)
+    .map((item) => item.content)
+    .join('\n\n');
+  return {
+    ...normalizeReportRefinement(rawText, report),
+    model: payload.model_instance_id || config.model,
+    stats: payload.stats || {},
+  };
 }

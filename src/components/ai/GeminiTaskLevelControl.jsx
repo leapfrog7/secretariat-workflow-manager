@@ -26,7 +26,7 @@ export default function GeminiTaskLevelControl({ value, onChange, disabled = fal
                 {selected && <Check className="h-3 w-3" strokeWidth={3} aria-hidden="true" />}
               </span>
               <span className="min-w-0">
-                <span className="block text-xs font-semibold">{level.label}{level.id === 'moderate' ? ' · Default' : ''}</span>
+                <span className="block text-xs font-semibold">{level.label}{level.id === 'moderate' ? ' - Default' : ''}</span>
                 <span className="mt-0.5 block text-xs leading-4 text-slate-500">{level.description}</span>
               </span>
             </button>

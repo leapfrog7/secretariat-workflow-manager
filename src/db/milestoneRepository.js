@@ -11,3 +11,10 @@ export async function getMilestonesByIssue(issueId, { limit } = {}) {
 export async function countMilestonesByIssue(issueId) {
   return db.issueMilestones.where('issueId').equals(issueId).count();
 }
+
+export async function getAllMilestones() {
+  const milestones = await db.issueMilestones.toArray();
+  return milestones
+    .map(normalizeMilestone)
+    .sort((a, b) => new Date(b.recordedAt || 0) - new Date(a.recordedAt || 0));
+}

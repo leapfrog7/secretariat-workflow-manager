@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { neon } from '@neondatabase/serverless';
 
 const PROVIDERS = new Set(['openai', 'gemini']);
-const OPERATIONS = new Set(['draft', 'paragraph']);
+const OPERATIONS = new Set(['draft', 'paragraph', 'report']);
 
 function dataApiUrl() {
   const value = [process.env.NEON_DATA_API_URL, process.env.VITE_NEON_DATA_API_URL]
@@ -51,6 +51,46 @@ export async function reserveCloudAIRequest({ token, workspaceId, issueId, provi
       prompt_size: promptCharacters,
     }),
   });
+  const authorization = Array.isArray(rows) ? rows[0] : rows;
+  if (!authorization?.model) throw Object.assign(new Error('Cloud AI access was not granted.'), { status: 403, code: 'cloud_ai_not_authorized' });
+  return authorization;
+}
+
+export async function reserveCloudAIReportRequest({
+  token,
+  workspaceId,
+  issueIds,
+  provider,
+  requestId,
+  promptCharacters,
+}) {
+  if (!Array.isArray(issueIds) || !issueIds.length || issueIds.length > 200) {
+    throw Object.assign(new Error('Choose between 1 and 200 Issues for Cloud AI report refinement.'), { status: 400, code: 'invalid_request' });
+  }
+  if (!PROVIDERS.has(provider)) {
+    throw Object.assign(new Error('Invalid Cloud AI request.'), { status: 400, code: 'invalid_request' });
+  }
+  let rows;
+  try {
+    rows = await dataApiRequest(token, '/rpc/authorize_cloud_ai_report_request', {
+      method: 'POST',
+      body: JSON.stringify({
+        target_workspace_id: workspaceId,
+        target_issue_ids: [...new Set(issueIds)],
+        selected_provider: provider,
+        request_identifier: requestId,
+        prompt_size: promptCharacters,
+      }),
+    });
+  } catch (error) {
+    if (/Issue report access required/i.test(error.message)) {
+      throw Object.assign(
+        new Error('Access to one or more report Issues is no longer available. Synchronize the workspace and try again.'),
+        { status: 403, code: 'cloud_ai_issue_access_changed' },
+      );
+    }
+    throw error;
+  }
   const authorization = Array.isArray(rows) ? rows[0] : rows;
   if (!authorization?.model) throw Object.assign(new Error('Cloud AI access was not granted.'), { status: 403, code: 'cloud_ai_not_authorized' });
   return authorization;
