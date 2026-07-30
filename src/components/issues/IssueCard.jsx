@@ -5,12 +5,14 @@ import DeadlineIndicator from '../common/DeadlineIndicator';
 import { formatDisplayDate, getIssueAgeDays } from '../../utils/dateUtils';
 import { isScheduledIssue } from '../../utils/scheduleUtils';
 import SourceSearchMatch from './SourceSearchMatch';
+import { getIssuePositionPreview } from '../../utils/issueUtils';
 
 export default function IssueCard({ issue, officers = [], working = false, canEdit = true, showDivision = false, onRestore, onBringBack, onArchive, onDelete }) {
   const navigate = useNavigate();
   const officer = officers.find((item) => item.id === issue.assignedOfficerId);
   const ageDays = getIssueAgeDays(issue);
   const scheduled = isScheduledIssue(issue);
+  const positionPreview = getIssuePositionPreview(issue.currentPosition);
   const openIssue = (event) => {
     if (event.target.closest?.('a, button, input, select, textarea')) return;
     navigate(`/issues/${issue.id}`);
@@ -36,6 +38,10 @@ export default function IssueCard({ issue, officers = [], working = false, canEd
         </div>
       </div>
       <SourceSearchMatch match={issue.searchMatch} />
+      <div className="mt-2 rounded-md bg-slate-50 px-2.5 py-2">
+        <p className="text-[11px] font-semibold uppercase text-slate-500">Present position</p>
+        <p className={`mt-0.5 line-clamp-2 text-xs leading-5 ${positionPreview ? 'text-slate-700' : 'italic text-slate-400'}`} title={issue.currentPosition || undefined}>{positionPreview || 'No position recorded'}</p>
+      </div>
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
         <StatusBadge status={issue.status} />
         <DeadlineIndicator issue={issue} compact />

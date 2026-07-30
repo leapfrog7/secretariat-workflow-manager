@@ -1,11 +1,8 @@
-import { DEFAULT_LOCAL_AI_SETTINGS } from '../constants/issueConstants';
-import { buildGovernmentDraftPrompt, COMMUNICATION_TYPES, constrainConservativeBody, formatGovernmentCommunication } from '../utils/governmentDraftUtils';
-import { buildReportRefinementInput, normalizeReportRefinement, REPORT_REFINEMENT_SYSTEM_PROMPT } from '../utils/reportAIUtils';
+import { DEFAULT_LOCAL_AI_SETTINGS } from '../constants/issueConstants.js';
+import { COMMUNICATION_TYPES } from '../utils/governmentDraftUtils.js';
+import { buildReportRefinementInput, normalizeReportRefinement, REPORT_REFINEMENT_SYSTEM_PROMPT } from '../utils/reportAIUtils.js';
 
 export { COMMUNICATION_TYPES };
-
-export const GOVERNMENT_DRAFT_SYSTEM_PROMPT = 'Draft only the substantive body of an outgoing Government of India official communication for human review. The configured Ministry or Department is the sender and the named organization is the recipient; never reverse them. Every factual phrase must come from the supplied input. Prefer omission over elaboration, use the fewest necessary sentences, and state each request once. Never invent or infer facts, dates, recipients, rules, authorities, decisions, approvals, rationale, protocols, enclosures, availability, report contents, contact instructions, urgency, or distribution lists. Preserve eReceipt numbers and citations exactly. Output body paragraphs only. Do not output headings, labels, subject, salutation, close, signature, recipient, Markdown, preface, explanation, or drafting commentary.';
-export const PARAGRAPH_REWRITE_SYSTEM_PROMPT = 'Rewrite only the selected passage from an outgoing Government of India communication. Preserve its meaning, factual content, dates, names, eReceipt numbers, citations, sender, recipient and level of formality. Do not add facts, headings, signatures, explanations, Markdown or surrounding paragraphs. Return only the replacement passage.';
 export const RUNNING_SUMMARY_SYSTEM_PROMPT = 'Convert the supplied official notes into a concise factual running summary for Government work. Preserve material dates, names, file or eReceipt numbers, decisions, directions, rule citations, deadlines, pending actions and responsibility. Remove repetition, drafting discussion and non-material detail. Never invent facts or resolve uncertainty. Use short paragraphs, bullets and Markdown tables only where a table makes dates, responsibilities or status clearer. Return only the summary in Markdown.';
 
 export function normalizeLocalAISettings(input = {}) {
@@ -32,33 +29,68 @@ function requireLocalBaseUrl(value) {
 
 async function request(baseUrl, path, options = {}) {
   const localBaseUrl = requireLocalBaseUrl(baseUrl);
+  const {
+    timeoutMs = 120000,
+    signal: externalSignal,
+    ...fetchOptions
+  } = options;
   const isHostedLoopbackRequest = typeof window !== 'undefined'
     && window.location.protocol === 'https:'
     && /^http:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/i.test(localBaseUrl);
+  const controller = new AbortController();
+  let timedOut = false;
+  const timeout = globalThis.setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+  const abortFromCaller = () => controller.abort();
+  externalSignal?.addEventListener('abort', abortFromCaller, { once: true });
   let response;
+  let responseText = '';
   try {
     response = await fetch(`${localBaseUrl}${path}`, {
-      ...options,
+      ...fetchOptions,
+      signal: controller.signal,
       ...(isHostedLoopbackRequest ? { targetAddressSpace: 'loopback' } : {}),
     });
+    responseText = await response.text();
   } catch (error) {
-    if (error.name === 'AbortError') throw error;
+    if (timedOut) {
+      throw new Error('LM Studio did not respond in time. Unload and reload the selected model, then test it again in Settings.');
+    }
+    if (externalSignal?.aborted || error.name === 'AbortError') throw error;
     if (isHostedLoopbackRequest) {
       throw new Error('Cannot reach LM Studio from the hosted app. Restart it with "lms server start --cors", then allow localhost access if your browser asks.');
     }
     throw new Error('Cannot reach LM Studio. Confirm that its local server is running.');
+  } finally {
+    globalThis.clearTimeout(timeout);
+    externalSignal?.removeEventListener('abort', abortFromCaller);
   }
-  const payload = await response.json().catch(() => ({}));
+  let payload = {};
+  try {
+    payload = responseText ? JSON.parse(responseText) : {};
+  } catch {
+    payload = {};
+  }
   if (!response.ok) {
     const message = typeof payload.error === 'string' ? payload.error : payload.error?.message || payload.message;
-    throw new Error(message || `LM Studio request failed (${response.status}).`);
+    if (message) throw new Error(message);
+    if (response.status >= 500) {
+      throw new Error(`LM Studio could not run the selected model (${response.status}). Unload and reload that model, then use Test connection in Settings.`);
+    }
+    throw new Error(responseText || `LM Studio request failed (${response.status}).`);
   }
   return payload;
 }
 
 export async function listLMStudioModels(settings, { signal } = {}) {
   const config = normalizeLocalAISettings(settings);
-  const payload = await request(config.baseUrl, '/api/v1/models', { method: 'GET', signal });
+  const payload = await request(config.baseUrl, '/api/v1/models', {
+    method: 'GET',
+    signal,
+    timeoutMs: 15000,
+  });
   return (payload.models || [])
     .filter((model) => model.type === 'llm')
     .map((model) => ({
@@ -67,90 +99,107 @@ export async function listLMStudioModels(settings, { signal } = {}) {
       params: model.params_string || '',
       loaded: Boolean(model.loaded_instances?.length),
       contextLength: model.max_context_length || null,
+      loadedContextLength: model.loaded_instances?.[0]?.config?.context_length || null,
+      reasoningOptions: model.capabilities?.reasoning?.allowed_options || [],
     }));
 }
 
-export async function generateLocalDraft({ settings, context, communicationType, officeProfile, signatory, recipient, recipientRelationship, draftMode = 'conservative', documentDetails = {}, instruction, signal }) {
+async function resolveLoadedModel(config, { signal } = {}) {
+  const models = await listLMStudioModels(config, { signal });
+  if (!models.length) throw new Error('LM Studio did not report any language models.');
+  const loadedModels = models.filter((model) => model.loaded);
+  const selected = models.find((model) => model.id === config.model);
+  if (selected?.loaded) return { model: selected, models };
+  if (loadedModels.length === 1) return { model: loadedModels[0], models };
+  if (!loadedModels.length) {
+    throw new Error('No language model is loaded in LM Studio. Load one, then use Test connection in Settings.');
+  }
+  if (selected) {
+    throw new Error(`${selected.name} is downloaded but not loaded. Load it in LM Studio or select another loaded model.`);
+  }
+  throw new Error('The saved model is no longer selected. Choose one of the loaded models in Settings.');
+}
+
+export function estimateLocalPromptTokens(systemPrompt, input) {
+  const characters = String(systemPrompt || '').length + String(input || '').length;
+  return Math.ceil(characters / 3);
+}
+
+function assertPromptFitsModel(model, systemPrompt, input, maxOutputTokens) {
+  const contextLength = model.loadedContextLength || model.contextLength;
+  if (!contextLength) return;
+  const estimatedInputTokens = estimateLocalPromptTokens(systemPrompt, input);
+  const reservedTokens = maxOutputTokens + 512;
+  if (estimatedInputTokens + reservedTokens <= contextLength) return;
+  const availableInputTokens = Math.max(0, contextLength - reservedTokens);
+  throw new Error(
+    `The selected AI context is too large for ${model.name}'s ${contextLength.toLocaleString()}-token loaded context `
+    + `(about ${estimatedInputTokens.toLocaleString()} input tokens; ${availableInputTokens.toLocaleString()} available). `
+    + 'Deselect unnecessary communications or references, shorten the running summary, or turn off selected Issue context before trying again.',
+  );
+}
+
+async function requestLocalChat({
+  settings,
+  systemPrompt,
+  input,
+  maxOutputTokens,
+  timeoutMs = 180000,
+  signal,
+}) {
   const config = normalizeLocalAISettings(settings);
   if (!config.model) throw new Error('Select a local model in Settings.');
-  if (!context?.trim()) throw new Error('The AI context is empty.');
-  if (!signatory?.name) throw new Error('Select an authorized signatory before generating the draft.');
-  const input = buildGovernmentDraftPrompt({ communicationType, officeProfile, signatory, recipient, recipientRelationship, draftMode, context, instruction });
+  const resolved = await resolveLoadedModel(config, { signal });
+  assertPromptFitsModel(resolved.model, systemPrompt, input, maxOutputTokens);
   const payload = await request(config.baseUrl, '/api/v1/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     signal,
+    timeoutMs,
     body: JSON.stringify({
-      model: config.model,
-      system_prompt: GOVERNMENT_DRAFT_SYSTEM_PROMPT,
+      model: resolved.model.id,
+      system_prompt: systemPrompt,
       input,
       temperature: 0.1,
+      max_output_tokens: maxOutputTokens,
+      ...(resolved.model.reasoningOptions.includes('off') ? { reasoning: 'off' } : {}),
       stream: false,
       store: false,
     }),
   });
-  const body = (payload.output || [])
+  return { payload, ...resolved };
+}
+
+export async function testLMStudioModel(settings, { signal } = {}) {
+  const result = await requestLocalChat({
+    settings,
+    systemPrompt: 'Follow the instruction exactly.',
+    input: 'Reply with only: READY',
+    maxOutputTokens: 8,
+    timeoutMs: 60000,
+    signal,
+  });
+  const text = (result.payload.output || [])
     .filter((item) => item.type === 'message' && item.content)
     .map((item) => item.content)
-    .join('\n\n')
+    .join('\n')
     .trim();
-  if (!body) throw new Error('LM Studio returned no draft text.');
+  if (!text) throw new Error('The loaded model connected but returned no test response.');
   return {
-    text: formatGovernmentCommunication({ communicationType, officeProfile, signatory, recipient, ...documentDetails, body: draftMode === 'conservative' ? constrainConservativeBody(body) : body }),
-    model: payload.model_instance_id || config.model,
-    stats: payload.stats || {},
+    models: result.models,
+    model: result.model,
+    response: text,
   };
 }
 
-export async function regenerateLocalParagraph({ settings, fullDraft, selectedText, context, communicationType, instruction, signal }) {
-  const config = normalizeLocalAISettings(settings);
-  if (!config.model) throw new Error('Select a local model in Settings.');
-  if (!selectedText?.trim()) throw new Error('Select one paragraph in the draft first.');
-  const payload = await request(config.baseUrl, '/api/v1/chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    signal,
-    body: JSON.stringify({
-      model: config.model,
-      system_prompt: PARAGRAPH_REWRITE_SYSTEM_PROMPT,
-      input: [
-        `COMMUNICATION TYPE\n${communicationType}`,
-        `ORIGINAL DRAFT FOR CONTEXT\n${fullDraft}`,
-        `SELECTED PASSAGE TO REWRITE\n${selectedText}`,
-        `ORIGINAL DRAFTING BRIEF\n${instruction || 'No additional brief.'}`,
-        `RELEVANT ISSUE CONTEXT\n${context || 'No additional context supplied.'}`,
-      ].join('\n\n'),
-      temperature: 0.1,
-      stream: false,
-      store: false,
-    }),
-  });
-  const text = (payload.output || [])
-    .filter((item) => item.type === 'message' && item.content)
-    .map((item) => item.content)
-    .join('\n\n')
-    .replace(/```(?:text)?/gi, '')
-    .trim();
-  if (!text) throw new Error('LM Studio returned no replacement paragraph.');
-  return { text, model: payload.model_instance_id || config.model, stats: payload.stats || {} };
-}
-
 export async function summarizeLocalNotes({ settings, notes, issueTitle, signal }) {
-  const config = normalizeLocalAISettings(settings);
-  if (!config.model) throw new Error('Select a local model in Settings.');
   if (!notes?.trim()) throw new Error('Add notes before asking AI to summarize them.');
-  const payload = await request(config.baseUrl, '/api/v1/chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+  const { payload, model } = await requestLocalChat({
+    settings,
+    systemPrompt: RUNNING_SUMMARY_SYSTEM_PROMPT,
+    input: `ISSUE\n${issueTitle || 'Not specified'}\n\nSOURCE NOTES\n${notes}`,
+    maxOutputTokens: 1400,
     signal,
-    body: JSON.stringify({
-      model: config.model,
-      system_prompt: RUNNING_SUMMARY_SYSTEM_PROMPT,
-      input: `ISSUE\n${issueTitle || 'Not specified'}\n\nSOURCE NOTES\n${notes}`,
-      temperature: 0.1,
-      stream: false,
-      store: false,
-    }),
   });
   const text = (payload.output || [])
     .filter((item) => item.type === 'message' && item.content)
@@ -159,25 +208,38 @@ export async function summarizeLocalNotes({ settings, notes, issueTitle, signal 
     .replace(/```(?:markdown|md)?/gi, '')
     .trim();
   if (!text) throw new Error('LM Studio returned no summary text.');
-  return { text, model: payload.model_instance_id || config.model, stats: payload.stats || {} };
+  return { text, model: payload.model_instance_id || model.id, stats: payload.stats || {} };
+}
+
+export async function requestLocalDraftAI({ settings, operation = 'draft', instructions, input, signal }) {
+  const { payload, model } = await requestLocalChat({
+    settings,
+    systemPrompt: instructions,
+    input,
+    maxOutputTokens: operation === 'paragraph' ? 700 : 1000,
+    signal,
+  });
+  const text = (payload.output || [])
+    .filter((item) => item.type === 'message' && item.content)
+    .map((item) => item.content)
+    .join('\n\n')
+    .trim();
+  if (!text) throw new Error('LM Studio returned no draft text.');
+  return {
+    text,
+    model: payload.model_instance_id || model.id,
+    stats: payload.stats || {},
+  };
 }
 
 export async function refineLocalReport({ settings, report, signal }) {
-  const config = normalizeLocalAISettings(settings);
-  if (!config.model) throw new Error('Select a local model in Settings.');
   const input = buildReportRefinementInput(report);
-  const payload = await request(config.baseUrl, '/api/v1/chat', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+  const { payload, model } = await requestLocalChat({
+    settings,
+    systemPrompt: REPORT_REFINEMENT_SYSTEM_PROMPT,
+    input,
+    maxOutputTokens: 3000,
     signal,
-    body: JSON.stringify({
-      model: config.model,
-      system_prompt: REPORT_REFINEMENT_SYSTEM_PROMPT,
-      input,
-      temperature: 0.1,
-      stream: false,
-      store: false,
-    }),
   });
   const rawText = (payload.output || [])
     .filter((item) => item.type === 'message' && item.content)
@@ -185,7 +247,7 @@ export async function refineLocalReport({ settings, report, signal }) {
     .join('\n\n');
   return {
     ...normalizeReportRefinement(rawText, report),
-    model: payload.model_instance_id || config.model,
+    model: payload.model_instance_id || model.id,
     stats: payload.stats || {},
   };
 }

@@ -1,6 +1,5 @@
 import { cloudClient } from '../features/auth/cloudClient';
-import { buildGovernmentDraftPrompt, constrainConservativeBody, formatGovernmentCommunication } from '../utils/governmentDraftUtils';
-import { GOVERNMENT_DRAFT_SYSTEM_PROMPT, PARAGRAPH_REWRITE_SYSTEM_PROMPT, RUNNING_SUMMARY_SYSTEM_PROMPT } from './lmStudioClient';
+import { RUNNING_SUMMARY_SYSTEM_PROMPT } from './lmStudioClient';
 import { buildReportRefinementInput, normalizeReportRefinement, REPORT_REFINEMENT_SYSTEM_PROMPT } from '../utils/reportAIUtils';
 
 function apiUrl(path) {
@@ -59,34 +58,6 @@ async function generate({ workspaceId, issueId, issueIds, provider, taskLevel, o
   });
 }
 
-export async function generateCloudDraft({ workspaceId, issueId, provider, taskLevel, context, communicationType, officeProfile, signatory, recipient, recipientRelationship, draftMode = 'conservative', documentDetails = {}, instruction, signal }) {
-  if (!workspaceId) throw new Error('An active cloud workspace is required.');
-  const input = buildGovernmentDraftPrompt({ communicationType, officeProfile, signatory, recipient, recipientRelationship, draftMode, context, instruction });
-  const payload = await generate({ workspaceId, issueId, provider, taskLevel, operation: 'draft', instructions: GOVERNMENT_DRAFT_SYSTEM_PROMPT, input, signal });
-  const body = String(payload.text || '').trim();
-  if (!body) throw new Error('Cloud AI returned no draft text.');
-  return {
-    text: formatGovernmentCommunication({ communicationType, officeProfile, signatory, recipient, ...documentDetails, body: draftMode === 'conservative' ? constrainConservativeBody(body) : body }),
-    model: `${payload.provider}: ${payload.model}`,
-    stats: payload.usage || {},
-  };
-}
-
-export async function regenerateCloudParagraph({ workspaceId, issueId, provider, taskLevel, fullDraft, selectedText, context, communicationType, instruction, signal }) {
-  if (!workspaceId) throw new Error('An active cloud workspace is required.');
-  const input = [
-    `COMMUNICATION TYPE\n${communicationType}`,
-    `ORIGINAL DRAFT FOR CONTEXT\n${fullDraft}`,
-    `SELECTED PASSAGE TO REWRITE\n${selectedText}`,
-    `ORIGINAL DRAFTING BRIEF\n${instruction || 'No additional brief.'}`,
-    `RELEVANT ISSUE CONTEXT\n${context || 'No additional context supplied.'}`,
-  ].join('\n\n');
-  const payload = await generate({ workspaceId, issueId, provider, taskLevel, operation: 'paragraph', instructions: PARAGRAPH_REWRITE_SYSTEM_PROMPT, input, signal });
-  const text = String(payload.text || '').replace(/```(?:text)?/gi, '').trim();
-  if (!text) throw new Error('Cloud AI returned no replacement paragraph.');
-  return { text, model: `${payload.provider}: ${payload.model}`, stats: payload.usage || {} };
-}
-
 export async function summarizeCloudNotes({ workspaceId, issueId, provider, taskLevel, notes, issueTitle, signal }) {
   if (!workspaceId) throw new Error('An active cloud workspace is required.');
   if (!notes?.trim()) throw new Error('Add notes before asking AI to summarize them.');
@@ -97,6 +68,36 @@ export async function summarizeCloudNotes({ workspaceId, issueId, provider, task
   const text = String(payload.text || '').replace(/```(?:markdown|md)?/gi, '').trim();
   if (!text) throw new Error('Cloud AI returned no summary text.');
   return { text, model: `${payload.provider}: ${payload.model}`, stats: payload.usage || {} };
+}
+
+export async function requestCloudDraftAI({
+  workspaceId,
+  issueId,
+  provider,
+  taskLevel,
+  operation,
+  instructions,
+  input,
+  signal,
+}) {
+  if (!workspaceId) throw new Error('An active cloud workspace is required.');
+  const payload = await generate({
+    workspaceId,
+    issueId,
+    provider,
+    taskLevel,
+    operation,
+    instructions,
+    input,
+    signal,
+  });
+  const text = String(payload.text || '').trim();
+  if (!text) throw new Error('Cloud AI returned no draft text.');
+  return {
+    text,
+    model: `${payload.provider}: ${payload.model}`,
+    stats: payload.usage || {},
+  };
 }
 
 export async function refineCloudReport({ workspaceId, provider, taskLevel, report, signal }) {

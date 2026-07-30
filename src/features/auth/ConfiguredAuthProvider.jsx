@@ -6,6 +6,7 @@ import { configureCloudIssueSync, syncWorkspaceIssues } from '../cloud/cloudIssu
 import { configureCloudOfficerSync, syncWorkspaceOfficers } from '../cloud/cloudOfficerSync';
 import { configureCloudIssueItemSync, syncWorkspaceIssueItems } from '../cloud/cloudIssueItemSync';
 import { configureCloudSettingsSync, syncWorkspaceSettings } from '../cloud/cloudSettingsSync';
+import { configureParagraphBankSync, syncParagraphBank } from '../drafting/paragraphBank/paragraphBankSync';
 import { ensurePlatformWorkspace, listMyWorkspaces } from '../cloud/workspaceApi';
 import { commitLocalWorkspaceScope, prepareLocalWorkspaceScope } from '../cloud/localWorkspaceScope';
 import { canEditWorkspace } from '../../utils/accessUtils';
@@ -17,7 +18,16 @@ async function synchronizeWorkspace(configuration) {
   const issues = await syncWorkspaceIssues(linkedConfiguration);
   const items = await syncWorkspaceIssueItems(linkedConfiguration);
   const settings = await syncWorkspaceSettings(linkedConfiguration);
-  const result = { officers, issues, items, settings, syncedAt: new Date().toISOString() };
+  let paragraphBank;
+  try {
+    paragraphBank = await syncParagraphBank(linkedConfiguration);
+  } catch (error) {
+    paragraphBank = {
+      available: false,
+      error: error.message || 'Paragraph Bank synchronization is temporarily unavailable.',
+    };
+  }
+  const result = { officers, issues, items, settings, paragraphBank, syncedAt: new Date().toISOString() };
   commitLocalWorkspaceScope(configuration);
   if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('swm:workspace-synced', { detail: result }));
   return result;
@@ -64,6 +74,7 @@ export default function ConfiguredAuthProvider({ children }) {
       configureCloudOfficerSync(null);
       configureCloudIssueItemSync(null);
       configureCloudSettingsSync(null);
+      configureParagraphBankSync(null);
       setWorkspaceState({ userId: '', workspaces: [], workspace: null, loading: false, error: '', syncState: { status: 'idle', error: '', syncedAt: '' } });
       return undefined;
     }
@@ -86,7 +97,7 @@ export default function ConfiguredAuthProvider({ children }) {
           const onStatus = (syncState) => {
             if (active) setWorkspaceState((current) => ({ ...current, syncState: { error: '', syncedAt: '', ...syncState } }));
           };
-          await synchronizeWorkspace({ workspaceId: workspace.id, userId, canEdit, canManageOfficerDirectory, divisionAccessEnabled: Boolean(workspace.division_access_enabled), onStatus });
+          await synchronizeWorkspace({ workspaceId: workspace.id, userId, canEdit, canManageOfficerDirectory, isWorkspaceAdmin: canManageOfficerDirectory, divisionAccessEnabled: Boolean(workspace.division_access_enabled), onStatus });
           if (!active) return;
         }
         if (active) setWorkspaceState((current) => ({ ...current, userId, workspaces, workspace, loading: false, error: '' }));
@@ -102,6 +113,7 @@ export default function ConfiguredAuthProvider({ children }) {
       configureCloudOfficerSync(null);
       configureCloudIssueItemSync(null);
       configureCloudSettingsSync(null);
+      configureParagraphBankSync(null);
     };
   }, [profileState.profile, profileState.userId, userId]);
 
@@ -118,11 +130,12 @@ export default function ConfiguredAuthProvider({ children }) {
     const workspace = workspaces[0] || null;
     setWorkspaceState((current) => ({ ...current, userId, workspaces, workspace, error: '' }));
     if (workspace) {
-      const configuration = { workspaceId: workspace.id, userId, canEdit: canEditWorkspace(profileState.profile, workspace), canManageOfficerDirectory: workspace.membership?.role === 'workspace_admin', divisionAccessEnabled: Boolean(workspace.division_access_enabled), onStatus: (syncState) => setWorkspaceState((current) => ({ ...current, syncState: { error: '', syncedAt: '', ...syncState } })) };
+      const configuration = { workspaceId: workspace.id, userId, canEdit: canEditWorkspace(profileState.profile, workspace), canManageOfficerDirectory: workspace.membership?.role === 'workspace_admin', isWorkspaceAdmin: workspace.membership?.role === 'workspace_admin', divisionAccessEnabled: Boolean(workspace.division_access_enabled), onStatus: (syncState) => setWorkspaceState((current) => ({ ...current, syncState: { error: '', syncedAt: '', ...syncState } })) };
       configureCloudIssueSync(configuration);
       configureCloudOfficerSync(configuration);
       configureCloudIssueItemSync(configuration);
       configureCloudSettingsSync(configuration);
+      configureParagraphBankSync(configuration);
     }
     return workspaces;
   }
@@ -135,6 +148,7 @@ export default function ConfiguredAuthProvider({ children }) {
       userId,
       canEdit: canEditWorkspace(profileState.profile, workspace),
       canManageOfficerDirectory: workspace.membership?.role === 'workspace_admin',
+      isWorkspaceAdmin: workspace.membership?.role === 'workspace_admin',
       divisionAccessEnabled: Boolean(workspace.division_access_enabled),
       onStatus: (syncState) => setWorkspaceState((current) => ({ ...current, syncState: { error: '', syncedAt: '', ...syncState } })),
     };

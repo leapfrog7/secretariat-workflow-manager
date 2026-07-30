@@ -1,17 +1,7 @@
-import { DEFAULT_OFFICE_PROFILE } from '../constants/issueConstants.js';
+import { DEFAULT_DRAFT_DOCUMENT_STYLE, DEFAULT_OFFICE_PROFILE } from '../constants/issueConstants.js';
+import { COMMUNICATION_TYPES, getDraftTemplate } from '../features/drafting/templates/templateRegistry.js';
 
-export const COMMUNICATION_TYPES = [
-  'Letter',
-  'D.O. Letter',
-  'Office Memorandum',
-  'Office Order',
-  'Order',
-  'Inter-Departmental Note',
-  'Notification',
-  'Resolution',
-  'Press Communique / Note',
-  'Endorsement',
-];
+export { COMMUNICATION_TYPES };
 
 export const RECIPIENT_RELATIONSHIPS = [
   'Another Ministry / Department',
@@ -22,24 +12,15 @@ export const RECIPIENT_RELATIONSHIPS = [
   'Internal officer / section',
 ];
 
-const FORMAT_CONTRACTS = {
-  Letter: 'Write as the issuing Ministry to the named recipient. Use formal institutional prose, normally beginning with a reference or "I am directed to" where supported.',
-  'D.O. Letter': 'Write in the signatory officer\'s first-person voice to the addressee, with a courteous and personal official tone. Do not add the salutation, regards, or close.',
-  'Office Memorandum': 'Write in impersonal institutional prose. "The undersigned is directed to" may be used where appropriate. Do not use a salutation or complimentary close.',
-  'Office Order': 'State the internal administrative direction precisely. Use numbered paragraphs when there is more than one operative point.',
-  Order: 'State only the supplied authority, sanction, or operative decision. Never invent a rule, delegation, Presidential sanction, or approval.',
-  'Inter-Departmental Note': 'Set out the issue in numbered paragraphs and end with the precise advice, concurrence, information, or action sought from the recipient Department.',
-  Notification: 'Draft only the operative Gazette notification text. Never invent an appointment, statutory power, effective date, or Gazette classification.',
-  Resolution: 'Draft only the resolution text based on supplied authority and decisions. Do not invent constitutional provisions, Presidential approval, or publication directions.',
-  'Press Communique / Note': 'Draft factual public-information paragraphs in neutral institutional language. Do not add publicity claims, quotations, embargoes, or policy rationale.',
-  Endorsement: 'Draft a single concise forwarding sentence stating whether the enclosed papers are sent for information, necessary action, or both, exactly as instructed.',
-};
-
 export function normalizeOfficeProfile(input = {}) {
   return {
     ...DEFAULT_OFFICE_PROFILE,
     ...input,
     authorizedSignatoryIds: Array.isArray(input.authorizedSignatoryIds) ? [...new Set(input.authorizedSignatoryIds.filter(Boolean))] : [],
+    documentStyle: {
+      ...DEFAULT_DRAFT_DOCUMENT_STYLE,
+      ...(input.documentStyle || {}),
+    },
   };
 }
 
@@ -54,7 +35,7 @@ export function buildGovernmentDraftPrompt({ communicationType, officeProfile, s
     `COMMUNICATION TYPE\n${communicationType}`,
     `RECIPIENT RELATIONSHIP\n${recipientRelationship || '[RELATIONSHIP NOT SPECIFIED]'}`,
     `AUTHORIZED SIGNATORY\n${[signatory?.name, signatory?.designation].filter(Boolean).join('\n') || '[AUTHORIZED SIGNATORY]'}`,
-    `FORM-SPECIFIC BODY RULE\n${FORMAT_CONTRACTS[communicationType] || FORMAT_CONTRACTS.Letter}`,
+    `FORM-SPECIFIC BODY RULE\n${getDraftTemplate(communicationType).bodyInstruction}`,
     `DRAFTING MODE\n${draftMode === 'detailed' ? 'Detailed context mode: use relevant supplied context, but do not infer beyond it.' : 'Conservative mode: restate the purpose/requested action in one concise substantive paragraph. Do not add a second request, explanation, background inference, or courtesy paragraph.'}`,
     `MINISTRY HOUSE STYLE\n${profile.houseStyleNotes?.trim() || 'No additional house-style instruction.'}`,
     'FACT DISCIPLINE\nEvery factual phrase must be traceable to ISSUE CONTEXT, PURPOSE / REQUESTED ACTION, or the configured sender and recipient above. Prefer omission over elaboration. Use the minimum sentences needed and state each request only once. Do not add generic importance, benefits, protocol, urgency, report contents, contact instructions, approvals, legal authority, enclosures, availability of records, or distribution. Do not say that a document is attached, enclosed, or available unless that fact is supplied. Preserve eReceipt numbers, dates, amounts, names, and citations exactly. Use [DETAIL REQUIRED] only when a missing fact is essential to the body.',
@@ -65,7 +46,11 @@ export function buildGovernmentDraftPrompt({ communicationType, officeProfile, s
   ].join('\n\n');
 }
 
-export function formatGovernmentCommunication({ communicationType, officeProfile, signatory, recipient, subject, fileNumber, issueDate, salutation, copyTo, body }) {
+function communicationBlock(role, content) {
+  return content ? { role, content } : null;
+}
+
+export function buildGovernmentCommunicationBlocks({ communicationType, officeProfile, signatory, recipient, subject, fileNumber, issueDate, salutation, copyTo, body }) {
   const profile = normalizeOfficeProfile(officeProfile);
   const heading = formatOfficeHeading(profile);
   const number = clean(fileNumber) || '[COMMUNICATION NUMBER]';
@@ -79,100 +64,154 @@ export function formatGovernmentCommunication({ communicationType, officeProfile
 
   switch (communicationType) {
     case 'D.O. Letter':
-      return joinBlocks(
-        formatSenderIdentity(signatory),
-        `D.O. No. ${number}\n\n${heading}\n\n${dateLine}`,
-        `${clean(salutation) || `Dear ${recipientName || '[ADDRESSEE NAME]'}`},`,
-        content,
-        `With regards,\n\nYours sincerely,\n\n(${clean(signatory?.name) || '[SIGNATORY NAME]'})`,
-        recipientBlock,
-      );
+      return [
+        communicationBlock('senderIdentity', formatSenderIdentity(signatory)),
+        communicationBlock('communicationNumber', `D.O. No. ${number}`),
+        communicationBlock('officeHeading', heading),
+        communicationBlock('date', dateLine),
+        communicationBlock('salutation', `${clean(salutation) || `Dear ${recipientName || '[ADDRESSEE NAME]'}`},`),
+        communicationBlock('body', content),
+        communicationBlock('complimentaryClose', `With regards,\n\nYours sincerely,\n\n(${clean(signatory?.name) || '[SIGNATORY NAME]'})`),
+        communicationBlock('recipient', recipientBlock),
+      ].filter(Boolean);
     case 'Office Memorandum':
-      return joinBlocks(
-        `No. ${number}\n${heading}\n\n${dateLine}`,
-        'OFFICE MEMORANDUM',
-        `Subject: ${subjectLine}`,
-        content,
-        signature,
-        `To\n${recipientBlock}`,
-        copies && `Copy to:\n${copies}`,
-      );
+      return [
+        communicationBlock('communicationNumber', `No. ${number}`),
+        communicationBlock('officeHeading', heading),
+        communicationBlock('date', dateLine),
+        communicationBlock('documentTitle', 'OFFICE MEMORANDUM'),
+        communicationBlock('subject', `Subject: ${subjectLine}`),
+        communicationBlock('body', content),
+        communicationBlock('signature', signature),
+        communicationBlock('recipient', `To\n${recipientBlock}`),
+        communicationBlock('copyList', copies && `Copy to:\n${copies}`),
+      ].filter(Boolean);
     case 'Office Order':
-      return joinBlocks(
-        `No. ${number}\n${heading}\n\n${dateLine}`,
-        'OFFICE ORDER',
-        content,
-        `-Sd/-\n${signature}`,
-        copies && `Copy to:-\n${copies}`,
-      );
+      return [
+        communicationBlock('communicationNumber', `No. ${number}`),
+        communicationBlock('officeHeading', heading),
+        communicationBlock('date', dateLine),
+        communicationBlock('documentTitle', 'OFFICE ORDER'),
+        communicationBlock('body', content),
+        communicationBlock('signature', `-Sd/-\n${signature}`),
+        communicationBlock('copyList', copies && `Copy to:-\n${copies}`),
+      ].filter(Boolean);
     case 'Order':
-      return joinBlocks(
-        `No. ${number}\n${heading}\n\n${dateLine}`,
-        'ORDER',
-        content,
-        `-Sd/-\n${signature}`,
-        copies && `Copy forwarded to:\n${copies}`,
-      );
+      return [
+        communicationBlock('communicationNumber', `No. ${number}`),
+        communicationBlock('officeHeading', heading),
+        communicationBlock('date', dateLine),
+        communicationBlock('documentTitle', 'ORDER'),
+        communicationBlock('body', content),
+        communicationBlock('signature', `-Sd/-\n${signature}`),
+        communicationBlock('copyList', copies && `Copy forwarded to:\n${copies}`),
+      ].filter(Boolean);
     case 'Inter-Departmental Note':
-      return joinBlocks(
-        heading,
-        `Subject: ${subjectLine}`,
-        ensureNumberedParagraphs(content),
-        signature,
-        recipientBlock,
-        `${'_'.repeat(64)}\n${profile.department || '[ISSUING DEPARTMENT]'} I.D. No. ${number} dated ${formatOfficialDate(issueDate)}`,
-      );
+      return [
+        communicationBlock('officeHeading', heading),
+        communicationBlock('subject', `Subject: ${subjectLine}`),
+        communicationBlock('body', ensureNumberedParagraphs(content)),
+        communicationBlock('signature', signature),
+        communicationBlock('recipient', recipientBlock),
+        communicationBlock('identificationLine', `${'_'.repeat(64)}\n${profile.department || '[ISSUING DEPARTMENT]'} I.D. No. ${number} dated ${formatOfficialDate(issueDate)}`),
+      ].filter(Boolean);
     case 'Notification':
-      return joinBlocks(
-        '(To be published in the Gazette of India [PART AND SECTION])',
-        `${heading}\n\n${dateLine}`,
-        'NOTIFICATION',
-        `No. ${number}. ${content}`,
-        `-Sd/-\n${signature}`,
-        recipientBlock,
-        copies && `Copy forwarded for information to:\n${copies}`,
-      );
+      return [
+        communicationBlock('publicationDirection', '(To be published in the Gazette of India [PART AND SECTION])'),
+        communicationBlock('officeHeading', heading),
+        communicationBlock('communicationNumber', `No. ${number}`),
+        communicationBlock('date', dateLine),
+        communicationBlock('documentTitle', 'NOTIFICATION'),
+        communicationBlock('body', content),
+        communicationBlock('signature', `-Sd/-\n${signature}`),
+        communicationBlock('recipient', recipientBlock),
+        communicationBlock('copyList', copies && `Copy forwarded for information to:\n${copies}`),
+      ].filter(Boolean);
     case 'Resolution':
-      return joinBlocks(
-        '[TO BE PUBLISHED IN THE GAZETTE OF INDIA: PART AND SECTION]',
-        `${heading}\n\n${dateLine}`,
-        'RESOLUTION',
-        content,
-        `-Sd/-\n${signature}`,
-        'ORDER\n[ORDER FOR COMMUNICATION AND/OR PUBLICATION]',
-        signature,
-        recipientBlock,
-      );
+      return [
+        communicationBlock('publicationDirection', '[TO BE PUBLISHED IN THE GAZETTE OF INDIA: PART AND SECTION]'),
+        communicationBlock('officeHeading', heading),
+        communicationBlock('communicationNumber', `No. ${number}`),
+        communicationBlock('date', dateLine),
+        communicationBlock('documentTitle', 'RESOLUTION'),
+        communicationBlock('body', content),
+        communicationBlock('signature', `-Sd/-\n${signature}`),
+        communicationBlock('publicationOrder', 'ORDER\n[ORDER FOR COMMUNICATION AND/OR PUBLICATION]'),
+        communicationBlock('signature', signature),
+        communicationBlock('recipient', recipientBlock),
+      ].filter(Boolean);
     case 'Press Communique / Note':
-      return joinBlocks(
-        '[EMBARGO DETAILS, IF APPLICABLE]',
-        'PRESS COMMUNIQUE / NOTE',
-        ensureNumberedParagraphs(content),
-        `${profile.department || '[ISSUING DEPARTMENT]'}\n${dateLine}\nNo. ${number}`,
-        `Forwarded to ${recipientBlock} for issue and publicity.`,
-        signature,
-      );
+      return [
+        communicationBlock('embargo', '[EMBARGO DETAILS, IF APPLICABLE]'),
+        communicationBlock('documentTitle', 'PRESS COMMUNIQUE / NOTE'),
+        communicationBlock('body', ensureNumberedParagraphs(content)),
+        communicationBlock('officeHeading', profile.department || '[ISSUING DEPARTMENT]'),
+        communicationBlock('date', dateLine),
+        communicationBlock('communicationNumber', `No. ${number}`),
+        communicationBlock('forwardingDirection', `Forwarded to ${recipientBlock} for issue and publicity.`),
+        communicationBlock('signature', signature),
+      ].filter(Boolean);
     case 'Endorsement':
-      return joinBlocks(
-        `No. ${number}\n${heading}\n\n${dateLine}`,
-        'ENDORSEMENT',
-        content,
-        `-Sd/-\n${signature}`,
-        copies && `List of papers forwarded\n${copies}`,
-        `To\n${recipientBlock}`,
-      );
+      return [
+        communicationBlock('communicationNumber', `No. ${number}`),
+        communicationBlock('officeHeading', heading),
+        communicationBlock('date', dateLine),
+        communicationBlock('documentTitle', 'ENDORSEMENT'),
+        communicationBlock('body', content),
+        communicationBlock('signature', `-Sd/-\n${signature}`),
+        communicationBlock('copyList', copies && `List of papers forwarded\n${copies}`),
+        communicationBlock('recipient', `To\n${recipientBlock}`),
+      ].filter(Boolean);
     case 'Letter':
     default:
-      return joinBlocks(
-        `No. ${number}\n${heading}\n\n${dateLine}`,
-        `To\n${recipientBlock}`,
-        `Subject: ${subjectLine}`,
-        `${clean(salutation) || 'Sir/Madam'},`,
-        content,
-        `Yours faithfully,\n\n-Sd/-\n${signature}`,
-        copies && `(Endorsement)\nNo. ${number}\nCopy forwarded for information/necessary action to:\n${copies}\n\n${signature}`,
-      );
+      return [
+        communicationBlock('communicationNumber', `No. ${number}`),
+        communicationBlock('officeHeading', heading),
+        communicationBlock('date', dateLine),
+        communicationBlock('recipient', `To\n${recipientBlock}`),
+        communicationBlock('subject', `Subject: ${subjectLine}`),
+        communicationBlock('salutation', `${clean(salutation) || 'Sir/Madam'},`),
+        communicationBlock('body', content),
+        communicationBlock('complimentaryClose', `Yours faithfully,\n\n-Sd/-\n${signature}`),
+        communicationBlock('copyList', copies && `(Endorsement)\nNo. ${number}\nCopy forwarded for information/necessary action to:\n${copies}\n\n${signature}`),
+      ].filter(Boolean);
   }
+}
+
+export function formatGovernmentCommunication(input) {
+  return joinBlocks(...buildGovernmentCommunicationBlocks(input).map((item) => item.content));
+}
+
+export function buildGovernmentCommunicationTextLayout({ document }) {
+  const metadata = document.metadata || {};
+  const communicationType = getDraftTemplate(document.templateId).label;
+  const body = (document.blocks || [])
+    .filter((item) => item.role === 'bodyParagraph')
+    .map((item) => item.content)
+    .join('\n\n');
+  const blocks = buildGovernmentCommunicationBlocks({
+    communicationType,
+    officeProfile: metadata.officeProfile,
+    signatory: metadata.signatory,
+    recipient: metadata.recipient,
+    subject: metadata.subject,
+    fileNumber: metadata.communicationNumber,
+    issueDate: metadata.issueDate,
+    salutation: metadata.salutation,
+    copyTo: metadata.copyTo,
+    body,
+  });
+  let cursor = 0;
+  const positioned = blocks.map((block, index) => {
+    if (index) cursor += 2;
+    const start = cursor;
+    cursor += block.content.length;
+    return { ...block, start, end: cursor };
+  });
+  return {
+    text: positioned.map((block) => block.content).join('\n\n'),
+    blocks: positioned,
+  };
 }
 
 export function validateGovernmentCommunication({ communicationType, text }) {
@@ -240,7 +279,7 @@ function formatList(value) {
   return lines.map(clean).filter(Boolean).map((line, index) => `${index + 1}. ${line.replace(/^\d+[.)]\s*/, '')}`).join('\n');
 }
 
-function sanitizeGeneratedBody(value) {
+export function sanitizeGeneratedBody(value) {
   const blockedLine = /^(?:```|office memorandum|office order|order|notification|resolution|press communiqu[eé]|press note|endorsement|subject\s*:|sir\/madam[,:]?|dear\s+|with regards[,:]?|yours (?:faithfully|sincerely)[,:]?|-?sd\/?-?|to\s*:?)$/i;
   const lines = String(value || '').replace(/```(?:text)?/gi, '').split(/\r?\n/);
   const retained = [];

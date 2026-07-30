@@ -1,5 +1,5 @@
-import { ISSUE_RECURRENCE_TYPES, ISSUE_STATUSES, PRIORITIES, REQUIRED_ISSUE_FIELDS } from '../constants/issueConstants';
-import { todayISO } from './dateUtils';
+import { ISSUE_RECURRENCE_TYPES, ISSUE_STATUSES, PRIORITIES, REQUIRED_ISSUE_FIELDS } from '../constants/issueConstants.js';
+import { todayISO } from './dateUtils.js';
 
 const legacyStatusMap = {
   Active: 'In Progress',
@@ -149,6 +149,14 @@ export function issueMatchesSearch(issue, query) {
     .join(' ')
     .toLowerCase();
   return target.includes(query.trim().toLowerCase());
+}
+
+export function getIssuePositionPreview(value, maximumWords = 18) {
+  const normalized = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!normalized) return '';
+  const words = normalized.split(' ');
+  if (words.length <= maximumWords) return normalized;
+  return `${words.slice(0, maximumWords).join(' ')}…`;
 }
 
 export function priorityRank(priority) {

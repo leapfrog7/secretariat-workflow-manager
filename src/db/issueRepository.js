@@ -12,6 +12,7 @@ import { normalizeReference } from '../utils/referenceUtils';
 import { normalizeMilestone } from '../utils/milestoneUtils';
 import { normalizeIssueSummary } from '../utils/summaryUtils';
 import { normalizeDraft } from '../utils/draftUtils';
+import { normalizeNote } from '../features/noting/noteUtils';
 import { addChronologyEvent } from './chronologyRepository';
 import { calculateNextAppearance, isScheduledIssue } from '../utils/scheduleUtils';
 import { resolvePositionUpdate } from '../utils/positionUpdateUtils';
@@ -292,7 +293,7 @@ export async function restoreIssue(id) {
 export async function permanentlyDeleteIssue(id) {
   const issue = await getIssueById(id);
   if (!issue) return;
-  await db.transaction('rw', db.issues, db.records, db.actions, db.communications, db.references, db.issueMilestones, db.issueSummaries, db.drafts, db.chronology, async () => {
+  await db.transaction('rw', db.issues, db.records, db.actions, db.communications, db.references, db.issueMilestones, db.issueSummaries, db.notes, db.drafts, db.chronology, async () => {
     const records = await db.records.where('issueId').equals(id).toArray();
     const actions = await db.actions.where('issueId').equals(id).toArray();
     const events = await db.chronology.where('issueId').equals(id).toArray();
@@ -300,6 +301,7 @@ export async function permanentlyDeleteIssue(id) {
     const references = await db.references.where('issueId').equals(id).primaryKeys();
     const milestones = await db.issueMilestones.where('issueId').equals(id).primaryKeys();
     const summaries = await db.issueSummaries.where('issueId').equals(id).primaryKeys();
+    const notes = await db.notes.where('issueId').equals(id).primaryKeys();
     const drafts = await db.drafts.where('issueId').equals(id).primaryKeys();
     await db.records.bulkDelete(records.map((record) => record.id));
     await db.actions.bulkDelete(actions.map((action) => action.id));
@@ -308,6 +310,7 @@ export async function permanentlyDeleteIssue(id) {
     await db.references.bulkDelete(references);
     await db.issueMilestones.bulkDelete(milestones);
     await db.issueSummaries.bulkDelete(summaries);
+    await db.notes.bulkDelete(notes);
     await db.drafts.bulkDelete(drafts);
     await db.issues.delete(id);
   });
@@ -364,7 +367,9 @@ export async function exportDatabase() {
   const references = (await db.references.toArray()).map(normalizeReference);
   const issueMilestones = (await db.issueMilestones.toArray()).map(normalizeMilestone);
   const issueSummaries = (await db.issueSummaries.toArray()).map(normalizeIssueSummary);
+  const notes = (await db.notes.toArray()).map(normalizeNote);
   const drafts = (await db.drafts.toArray()).map(normalizeDraft);
+  const paragraphBank = await db.paragraphBank.toArray();
   const officers = (await db.officers.toArray()).map(normalizeOfficer);
   const settings = await getSettings();
   return {
@@ -373,7 +378,7 @@ export async function exportDatabase() {
       exportedAt: new Date().toISOString(),
       databaseName: DB_NAME,
       schemaVersion: DB_VERSION,
-      tables: ['issues', 'records', 'actions', 'communications', 'references', 'issueMilestones', 'issueSummaries', 'drafts', 'officers', 'chronology', 'settings'],
+      tables: ['issues', 'records', 'actions', 'communications', 'references', 'issueMilestones', 'issueSummaries', 'notes', 'drafts', 'paragraphBank', 'officers', 'chronology', 'settings'],
     },
     data: {
       issues,
@@ -384,7 +389,9 @@ export async function exportDatabase() {
       references,
       issueMilestones,
       issueSummaries,
+      notes,
       drafts,
+      paragraphBank,
       officers,
       settings,
     },
@@ -518,12 +525,35 @@ export async function importDatabase(payload) {
         }))
         .filter((draft) => issueIds.has(draft.issueId))
     : [];
+  const notes = Array.isArray(payload.data.notes)
+    ? payload.data.notes
+        .map((note) => normalizeNote({
+          ...note,
+          id: note.id || crypto.randomUUID(),
+          createdAt: note.createdAt || now,
+          updatedAt: note.updatedAt || note.createdAt || now,
+        }))
+        .filter((note) => issueIds.has(note.issueId))
+    : [];
+  const paragraphBank = Array.isArray(payload.data.paragraphBank)
+    ? payload.data.paragraphBank.map((entry) => ({
+        ...entry,
+        id: entry.id || crypto.randomUUID(),
+        createdAt: entry.createdAt || now,
+        updatedAt: entry.updatedAt || now,
+        cloudRevision: 0,
+        cloudUpdatedAt: '',
+        cloudUpdatedBy: '',
+        cloudPending: true,
+      }))
+    : [];
   const importedMutations = [
     ...issues.map((item) => ({ entityType: 'issue', itemId: item.id, issueId: item.id })),
     ...communications.map((item) => ({ entityType: 'communication', itemId: item.id, issueId: item.issueId })),
     ...references.map((item) => ({ entityType: 'reference', itemId: item.id, issueId: item.issueId })),
     ...issueMilestones.map((item) => ({ entityType: 'milestone', itemId: item.id, issueId: item.issueId })),
     ...issueSummaries.map((item) => ({ entityType: 'summary', itemId: item.id, issueId: item.issueId })),
+    ...notes.map((item) => ({ entityType: 'note', itemId: item.id, issueId: item.issueId })),
     ...drafts.map((item) => ({ entityType: 'draft', itemId: item.id, issueId: item.issueId })),
   ].map((mutation) => ({
     ...mutation,
@@ -531,7 +561,7 @@ export async function importDatabase(payload) {
     operation: 'save',
     createdAt: now,
   }));
-  await db.transaction('rw', db.issues, db.records, db.actions, db.communications, db.references, db.issueMilestones, db.issueSummaries, db.drafts, db.syncTombstones, db.syncConflicts, db.syncMutations, db.officers, db.chronology, db.settings, async () => {
+  await db.transaction('rw', db.issues, db.records, db.actions, db.communications, db.references, db.issueMilestones, db.issueSummaries, db.notes, db.drafts, db.paragraphBank, db.syncTombstones, db.syncConflicts, db.syncMutations, db.officers, db.chronology, db.settings, async () => {
     await db.issues.clear();
     await db.records.clear();
     await db.actions.clear();
@@ -540,7 +570,9 @@ export async function importDatabase(payload) {
     await db.references.clear();
     await db.issueMilestones.clear();
     await db.issueSummaries.clear();
+    await db.notes.clear();
     await db.drafts.clear();
+    await db.paragraphBank.clear();
     await db.syncTombstones.clear();
     await db.syncConflicts.clear();
     await db.syncMutations.clear();
@@ -553,7 +585,9 @@ export async function importDatabase(payload) {
     if (references.length) await db.references.bulkPut(references);
     if (issueMilestones.length) await db.issueMilestones.bulkPut(issueMilestones);
     if (issueSummaries.length) await db.issueSummaries.bulkPut(issueSummaries);
+    if (notes.length) await db.notes.bulkPut(notes);
     if (drafts.length) await db.drafts.bulkPut(drafts);
+    if (paragraphBank.length) await db.paragraphBank.bulkPut(paragraphBank);
     if (officers.length) await db.officers.bulkPut(officers);
     if (importedMutations.length) await db.syncMutations.bulkPut(importedMutations);
     if (payload.data.settings) await saveSettings(payload.data.settings);
@@ -566,7 +600,9 @@ export async function importDatabase(payload) {
     referencesImported: references.length,
     milestonesImported: issueMilestones.length,
     summariesImported: issueSummaries.length,
+    notesImported: notes.length,
     draftsImported: drafts.length,
+    paragraphsImported: paragraphBank.length,
     officersImported: officers.length,
     chronologyImported: chronology.length,
   };

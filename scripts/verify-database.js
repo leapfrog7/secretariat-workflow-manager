@@ -10,7 +10,7 @@ const [tables, policies, functions, migrations, triggers, workspaces, membership
     SELECT count(*)::int AS count
     FROM information_schema.tables
     WHERE table_schema = 'public'
-      AND table_name IN ('profiles', 'workspaces', 'workspace_members', 'workspace_divisions', 'division_members', 'issue_access_grants', 'audit_events', 'cloud_issues', 'cloud_officers', 'cloud_issue_items', 'cloud_workspace_settings', 'cloud_user_settings', 'cloud_notifications', 'automation_runs', 'cloud_ai_provider_settings', 'cloud_ai_user_permissions', 'cloud_ai_generation_logs')
+      AND table_name IN ('profiles', 'workspaces', 'workspace_members', 'workspace_divisions', 'division_members', 'issue_access_grants', 'audit_events', 'cloud_issues', 'cloud_officers', 'cloud_issue_items', 'cloud_workspace_settings', 'cloud_user_settings', 'cloud_notifications', 'automation_runs', 'cloud_ai_provider_settings', 'cloud_ai_user_permissions', 'cloud_ai_generation_logs', 'paragraph_bank_entries')
   `,
   sql`SELECT count(*)::int AS count FROM pg_policies WHERE schemaname = 'public'`,
   sql`
@@ -40,6 +40,9 @@ const [tables, policies, functions, migrations, triggers, workspaces, membership
         'save_cloud_issue_item_revision',
         'delete_cloud_issue_revision',
         'delete_cloud_issue_item_revision',
+        'save_paragraph_bank_entry_revision',
+        'delete_paragraph_bank_entry_revision',
+        'enforce_draft_snapshot_retention',
         'preserve_last_profile_administrator',
         'preserve_last_workspace_administrator',
         'require_issue_division_when_enforced'
@@ -66,7 +69,10 @@ const [tables, policies, functions, migrations, triggers, workspaces, membership
       '015_require_issue_division_when_enforced.sql',
       '016_separate_issue_access_management.sql',
       '017_cloud_ai_report_operation.sql',
-      '018_report_permission_hardening.sql'
+      '018_report_permission_hardening.sql',
+      '019_paragraph_bank.sql',
+      '020_draft_snapshot_retention.sql',
+      '021_issue_notes.sql'
     )
   `,
   sql`
@@ -77,7 +83,8 @@ const [tables, policies, functions, migrations, triggers, workspaces, membership
         'preserve_last_profile_administrator_trigger',
         'preserve_last_workspace_administrator_trigger',
         'require_issue_division_when_enforced_trigger',
-        'enforce_issue_access_management_trigger'
+        'enforce_issue_access_management_trigger',
+        'enforce_draft_snapshot_retention_trigger'
       )
   `,
   sql`SELECT count(*)::int AS count FROM public.workspaces WHERE is_active = true`,
@@ -95,11 +102,11 @@ const result = {
 };
 
 const expected = {
-  tables: 17,
-  policies: 43,
-  functions: 24,
-  migrationRecords: 18,
-  securityGuardTriggers: 4,
+  tables: 18,
+  policies: 47,
+  functions: 27,
+  migrationRecords: 21,
+  securityGuardTriggers: 5,
 };
 const valid = Object.entries(expected).every(([key, value]) => result[key] === value);
 

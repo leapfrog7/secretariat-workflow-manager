@@ -10,7 +10,7 @@ import GeminiTaskLevelControl from '../components/ai/GeminiTaskLevelControl';
 import AIModeControl from '../components/ai/AIModeControl';
 import AdaptiveSelect from '../components/common/AdaptiveSelect';
 import { useToast } from '../components/common/ToastProvider';
-import { APP_NAME, DB_NAME, DB_VERSION, DEFAULT_AI_PREFERENCES, DEFAULT_APPEARANCE_SETTINGS, DEFAULT_LOCAL_AI_SETTINGS, DEFAULT_OFFICE_PROFILE, DEFAULT_REMINDER_SETTINGS } from '../constants/issueConstants';
+import { APP_NAME, DB_NAME, DB_VERSION, DEFAULT_AI_PREFERENCES, DEFAULT_APPEARANCE_SETTINGS, DEFAULT_LOCAL_AI_SETTINGS, DEFAULT_OFFICE_PROFILE, DEFAULT_REMINDER_SETTINGS, DRAFT_FONT_OPTIONS } from '../constants/issueConstants';
 import { getIssueStatistics } from '../db/issueRepository';
 import {
   buildBackupPayload,
@@ -28,7 +28,7 @@ import { deleteOfficer, getAllOfficers, getOfficerStatistics, saveOfficer } from
 import { clearDemoIssues, loadDemoIssues } from '../db/seedData';
 import { formatDateTime } from '../utils/dateUtils';
 import { getSettings, saveSettings } from '../db/database';
-import { listLMStudioModels, normalizeLocalAISettings } from '../services/lmStudioClient';
+import { normalizeLocalAISettings, testLMStudioModel } from '../services/lmStudioClient';
 import { normalizeOfficeProfile } from '../utils/governmentDraftUtils';
 import { queueCloudSettingsUpsert } from '../features/cloud/cloudSettingsSync';
 import { useAuth } from '../features/auth/AuthContext';
@@ -118,8 +118,10 @@ export default function SettingsPage() {
   };
 
   useEffect(() => {
-    loadCloudProviders();
-  }, [auth.workspace?.id]);
+    if (!state.loading && activeTab === 'ai' && state.aiPreferences.mode === 'cloud') {
+      loadCloudProviders();
+    }
+  }, [activeTab, auth.workspace?.id, state.aiPreferences.mode, state.loading]);
 
   const exportData = async () => {
     try {
@@ -266,16 +268,14 @@ export default function SettingsPage() {
   const testLocalAI = async () => {
     try {
       setState((current) => ({ ...current, busy: 'ai-test', aiStatus: 'testing', aiMessage: '' }));
-      const models = await listLMStudioModels(state.aiSettings);
-      if (!models.length) throw new Error('LM Studio did not report any language models.');
-      const selectedModel = models.some((model) => model.id === state.aiSettings.model) ? state.aiSettings.model : models[0].id;
+      const result = await testLMStudioModel(state.aiSettings);
       setState((current) => ({
         ...current,
         busy: '',
         aiStatus: 'connected',
-        aiMessage: `${models.length} language model${models.length === 1 ? '' : 's'} available.`,
-        aiModels: models,
-        aiSettings: { ...current.aiSettings, model: selectedModel },
+        aiMessage: `${result.model.name} is loaded and generated a test response.`,
+        aiModels: result.models,
+        aiSettings: { ...current.aiSettings, model: result.model.id },
       }));
     } catch (error) {
       setState((current) => ({ ...current, busy: '', aiStatus: 'error', aiMessage: error.message || 'Unable to connect to LM Studio.' }));
@@ -338,6 +338,16 @@ export default function SettingsPage() {
 
   const updateOfficeProfile = (field, value) => {
     setState((current) => ({ ...current, officeProfile: { ...current.officeProfile, [field]: value } }));
+  };
+
+  const updateDocumentStyle = (field, value) => {
+    setState((current) => ({
+      ...current,
+      officeProfile: {
+        ...current.officeProfile,
+        documentStyle: { ...current.officeProfile.documentStyle, [field]: value },
+      },
+    }));
   };
 
   const toggleSignatory = (officerId) => {
@@ -515,6 +525,65 @@ export default function SettingsPage() {
               {!state.officers.some((officer) => officer.isActive) && <p className="text-sm text-slate-500 sm:col-span-2 lg:col-span-3">Add an active officer above before choosing signatories.</p>}
             </div>
           </fieldset>
+          <fieldset className="mt-5 border-t border-slate-200 pt-4">
+            <legend className="pr-2 text-sm font-semibold text-slate-800">Default document style</legend>
+            <p className="mt-1 text-xs text-slate-500">Applied to new drafts and retained with each saved version. Template-controlled alignment and bold treatment remain fixed.</p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+              <AdaptiveSelect
+                label="Font"
+                value={state.officeProfile.documentStyle.fontFamily}
+                onChange={(value) => updateDocumentStyle('fontFamily', value)}
+                options={DRAFT_FONT_OPTIONS}
+                includeBlank={false}
+                disabled={!canMutateWorkspace}
+              />
+              <AdaptiveSelect
+                label="Font size"
+                value={String(state.officeProfile.documentStyle.fontSize)}
+                onChange={(value) => updateDocumentStyle('fontSize', Number(value))}
+                options={[10, 11, 12, 13, 14].map(String)}
+                includeBlank={false}
+                disabled={!canMutateWorkspace}
+              />
+              <AdaptiveSelect
+                label="Line spacing"
+                value={String(state.officeProfile.documentStyle.lineSpacing)}
+                onChange={(value) => updateDocumentStyle('lineSpacing', Number(value))}
+                options={['1', '1.15', '1.5']}
+                includeBlank={false}
+                disabled={!canMutateWorkspace}
+              />
+              <AdaptiveSelect
+                label="After paragraph"
+                value={String(state.officeProfile.documentStyle.paragraphSpacing)}
+                onChange={(value) => updateDocumentStyle('paragraphSpacing', Number(value))}
+                options={[0, 6, 8, 12].map((value) => ({ value: String(value), label: `${value} pt` }))}
+                includeBlank={false}
+                disabled={!canMutateWorkspace}
+              />
+              <AdaptiveSelect
+                label="Margins"
+                value={state.officeProfile.documentStyle.margins}
+                onChange={(value) => updateDocumentStyle('margins', value)}
+                options={[{ value: 'standard', label: 'Standard' }, { value: 'narrow', label: 'Narrow' }]}
+                includeBlank={false}
+                disabled={!canMutateWorkspace}
+              />
+              <AdaptiveSelect
+                label="Recipient indent"
+                value={state.officeProfile.documentStyle.recipientIndent || 'standard'}
+                onChange={(value) => updateDocumentStyle('recipientIndent', value)}
+                options={[
+                  { value: 'none', label: 'None' },
+                  { value: 'small', label: 'Small' },
+                  { value: 'standard', label: 'Standard' },
+                  { value: 'wide', label: 'Wide' },
+                ]}
+                includeBlank={false}
+                disabled={!canMutateWorkspace}
+              />
+            </div>
+          </fieldset>
           {canMutateWorkspace && <div className="mt-4 flex justify-end"><button type="button" onClick={saveOfficeProfile} disabled={state.busy === 'profile-save'} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-teal-800 disabled:bg-slate-400 sm:h-10 sm:w-auto">{state.busy === 'profile-save' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{state.busy === 'profile-save' ? 'Saving profile...' : 'Save drafting profile'}</button></div>}
         </section>}
 
@@ -531,7 +600,7 @@ export default function SettingsPage() {
           {state.aiPreferences.mode === 'local' ? <>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Server connection</span><input value={state.aiSettings.baseUrl} onChange={(event) => setState((current) => ({ ...current, aiStatus: 'idle', aiMessage: '', aiSettings: { ...current.aiSettings, baseUrl: event.target.value } }))} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900" /></label>
-              <AdaptiveSelect label="Model" value={state.aiSettings.model} onChange={(model) => setState((current) => ({ ...current, aiSettings: { ...current.aiSettings, model } }))} includeBlank={false} options={(state.aiModels.length ? state.aiModels : [{ id: state.aiSettings.model, name: state.aiSettings.model }]).map((model) => ({ value: model.id, label: `${model.name}${model.params ? ` (${model.params})` : ''}${model.loaded ? ' - loaded' : ''}` }))} />
+              <AdaptiveSelect label="Model" value={state.aiSettings.model} onChange={(model) => setState((current) => ({ ...current, aiStatus: 'idle', aiMessage: '', aiSettings: { ...current.aiSettings, model } }))} includeBlank={false} options={(state.aiModels.length ? state.aiModels : [{ id: state.aiSettings.model, name: state.aiSettings.model, loaded: null }]).map((model) => ({ value: model.id, label: `${model.name}${model.params ? ` (${model.params})` : ''}${model.loaded === true ? ' - loaded' : model.loaded === false ? ' - not loaded' : ''}` }))} />
             </div>
             {state.aiMessage && <p className={`mt-3 text-sm ${state.aiStatus === 'error' ? 'text-red-700' : 'text-emerald-700'}`}>{state.aiMessage}</p>}
             {typeof window !== 'undefined' && window.location.hostname.endsWith('github.io') && <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">On the hosted app, start LM Studio locally with <code className="font-mono font-semibold">lms server start --cors</code>, load a model, then test this connection. Your browser may ask for permission to access localhost.</p>}

@@ -350,6 +350,7 @@ export default function IssueRegisterPage() {
             detail="Decision or consultation"
             icon={MessageCircleQuestion}
             tone="violet"
+            className="col-span-2 sm:col-span-1"
           />
         </section>
 
@@ -599,10 +600,10 @@ const metricTones = {
   violet: "border-t-violet-600 bg-violet-50 text-violet-800",
 };
 
-function Metric({ label, value, detail, icon: Icon, tone }) {
+function Metric({ label, value, detail, icon: Icon, tone, className = "" }) {
   return (
     <div
-      className={`min-h-[72px] border-t-[3px] p-2.5 sm:min-h-24 sm:border-t-4 sm:p-3.5 ${metricTones[tone]}`}
+      className={`min-h-[72px] border-t-[3px] p-2.5 sm:min-h-24 sm:border-t-4 sm:p-3.5 ${metricTones[tone]} ${className}`}
     >
       <div className="flex items-start justify-between gap-3">
         <div>

@@ -13,6 +13,9 @@ const ids = {
   grant: '40000000-0000-4000-8000-000000000001',
   reportRequest: '50000000-0000-4000-8000-000000000001',
   deniedReportRequest: '50000000-0000-4000-8000-000000000002',
+  personalParagraph: '60000000-0000-4000-8000-000000000001',
+  sharedParagraph: '60000000-0000-4000-8000-000000000002',
+  note: '70000000-0000-4000-8000-000000000001',
 };
 
 async function applyMigrations() {
@@ -221,6 +224,41 @@ test('collaboration access is enforced by PostgreSQL policies and revision funct
     );
   });
 
+  await context.test('notes inherit Issue editing and viewing permissions', async () => {
+    const payload = {
+      id: ids.note,
+      issueId: ids.issue,
+      sequence: 1,
+      version: 1,
+      content: 'The case has been examined.',
+      createdAt: new Date().toISOString(),
+    };
+    await useIdentity('editor');
+    const saved = await client.query(
+      `SELECT * FROM public.save_cloud_issue_item_revision(
+        $1::uuid, $2::uuid, 'note', $3::uuid, $4::jsonb, 0
+      )`,
+      [ids.workspace, ids.issue, ids.note, JSON.stringify(payload)],
+    );
+    assert.equal(saved.rows[0].saved, true);
+
+    await useIdentity('viewer');
+    const visible = await client.query(
+      "SELECT payload ->> 'content' AS content FROM public.cloud_issue_items WHERE workspace_id = $1 AND item_type = 'note' AND id = $2",
+      [ids.workspace, ids.note],
+    );
+    assert.equal(visible.rows[0].content, 'The case has been examined.');
+    await assert.rejects(
+      client.query(
+        `SELECT * FROM public.save_cloud_issue_item_revision(
+          $1::uuid, $2::uuid, 'note', $3::uuid, $4::jsonb, 1
+        )`,
+        [ids.workspace, ids.issue, ids.note, JSON.stringify({ ...payload, content: 'Viewer edit attempt.' })],
+      ),
+      /Issue editing access required/,
+    );
+  });
+
   await context.test('report access includes readable Issues and rejects mixed or invalid sets', async () => {
     assert.equal(await reportAccess('viewer'), true);
     assert.equal(await reportAccess('target'), false);
@@ -266,11 +304,149 @@ test('collaboration access is enforced by PostgreSQL policies and revision funct
       [ids.workspace, ids.issue],
     );
     assert.equal(result.rows[0].access_level, 'none');
+    await useOwner();
+    await client.query(
+      "UPDATE public.workspace_members SET status = 'active' WHERE workspace_id = $1 AND user_id = 'editor'",
+      [ids.workspace],
+    );
   });
 
   await context.test('the owning division manager can change visibility', async () => {
     const policyUpdate = await saveIssue({ userId: 'division-admin', revision: 2, visibility: 'restricted', title: 'Updated by division manager' });
     assert.equal(policyUpdate.rows[0].saved, true);
     assert.equal(policyUpdate.rows[0].revision, 3);
+  });
+});
+
+test('Draft snapshots retain only the five newest cloud versions', { skip: !databaseUrl }, async () => {
+  await useIdentity('admin');
+  const draftIds = Array.from(
+    { length: 6 },
+    (_, index) => `70000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+  );
+
+  for (const [index, draftId] of draftIds.entries()) {
+    const version = index + 1;
+    const result = await client.query(
+      `SELECT * FROM public.save_cloud_issue_item_revision(
+        $1::uuid, $2::uuid, 'draft', $3::uuid, $4::jsonb, 0
+      )`,
+      [ids.workspace, ids.issue, draftId, JSON.stringify({
+        id: draftId,
+        issueId: ids.issue,
+        version,
+        content: `Saved draft version ${version}`,
+        immutableSnapshot: true,
+      })],
+    );
+    assert.equal(result.rows[0].saved, true);
+  }
+
+  const active = await client.query(
+    `SELECT id, (payload->>'version')::integer AS version
+     FROM public.cloud_issue_items
+     WHERE workspace_id = $1
+       AND issue_id = $2
+       AND item_type = 'draft'
+       AND deleted_at IS NULL
+     ORDER BY version`,
+    [ids.workspace, ids.issue],
+  );
+  assert.deepEqual(active.rows.map((row) => row.version), [2, 3, 4, 5, 6]);
+
+  const retired = await client.query(
+    `SELECT revision, deleted_at
+     FROM public.cloud_issue_items
+     WHERE workspace_id = $1 AND id = $2`,
+    [ids.workspace, draftIds[0]],
+  );
+  assert.equal(retired.rows[0].revision, 2);
+  assert.ok(retired.rows[0].deleted_at);
+});
+
+test('Paragraph Bank separates personal wording from administrator-managed shared wording', { skip: !databaseUrl }, async (context) => {
+  await context.test('an active member can save a personal paragraph', async () => {
+    await useIdentity('editor');
+    const result = await client.query(
+      `SELECT * FROM public.save_paragraph_bank_entry_revision(
+        $1::uuid, $2::uuid, $3::jsonb, 0
+      )`,
+      [ids.workspace, ids.personalParagraph, JSON.stringify({
+        id: ids.personalParagraph,
+        scope: 'personal',
+        ownerUserId: 'editor',
+        title: 'Personal reminder',
+        content: 'Kindly furnish the information by [DATE].',
+        status: 'active',
+      })],
+    );
+    assert.equal(result.rows[0].saved, true);
+    assert.equal(result.rows[0].revision, 1);
+  });
+
+  await context.test('another member cannot read a personal paragraph', async () => {
+    await useIdentity('viewer');
+    const result = await client.query(
+      'SELECT id FROM public.paragraph_bank_entries WHERE workspace_id = $1 AND id = $2',
+      [ids.workspace, ids.personalParagraph],
+    );
+    assert.equal(result.rowCount, 0);
+  });
+
+  await context.test('only a workspace administrator can publish shared wording', async () => {
+    await useIdentity('editor');
+    await assert.rejects(
+      client.query(
+        'SELECT * FROM public.save_paragraph_bank_entry_revision($1::uuid, $2::uuid, $3::jsonb, 0)',
+        [ids.workspace, ids.sharedParagraph, JSON.stringify({
+          id: ids.sharedParagraph,
+          scope: 'workspace',
+          ownerUserId: 'editor',
+          title: 'Shared opening',
+          content: 'I am directed to refer to the subject cited above.',
+          status: 'active',
+        })],
+      ),
+      (error) => error.code === 'P0001',
+    );
+
+    await useIdentity('admin');
+    const saved = await client.query(
+      'SELECT * FROM public.save_paragraph_bank_entry_revision($1::uuid, $2::uuid, $3::jsonb, 0)',
+      [ids.workspace, ids.sharedParagraph, JSON.stringify({
+        id: ids.sharedParagraph,
+        scope: 'workspace',
+        ownerUserId: 'admin',
+        title: 'Shared opening',
+        content: 'I am directed to refer to the subject cited above.',
+        status: 'active',
+      })],
+    );
+    assert.equal(saved.rows[0].saved, true);
+
+    await useIdentity('viewer');
+    const visible = await client.query(
+      'SELECT id FROM public.paragraph_bank_entries WHERE workspace_id = $1 AND id = $2',
+      [ids.workspace, ids.sharedParagraph],
+    );
+    assert.equal(visible.rowCount, 1);
+  });
+
+  await context.test('stale saves return a revision conflict instead of overwriting', async () => {
+    await useIdentity('editor');
+    const result = await client.query(
+      'SELECT * FROM public.save_paragraph_bank_entry_revision($1::uuid, $2::uuid, $3::jsonb, 0)',
+      [ids.workspace, ids.personalParagraph, JSON.stringify({
+        id: ids.personalParagraph,
+        scope: 'personal',
+        ownerUserId: 'editor',
+        title: 'Stale edit',
+        content: 'This must not overwrite revision one.',
+        status: 'active',
+      })],
+    );
+    assert.equal(result.rows[0].saved, false);
+    assert.equal(result.rows[0].revision, 1);
+    assert.equal(result.rows[0].payload.title, 'Personal reminder');
   });
 });

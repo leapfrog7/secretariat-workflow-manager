@@ -16,6 +16,7 @@ export function buildAIContext({
   summary,
   communications = [],
   references = [],
+  notes = [],
   includeIssueDetails = true,
   includeSummary = true,
   includeCurrentPosition = true,
@@ -78,10 +79,22 @@ export function buildAIContext({
     sections.push(makeSection('SELECTED REFERENCES', entries));
   }
 
+  if (notes.length) {
+    const entries = notes.map((note) => {
+      const lines = [];
+      addLine(lines, 'Recorded by', note.authorName);
+      addLine(lines, 'Last updated', note.updatedAt ? formatDisplayDate(note.updatedAt.slice(0, 10)) : '');
+      addLine(lines, 'Note', note.content);
+      addLine(lines, 'Appendix', note.appendix);
+      return `Note ${note.sequence || ''}\n   ${lines.join('\n   ')}`;
+    });
+    sections.push(makeSection('SELECTED NOTES', entries));
+  }
+
   const text = sections.filter(Boolean).join('\n\n');
   return {
     text,
     wordCount: text ? text.split(/\s+/).filter(Boolean).length : 0,
-    selectedSourceCount: communications.length + references.length,
+    selectedSourceCount: communications.length + references.length + notes.length,
   };
 }

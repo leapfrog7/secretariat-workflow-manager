@@ -1,6 +1,6 @@
 export const APP_NAME = 'Secretariat Workflow Manager';
 export const DB_NAME = 'secretariatWorkflowManagerIssues';
-export const DB_VERSION = 13;
+export const DB_VERSION = 15;
 
 export const ISSUE_RECURRENCE_TYPES = ['One-time', 'Weekly', 'Monthly'];
 
@@ -138,6 +138,25 @@ export const DEFAULT_APPEARANCE_SETTINGS = {
   textSize: 'normal',
 };
 
+export const DRAFT_FONT_OPTIONS = [
+  'Times New Roman',
+  'Arial',
+  'Calibri',
+  'Aptos',
+  'Cambria',
+  'Noto Sans Devanagari',
+];
+
+export const DEFAULT_DRAFT_DOCUMENT_STYLE = {
+  fontFamily: 'Times New Roman',
+  fontSize: 12,
+  lineSpacing: 1.15,
+  paragraphSpacing: 6,
+  pageSize: 'A4',
+  margins: 'standard',
+  recipientIndent: 'small',
+};
+
 export const DEFAULT_OFFICE_PROFILE = {
   governmentName: 'Government of India',
   governmentHindiName: 'Bharat Sarkar',
@@ -150,6 +169,7 @@ export const DEFAULT_OFFICE_PROFILE = {
   placeOfIssue: 'New Delhi',
   houseStyleNotes: '',
   authorizedSignatoryIds: [],
+  documentStyle: DEFAULT_DRAFT_DOCUMENT_STYLE,
 };
 
 export const DEFAULT_SETTINGS = {

@@ -1,5 +1,5 @@
 import { db, getSettings } from '../../db/database';
-import { DEFAULT_AI_PREFERENCES, DEFAULT_APPEARANCE_SETTINGS, DEFAULT_LOCAL_AI_SETTINGS, DEFAULT_OFFICE_PROFILE, DEFAULT_REMINDER_SETTINGS, DEFAULT_SETTINGS, SETTINGS_ID } from '../../constants/issueConstants';
+import { DEFAULT_AI_PREFERENCES, DEFAULT_APPEARANCE_SETTINGS, DEFAULT_DRAFT_DOCUMENT_STYLE, DEFAULT_LOCAL_AI_SETTINGS, DEFAULT_OFFICE_PROFILE, DEFAULT_REMINDER_SETTINGS, DEFAULT_SETTINGS, SETTINGS_ID } from '../../constants/issueConstants';
 import { applyTextSize } from '../../utils/appearanceUtils';
 import { getCloudUserSettings, getCloudWorkspaceSettings, upsertCloudUserSettings, upsertCloudWorkspaceSettings } from './cloudSettingsApi';
 
@@ -63,7 +63,14 @@ export async function syncWorkspaceSettings({ workspaceId, userId, canEdit = tru
       merged = {
         ...merged,
         categories: Array.isArray(cloudWorkspace.payload?.categories) ? cloudWorkspace.payload.categories : merged.categories,
-        officeProfile: { ...DEFAULT_OFFICE_PROFILE, ...(cloudWorkspace.payload?.officeProfile || {}) },
+        officeProfile: {
+          ...DEFAULT_OFFICE_PROFILE,
+          ...(cloudWorkspace.payload?.officeProfile || {}),
+          documentStyle: {
+            ...DEFAULT_DRAFT_DOCUMENT_STYLE,
+            ...(cloudWorkspace.payload?.officeProfile?.documentStyle || {}),
+          },
+        },
         workspaceSettingsUpdatedAt: cloudWorkspace.updated_at,
       };
     } else if (canEdit && (!cloudWorkspace || localWorkspaceAt > cloudWorkspaceAt)) {

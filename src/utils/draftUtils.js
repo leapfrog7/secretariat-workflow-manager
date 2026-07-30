@@ -1,3 +1,5 @@
+import { normalizeDraftDocument } from '../features/drafting/domain/draftDocument.js';
+
 export function normalizeDraft(input = {}) {
   return {
     id: input.id,
@@ -12,9 +14,19 @@ export function normalizeDraft(input = {}) {
     documentDetails: input.documentDetails && typeof input.documentDetails === 'object' ? input.documentDetails : {},
     instruction: input.instruction || '',
     content: input.content || '',
+    document: normalizeDraftDocument(input.document, {
+      content: input.content,
+      communicationType: input.communicationType,
+    }),
     model: input.model || '',
     selectedCommunicationIds: Array.isArray(input.selectedCommunicationIds) ? input.selectedCommunicationIds : [],
     selectedReferenceIds: Array.isArray(input.selectedReferenceIds) ? input.selectedReferenceIds : [],
+    selectedNoteIds: Array.isArray(input.selectedNoteIds) ? input.selectedNoteIds : [],
+    snapshotSchemaVersion: Math.max(1, Number(input.snapshotSchemaVersion) || 1),
+    immutableSnapshot: input.immutableSnapshot !== false,
+    baseDraftId: input.baseDraftId || '',
+    baseVersion: Number(input.baseVersion) || 0,
+    savedAt: input.savedAt || input.createdAt || '',
     createdAt: input.createdAt,
     updatedAt: input.updatedAt || input.createdAt,
     cloudRevision: Number(input.cloudRevision) || 0,

@@ -11,7 +11,8 @@ import CommunicationTab from '../components/issues/CommunicationTab';
 import ReferenceTab from '../components/issues/ReferenceTab';
 import MilestoneStack from '../components/issues/MilestoneStack';
 import RunningSummaryPanel from '../components/issues/RunningSummaryPanel';
-import AIContextPreview from '../components/issues/AIContextPreview';
+import DraftingWorkspace from '../features/drafting/DraftingWorkspace';
+import NotingPanel from '../features/noting/NotingPanel';
 import IssueAccessPanel from '../components/collaboration/IssueAccessPanel';
 import { archiveIssue, bringBackIssue, getIssueById, restoreIssue, updateIssue, updateIssuePosition } from '../db/issueRepository';
 import { deleteCommunication, getCommunicationsByIssue, saveCommunication } from '../db/communicationRepository';
@@ -19,6 +20,7 @@ import { deleteReference, getReferencesByIssue, saveReference } from '../db/refe
 import { getAllOfficers } from '../db/officerRepository';
 import { countMilestonesByIssue, getMilestonesByIssue } from '../db/milestoneRepository';
 import { countSummaryVersions, deleteSummaryVersion, getLatestSummary, getSummaryVersions, saveSummaryVersion } from '../db/summaryRepository';
+import { getNotesByIssue, saveNote } from '../db/noteRepository';
 import { useToast } from '../components/common/ToastProvider';
 import { formatDateTime, formatDisplayDate, todayISO, tomorrowISO } from '../utils/dateUtils';
 import { ISSUE_RECURRENCE_TYPES, ISSUE_STATUSES } from '../constants/issueConstants';
@@ -31,7 +33,8 @@ const tabs = [
   { label: 'Running Summary', mobileLabel: 'Summary' },
   { label: 'Record of Communication', mobileLabel: 'Comms' },
   { label: 'References', mobileLabel: 'References' },
-  { label: 'AI Context', mobileLabel: 'AI Drafting' },
+  { label: 'Noting', mobileLabel: 'Notes' },
+  { label: 'Drafting', mobileLabel: 'Drafting' },
   { label: 'Share & Access', mobileLabel: 'Access' },
 ];
 
@@ -47,6 +50,7 @@ export default function IssueWorkspacePage() {
     officers: [],
     communications: [],
     references: [],
+    notes: [],
     milestones: [],
     milestoneCount: 0,
     milestonesExpanded: false,
@@ -59,6 +63,9 @@ export default function IssueWorkspacePage() {
     draft: null,
     dirty: false,
     activeTab: 'Current Position',
+    draftingVisited: false,
+    draftSeedNoteIds: [],
+    draftSeedRevision: 0,
     operation: '',
     confirmArchive: false,
     deleteTarget: null,
@@ -67,11 +74,12 @@ export default function IssueWorkspacePage() {
 
   const load = async () => {
     try {
-      const [issue, officers, communications, references, milestones, milestoneCount, latestSummary, summaryVersionCount, accessLevel] = await Promise.all([
+      const [issue, officers, communications, references, notes, milestones, milestoneCount, latestSummary, summaryVersionCount, accessLevel] = await Promise.all([
         getIssueById(issueId),
         getAllOfficers(),
         getCommunicationsByIssue(issueId),
         getReferencesByIssue(issueId),
+        getNotesByIssue(issueId),
         getMilestonesByIssue(issueId, { limit: 5 }),
         countMilestonesByIssue(issueId),
         getLatestSummary(issueId),
@@ -89,6 +97,7 @@ export default function IssueWorkspacePage() {
         officers,
         communications,
         references,
+        notes,
         milestones,
         milestoneCount,
         milestonesExpanded: false,
@@ -105,6 +114,7 @@ export default function IssueWorkspacePage() {
           recurrenceAnchorDay: issue.recurrenceAnchorDay || null,
         },
         dirty: false,
+        draftingVisited: current.activeTab === 'Drafting',
         accessLevel,
       }));
     } catch (error) {
@@ -117,6 +127,14 @@ export default function IssueWorkspacePage() {
     window.addEventListener('swm:workspace-synced', load);
     return () => window.removeEventListener('swm:workspace-synced', load);
   }, [auth.workspace?.id, issueId]);
+
+  const selectTab = (tab) => {
+    setState((current) => ({
+      ...current,
+      activeTab: tab,
+      draftingVisited: current.draftingVisited || tab === 'Drafting',
+    }));
+  };
 
   const updateDraft = (field, value) => {
     setState((current) => ({ ...current, dirty: true, draft: { ...current.draft, [field]: value } }));
@@ -229,6 +247,29 @@ export default function IssueWorkspacePage() {
     }
   };
 
+  const saveNoteEntry = async (note) => {
+    try {
+      await saveNote(note);
+      const notes = await getNotesByIssue(issueId);
+      setState((current) => ({ ...current, notes }));
+      showToast(note.id ? 'Note updated; the earlier version remains in history.' : 'Note added.');
+    } catch (error) {
+      showToast(error.message || 'Unable to save note.', 'error');
+      throw error;
+    }
+  };
+
+  const createDraftFromNote = (note) => {
+    setState((current) => ({
+      ...current,
+      activeTab: 'Drafting',
+      draftingVisited: true,
+      draftSeedNoteIds: [note.id],
+      draftSeedRevision: current.draftSeedRevision + 1,
+    }));
+    showToast(`Note ${note.sequence} added to the drafting context.`);
+  };
+
   const confirmDelete = async () => {
     const target = state.deleteTarget;
     if (!target) return;
@@ -309,6 +350,8 @@ export default function IssueWorkspacePage() {
                 ? state.communications.length
                 : tab.label === 'References'
                   ? state.references.length
+                  : tab.label === 'Noting'
+                    ? state.notes.length
                   : null;
             const active = state.activeTab === tab.label;
             return (
@@ -317,7 +360,7 @@ export default function IssueWorkspacePage() {
                 type="button"
                 role="tab"
                 aria-selected={active}
-                onClick={() => setState((current) => ({ ...current, activeTab: tab.label }))}
+                onClick={() => selectTab(tab.label)}
                 className={`flex min-h-11 min-w-0 items-center justify-center gap-1 rounded-md border px-1.5 py-2 text-xs font-semibold leading-4 transition-colors ${
                   active
                     ? 'border-teal-600 bg-teal-50 text-teal-900 shadow-sm'
@@ -338,9 +381,11 @@ export default function IssueWorkspacePage() {
                 ? state.communications.length
                 : tab.label === 'References'
                   ? state.references.length
+                  : tab.label === 'Noting'
+                    ? state.notes.length
                   : null;
             return (
-              <button key={tab.label} type="button" role="tab" aria-selected={state.activeTab === tab.label} onClick={() => setState((current) => ({ ...current, activeTab: tab.label }))} className={`border-b-2 px-3 py-3 text-xs font-semibold transition-colors sm:px-4 sm:text-sm ${state.activeTab === tab.label ? 'border-teal-700 text-teal-800' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
+              <button key={tab.label} type="button" role="tab" aria-selected={state.activeTab === tab.label} onClick={() => selectTab(tab.label)} className={`border-b-2 px-3 py-3 text-xs font-semibold transition-colors sm:px-4 sm:text-sm ${state.activeTab === tab.label ? 'border-teal-700 text-teal-800' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
                 {tab.label}{count !== null && <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs tabular-nums text-slate-600">{count}</span>}
               </button>
             );
@@ -389,7 +434,28 @@ export default function IssueWorkspacePage() {
       )}
       {state.activeTab === 'Record of Communication' && <CommunicationTab issueId={issueId} communications={state.communications} readOnly={!canEditIssue} onSave={saveCommunicationEntry} onDelete={(item) => setState((current) => ({ ...current, deleteTarget: { kind: 'communication', item } }))} />}
       {state.activeTab === 'References' && <ReferenceTab issueId={issueId} references={state.references} readOnly={!canEditIssue} onSave={saveReferenceEntry} onDelete={(item) => setState((current) => ({ ...current, deleteTarget: { kind: 'reference', item } }))} />}
-      {state.activeTab === 'AI Context' && <AIContextPreview issue={issue} assignedOfficer={assignedOfficer} officers={officers} summary={state.latestSummary} communications={state.communications} references={state.references} readOnly={!canEditIssue} onSaveCommunication={saveCommunicationEntry} />}
+      {state.activeTab === 'Noting' && (
+        <NotingPanel
+          issueId={issueId}
+          issue={issue}
+          summary={state.latestSummary}
+          notes={state.notes}
+          communications={state.communications}
+          references={state.references}
+          author={{
+            userId: auth.user?.id || '',
+            name: auth.profile?.display_name || auth.user?.email || 'Local officer',
+          }}
+          readOnly={!canEditIssue}
+          onSave={saveNoteEntry}
+          onCreateDraft={createDraftFromNote}
+        />
+      )}
+      {state.draftingVisited && (
+        <div hidden={state.activeTab !== 'Drafting'}>
+          <DraftingWorkspace issue={issue} assignedOfficer={assignedOfficer} officers={officers} summary={state.latestSummary} communications={state.communications} references={state.references} notes={state.notes} initialNoteIds={state.draftSeedNoteIds} noteSelectionRevision={state.draftSeedRevision} readOnly={!canEditIssue} onSaveCommunication={saveCommunicationEntry} />
+        </div>
+      )}
       {state.activeTab === 'Share & Access' && <IssueAccessPanel auth={auth} issue={issue} canEdit={canEditIssue} onUpdateIssue={saveAccessPolicy} />}
 
       <ConfirmDialog open={state.confirmArchive} title={issue.isArchived ? 'Restore Issue?' : 'Archive Issue?'} message={issue.isArchived ? 'The Issue will return to the current register.' : 'The Issue will be hidden from the current register but retained in the database.'} confirmLabel={issue.isArchived ? 'Restore' : 'Archive'} onCancel={() => setState((current) => ({ ...current, confirmArchive: false }))} onConfirm={toggleArchiveIssue} />

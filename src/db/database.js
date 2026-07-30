@@ -1,5 +1,5 @@
 import Dexie from 'dexie';
-import { DB_NAME, DB_VERSION, DEFAULT_AI_PREFERENCES, DEFAULT_APPEARANCE_SETTINGS, DEFAULT_LOCAL_AI_SETTINGS, DEFAULT_OFFICE_PROFILE, DEFAULT_REMINDER_SETTINGS, DEFAULT_SETTINGS, SETTINGS_ID } from '../constants/issueConstants';
+import { DB_NAME, DB_VERSION, DEFAULT_AI_PREFERENCES, DEFAULT_APPEARANCE_SETTINGS, DEFAULT_DRAFT_DOCUMENT_STYLE, DEFAULT_LOCAL_AI_SETTINGS, DEFAULT_OFFICE_PROFILE, DEFAULT_REMINDER_SETTINGS, DEFAULT_SETTINGS, SETTINGS_ID } from '../constants/issueConstants';
 import { settingsScopeChanges } from '../utils/settingsUtils';
 
 export const db = new Dexie(DB_NAME);
@@ -244,6 +244,51 @@ db.version(13).stores({
   settings: 'id',
 });
 
+db.version(14).stores({
+  issues:
+    'id, eFileNumber, subjectType, assignedOfficerId, organisation, category, priority, status, nextDeadline, nextAppearanceDate, dateOpened, isArchived, isDemo, createdAt, updatedAt',
+  records:
+    'id, issueId, recordNumber, recordType, direction, organisation, recordDate, receivedDate, isArchived, createdAt, updatedAt',
+  actions:
+    'id, issueId, recordId, assignedOfficerId, assignedByOfficerId, reviewStatus, status, priority, assignedTo, pendingWith, dueDate, reminderDate, escalationDate, isArchived, completedAt, assignedOn, submittedOn, lastProgressUpdatedAt, createdAt, updatedAt',
+  communications: 'id, issueId, communicationDate, communicationType, createdAt, updatedAt',
+  references: 'id, issueId, referenceDate, createdAt, updatedAt',
+  issueMilestones: 'id, issueId, recordedAt, createdAt',
+  issueSummaries: 'id, issueId, version, createdAt',
+  drafts: 'id, issueId, version, communicationType, status, createdAt, updatedAt',
+  paragraphBank: 'id, scope, ownerUserId, category, status, updatedAt',
+  syncTombstones: 'id, entityType, itemId, deletedAt',
+  syncConflicts: 'id, issueId, entityType, itemId, detectedAt',
+  syncMutations: 'id, entityType, itemId, issueId, operation, createdAt',
+  officers: 'id, name, designation, section, role, isActive, createdAt, updatedAt',
+  chronology:
+    'id, issueId, recordId, actionId, eventType, eventDate, createdAt',
+  settings: 'id',
+});
+
+db.version(15).stores({
+  issues:
+    'id, eFileNumber, subjectType, assignedOfficerId, organisation, category, priority, status, nextDeadline, nextAppearanceDate, dateOpened, isArchived, isDemo, createdAt, updatedAt',
+  records:
+    'id, issueId, recordNumber, recordType, direction, organisation, recordDate, receivedDate, isArchived, createdAt, updatedAt',
+  actions:
+    'id, issueId, recordId, assignedOfficerId, assignedByOfficerId, reviewStatus, status, priority, assignedTo, pendingWith, dueDate, reminderDate, escalationDate, isArchived, completedAt, assignedOn, submittedOn, lastProgressUpdatedAt, createdAt, updatedAt',
+  communications: 'id, issueId, communicationDate, communicationType, createdAt, updatedAt',
+  references: 'id, issueId, referenceDate, createdAt, updatedAt',
+  issueMilestones: 'id, issueId, recordedAt, createdAt',
+  issueSummaries: 'id, issueId, version, createdAt',
+  notes: 'id, issueId, sequence, createdAt, updatedAt',
+  drafts: 'id, issueId, version, communicationType, status, createdAt, updatedAt',
+  paragraphBank: 'id, scope, ownerUserId, category, status, updatedAt',
+  syncTombstones: 'id, entityType, itemId, deletedAt',
+  syncConflicts: 'id, issueId, entityType, itemId, detectedAt',
+  syncMutations: 'id, entityType, itemId, issueId, operation, createdAt',
+  officers: 'id, name, designation, section, role, isActive, createdAt, updatedAt',
+  chronology:
+    'id, issueId, recordId, actionId, eventType, eventDate, createdAt',
+  settings: 'id',
+});
+
 export async function getSettings() {
   const settings = await db.settings.get(SETTINGS_ID);
   if (settings) return {
@@ -258,6 +303,7 @@ export async function getSettings() {
       ...DEFAULT_OFFICE_PROFILE,
       ...(settings.officeProfile || {}),
       authorizedSignatoryIds: Array.isArray(settings.officeProfile?.authorizedSignatoryIds) ? settings.officeProfile.authorizedSignatoryIds : [],
+      documentStyle: { ...DEFAULT_DRAFT_DOCUMENT_STYLE, ...(settings.officeProfile?.documentStyle || {}) },
     },
   };
   await db.settings.put(DEFAULT_SETTINGS);
@@ -279,6 +325,7 @@ export async function saveSettings(settings) {
       ...DEFAULT_OFFICE_PROFILE,
       ...(settings.officeProfile || {}),
       authorizedSignatoryIds: Array.isArray(settings.officeProfile?.authorizedSignatoryIds) ? settings.officeProfile.authorizedSignatoryIds : [],
+      documentStyle: { ...DEFAULT_DRAFT_DOCUMENT_STYLE, ...(settings.officeProfile?.documentStyle || {}) },
     },
     id: SETTINGS_ID,
     workspaceSettingsUpdatedAt: workspaceChanged ? now : existing?.workspaceSettingsUpdatedAt || settings.workspaceSettingsUpdatedAt || '',

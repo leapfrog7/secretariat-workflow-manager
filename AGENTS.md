@@ -84,6 +84,12 @@ Current implementation status:
 - Migrations `017_cloud_ai_report_operation.sql` and
   `018_report_permission_hardening.sql` must be applied before Cloud AI
   report refinement is enabled. Local LLM report refinement does not require it.
+- Migration `019_paragraph_bank.sql` must be applied before cloud Paragraph
+  Bank synchronization is enabled.
+- Migration `020_draft_snapshot_retention.sql` must be applied before relying on
+  cloud draft retention across multiple clients.
+- Migration `021_issue_notes.sql` must be applied before cloud Noting and note
+  revision synchronization are enabled.
 - Division enforcement remains off until a workspace administrator creates
   divisions, assigns active members and Issues, passes the readiness report, and
   explicitly enables it.
@@ -134,3 +140,66 @@ Current implementation status:
 
 Do not enable division enforcement before Phase 3 is complete. A partially
 enforced model is less safe than the current explicit workspace-wide model.
+
+## Drafting Architecture
+
+Official drafting follows the architecture in `DRAFTING_ARCHITECTURE.md`.
+AI providers generate substantive body language only. CSMOP-oriented structure,
+formatting, identity, validation, versioning and export remain deterministic
+application responsibilities. Structured draft changes must remain compatible
+with existing plain-text versions throughout the phased migration.
+
+Paragraph Bank entries are independent workspace resources rather than Issue
+children. Personal entries are visible and manageable only by their owner.
+Shared entries are readable by active workspace members and may be published,
+edited or deleted only by workspace administrators. The browser cache remains
+user/workspace scoped, and stale saves use revision checks rather than
+overwriting cloud wording.
+
+Local and Cloud drafting must use the provider-independent orchestrator under
+`src/features/drafting/ai`. Provider clients own transport only; they must not
+assemble official documents or maintain separate drafting prompts. AI output
+may create or replace substantive `bodyParagraph` blocks only. Deterministic
+templates remain responsible for subjects, headings, addressees, signatures,
+copy lists and formatting. Selected-passage AI operations must reject
+selections outside the computed body range and must never overwrite a
+free-text-edited draft.
+
+Ordinary **Save** updates the current mutable draft and does not create routine
+version noise. **Save as separate version** creates an immutable snapshot with
+its base draft ID and version. Editing an immutable snapshot creates a new
+mutable working draft instead of changing the preserved copy. Retain no more
+than the five newest active draft records per Issue in both the local repository
+and Postgres. Recording an outgoing communication must first preserve the exact
+issued draft as an immutable snapshot.
+
+New structured drafts store normalized rich-text JSON for body paragraphs while
+retaining plain body blocks for compatibility and AI context. Do not persist
+arbitrary editor HTML. Formatting controls apply only to the substantive body;
+template-owned headings, subjects, recipients and signatures remain protected.
+Rich editor dependencies must be lazy-loaded so ordinary Issue navigation does
+not absorb the editor bundle.
+
+## Noting Architecture
+
+Noting is an Issue child resource and inherits the same read, edit, revocation
+and optimistic-concurrency rules as communications, references, summaries and
+drafts. Cloud support requires migration `021_issue_notes.sql`; do not rely on
+local-only notes in a collaborative workspace.
+
+Notes are chronological, content-focused records rather than workflow routing
+objects. Each note stores normalized rich-text JSON, a plain-text projection for
+search and AI context, optional appendix material, and links to relevant
+communications and references. Arbitrary HTML must not be persisted.
+
+Editors may revise a note after discussion, but a save must append an immutable
+snapshot of the previous wording and attribution before replacing the current
+version. The UI must expose that history. This flexibility must not become a
+silent overwrite path.
+
+Noting AI remains optional. The provider-independent note contract supports
+generation and refinement in concise Government noting style. It must not
+invent file facts, approvals or decisions, and its result remains an editable
+preview until the user saves it. Attribution, chronology and revision storage
+remain deterministic application responsibilities. Selected notes may also be
+supplied to Drafting context when preparing a communication.

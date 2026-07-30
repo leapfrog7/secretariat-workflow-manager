@@ -64,7 +64,7 @@ export default function AppShell() {
             </div>
             {auth.syncState?.status === 'syncing' && <div className="absolute inset-x-0 bottom-0 h-0.5 overflow-hidden bg-cyan-100" role="status" aria-label="Synchronizing workspace"><span className="sync-progress block h-full w-1/3 bg-cyan-600" /></div>}
           </header>
-          <main className="app-main mx-auto w-full max-w-[1440px] px-3 py-4 pb-20 sm:px-4 sm:py-5">
+          <main className="app-main mx-auto w-full max-w-[1600px] px-3 py-4 pb-20 sm:px-4 sm:py-5">
             {auth.mode === 'cloud' && auth.user?.id && auth.workspace?.id && <WelcomeBanner userId={auth.user.id} canEdit={auth.canEdit} />}
             <SyncConflictCenter />
             <Suspense fallback={<LoadingState message="Opening page..." />}>

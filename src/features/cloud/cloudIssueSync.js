@@ -156,7 +156,7 @@ async function flushIssueTombstones({ workspaceId, userId, canEdit }) {
 }
 
 async function deleteLocalIssueGraph(issueId) {
-  await db.transaction('rw', db.issues, db.records, db.actions, db.communications, db.references, db.issueMilestones, db.issueSummaries, db.drafts, db.chronology, async () => {
+  await db.transaction('rw', db.issues, db.records, db.actions, db.communications, db.references, db.issueMilestones, db.issueSummaries, db.notes, db.drafts, db.chronology, async () => {
     await Promise.all([
       db.records.where('issueId').equals(issueId).delete(),
       db.actions.where('issueId').equals(issueId).delete(),
@@ -164,6 +164,7 @@ async function deleteLocalIssueGraph(issueId) {
       db.references.where('issueId').equals(issueId).delete(),
       db.issueMilestones.where('issueId').equals(issueId).delete(),
       db.issueSummaries.where('issueId').equals(issueId).delete(),
+      db.notes.where('issueId').equals(issueId).delete(),
       db.drafts.where('issueId').equals(issueId).delete(),
       db.chronology.where('issueId').equals(issueId).delete(),
       db.issues.delete(issueId),

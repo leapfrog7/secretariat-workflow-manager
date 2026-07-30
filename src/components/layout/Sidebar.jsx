@@ -31,7 +31,7 @@ export default function Sidebar() {
     });
   };
   return (
-    <aside className={`app-sidebar shrink-0 border-r border-[#244750] bg-[#17333b] text-white transition-[width] ${collapsed ? 'w-16' : 'w-60'}`}>
+    <aside className={`app-sidebar sticky top-0 h-screen shrink-0 overflow-y-auto border-r border-[#244750] bg-[#17333b] text-white transition-[width] ${collapsed ? 'w-16' : 'w-60'}`}>
       <div className={`border-b border-white/10 py-5 ${collapsed ? 'px-3' : 'px-4'}`}>
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-teal-500 text-white shadow-sm">

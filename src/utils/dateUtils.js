@@ -1,5 +1,5 @@
 import { addDays, differenceInCalendarDays, format, isValid, parseISO, subDays } from 'date-fns';
-import { DEADLINE_THRESHOLDS } from '../constants/issueConstants';
+import { DEADLINE_THRESHOLDS } from '../constants/issueConstants.js';
 
 export function todayISO() {
   return format(new Date(), 'yyyy-MM-dd');

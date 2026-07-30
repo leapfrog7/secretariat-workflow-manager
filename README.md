@@ -29,17 +29,28 @@ The project is currently a working multi-user proof of concept. Neon provides au
 - Record incoming, outgoing and internal communications chronologically.
 - Register multiple eReceipts and source documents without uploading PDF files.
 - Capture references such as Office Memoranda, rules, instructions and court directions.
-- Preview and select the exact Issue context made available for drafting.
+- Use the dedicated Drafting workspace to select the exact Issue sources made available to AI.
+- Use Noting for the chronological examination of a case. Notes support lists,
+  tables, appendix material, linked sources and retained revision history.
+- Reuse approved wording from the searchable Paragraph Bank. Personal entries remain private; workspace administrators can publish shared entries for all active members.
 
 ### Official drafting
 
 - Configure the Ministry or Department, office details, house style and authorised signatories.
 - Prepare Office Memoranda, D.O. Letters, Letters, Office Orders, Orders, I.D. Notes and related forms.
 - Assemble the official document structure programmatically and ask the model to draft the body.
+- Start a blank, programmatically structured communication and write it entirely without AI.
+- Format the substantive body with bold, italic, underline, lists and paragraph alignment while official headings, subjects, addressees and signatures remain protected.
+- Choose a document font, font size, line spacing and paragraph spacing in the editor; these settings are retained in saved versions and editable Word exports.
+- Use the in-editor Draft tools rail to complete or correct the communication number, date, subject, addressee, signatory and related document details while drafting. Changes appear immediately without regenerating the body.
+- Open Draft Settings to change an existing structured draft from Letter to Office Memorandum or another supported communication type without regenerating or losing its substantive body.
+- Switch the same rail to Paragraph Bank to insert approved wording at the current cursor. Entries categorized as Address / addressee populate the protected recipient-address block.
+- Use the Review tab before issue to find missing structured details and unresolved placeholders without blocking early drafting.
+- Route Local LM Studio and Cloud API drafting through the same body-only orchestration layer, keeping subjects, addressees and signatures outside model control.
 - Generate through LM Studio on the user's laptop or an administrator-approved OpenAI/Gemini API.
 - Edit and copy a generated draft without saving it automatically.
-- Optionally retain up to five rolling draft versions per Issue, including communication type and signatory metadata.
-- Export editable Word-compatible RTF files, regenerate a selected passage and convert a saved draft into a linked outgoing communication record.
+- Save routine changes into the current draft, or intentionally retain a separate version. Up to five draft records per Issue carry communication type and signatory metadata.
+- Export editable Word `.docx` files, regenerate a selected passage and convert a saved draft into a linked outgoing communication record.
 
 Generated text is a drafting aid. The responsible officer must verify facts, citations, authority, classification, tone and approvals before issuing a communication.
 
@@ -165,12 +176,21 @@ Start the development server:
 npm run dev
 ```
 
-This starts both:
+This always starts the Vite application, normally at `http://127.0.0.1:5173`.
+The launcher reads the development environment before deciding whether the
+protected local API is also needed:
 
-- the Vite application, normally at `http://127.0.0.1:5173`
-- the protected Cloud AI API at `http://127.0.0.1:3000`
+- A hosted `VITE_API_BASE_URL` starts only Vite and uses that hosted API.
+- A blank or localhost `VITE_API_BASE_URL` also starts the protected API.
+- An already-running healthy SWM API is reused instead of failing on port 3000.
 
 The API process reads server-only credentials from `.env.local` and `.env.vercel.local`. Vite also proxies `/lmstudio` to `http://127.0.0.1:1234`.
+
+To force the protected API while testing it locally:
+
+```powershell
+npm run dev -- --local-api
+```
 
 To run only one side while debugging:
 
@@ -183,7 +203,7 @@ npm run api:dev
 
 `VITE_API_BASE_URL` decides where the browser sends Cloud AI requests:
 
-- Use `https://secretariat-workflow-manager.vercel.app` to run the React frontend locally while using the deployed protected API. In this mode, `npm run dev:web` is sufficient.
+- Use `https://secretariat-workflow-manager.vercel.app` to run the React frontend locally while using the deployed protected API. In this mode, `npm run dev` starts only Vite.
 - Use `http://127.0.0.1:3000` only when intentionally testing the API functions locally with real server-side `GEMINI_API_KEY`, `NEON_DATA_API_URL` and `DATABASE_URL` values. Start both processes with `npm run dev`.
 
 Values shown as `[SENSITIVE]` in a downloaded Vercel environment file are redacted placeholders and cannot be used by the local API process.
@@ -257,7 +277,50 @@ lms server start --cors
 4. Confirm the server address, test the connection and select a loaded model.
 5. Allow localhost or local-network access if the browser requests permission.
 
-Only the context selected in the AI Context workspace is sent to LM Studio. It remains on that laptop unless LM Studio itself has been configured to expose the server elsewhere. Stop the server when it is not needed and do not bind it to a wider network without authentication.
+Only the sources selected in the Drafting workspace are sent to LM Studio. They remain on that laptop unless LM Studio itself has been configured to expose the server elsewhere. Stop the server when it is not needed and do not bind it to a wider network without authentication.
+
+### Paragraph Bank
+
+Open an Issue, enter **Drafting**, and use the editor's **Bank** rail. Paragraphs can be
+searched by name, wording, category or tag and filtered for the selected
+communication type. Inserted wording is placed at the current draft cursor (or
+replaces the selected text), after which the draft must be reviewed and saved
+as a new version.
+
+While a working draft is open, use **Draft tools > Details** beside the document
+on desktop or through the floating **Draft tools** button on mobile. Communication
+number, date, subject, addressee, salutation, copy list, communication type and
+authorised signatory remain editable throughout drafting. These values are
+protected from AI, but they are not locked from the user; updates are reflected
+immediately in the page and its Word export.
+
+### Draft versions
+
+A generated draft is a temporary working copy. **Save** updates its current
+saved copy. Use **Save as separate version** only when wording is worth
+preserving independently; editing a preserved version creates a new mutable
+copy rather than changing that record. Only the five newest draft records are
+retained for each Issue. **Record outgoing** automatically preserves the exact
+issued version before linking it to the communication chronology.
+
+Personal paragraphs are available only to their creator. Shared paragraphs are
+readable throughout the workspace and can be published or managed only by a
+workspace administrator. Place variable details in square brackets, such as
+`[DATE]`, `[ORGANIZATION]` or `[FILE NO.]`, so the draft visibly signals what
+must be replaced before issue.
+
+### Protected AI drafting
+
+Local LM Studio, Gemini and future providers use the same drafting workflow.
+The provider returns substantive prose only; the application constructs the
+official heading, subject, addressee, close, signature and copy blocks from its
+templates and saved office profile.
+
+Regenerate selection works only inside the substantive body. Selecting a
+subject, addressee or signature is rejected before a request is sent. Once the
+complete draft has been freely edited as plain text, body-only regeneration is
+disabled for that version so the application cannot silently overwrite manual
+changes.
 
 For cloud drafting, deploy the Vercel functions, apply migration `008_cloud_ai.sql`, add a server-only provider key, and enable that provider from Administration. Cloud report refinement additionally requires migrations `017_cloud_ai_report_operation.sql` and `018_report_permission_hardening.sql`. Enter current provider token rates there when estimated-cost tracking is required.
 
@@ -309,7 +372,7 @@ src/services/              LM Studio client and drafting requests
 - Reminder recipients are active workspace members; the officer directory is not yet mapped to individual user accounts.
 - Email delivery requires separate Resend configuration and a verified sending domain.
 - Cloud AI must be deployed on Vercel and configured with at least one server-side provider key before it becomes available to users.
-- Generated drafts have saved versions and Word-compatible export, but formal approval states are not implemented yet.
+- Generated drafts have saved versions and native Word `.docx` export, but formal approval states are not implemented yet.
 - Reports provide operational snapshots, period-based activity and optional Local LLM or Cloud API refinement. Scheduled and governed distribution remains planned.
 - Workspace creation and delegated Workspace Administrator controls are not fully exposed in the UI.
 - Operational Issue changes do not yet have a complete actor-attributed cloud audit trail.

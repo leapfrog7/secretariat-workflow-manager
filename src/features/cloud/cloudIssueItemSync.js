@@ -4,6 +4,7 @@ import { normalizeDraft } from '../../utils/draftUtils';
 import { normalizeMilestone } from '../../utils/milestoneUtils';
 import { normalizeReference } from '../../utils/referenceUtils';
 import { normalizeIssueSummary } from '../../utils/summaryUtils';
+import { normalizeNote } from '../noting/noteUtils';
 import { listCloudIssueItems, markCloudIssueItemDeleted, upsertCloudIssueItem } from './cloudIssueItemApi';
 import { clearSyncConflict, getSyncConflict, recordSyncConflict } from '../../db/syncConflictRepository';
 import { isCloudRevisionConflict } from './cloudRevisionConflict';
@@ -20,6 +21,7 @@ const ITEM_CONFIG = {
   reference: { table: 'references', normalize: normalizeReference },
   milestone: { table: 'issueMilestones', normalize: normalizeMilestone },
   summary: { table: 'issueSummaries', normalize: normalizeIssueSummary },
+  note: { table: 'notes', normalize: normalizeNote },
   draft: { table: 'drafts', normalize: normalizeDraft },
 };
 
