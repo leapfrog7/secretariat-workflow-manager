@@ -4,17 +4,24 @@ import {
   Bot,
   Building2,
   CheckCircle2,
+  CircleUserRound,
+  Eye,
+  FilePenLine,
   LoaderCircle,
   RefreshCw,
   Save,
   ShieldCheck,
+  Shield,
   UserRoundCog,
   Users,
+  X,
 } from "lucide-react";
 import PageHeader from "../components/common/PageHeader";
 import { listProfiles, updateProfileAccess } from "../features/auth/accountApi";
 import { useAuth } from "../features/auth/AuthContext";
 import {
+  createWorkspaceForUser,
+  listWorkspaceAccessDirectory,
   listWorkspaceMembers,
   setWorkspaceMember,
 } from "../features/cloud/workspaceApi";
@@ -32,10 +39,12 @@ export default function AdminPage() {
   const auth = useAuth();
   const [profiles, setProfiles] = useState([]);
   const [memberships, setMemberships] = useState([]);
+  const [workspaceDirectory, setWorkspaceDirectory] = useState([]);
   const [aiProviders, setAIProviders] = useState([]);
   const [aiPermissions, setAIPermissions] = useState([]);
   const [aiUsage, setAIUsage] = useState([]);
   const [activeTab, setActiveTab] = useState("people");
+  const [workspaceSetup, setWorkspaceSetup] = useState(null);
   const [state, setState] = useState({
     loading: true,
     saving: "",
@@ -48,11 +57,22 @@ export default function AdminPage() {
       total: profiles.length,
       pending: profiles.filter((profile) => profile.status === "pending")
         .length,
-      active: profiles.filter((profile) => profile.status === "active").length,
       suspended: profiles.filter((profile) => profile.status === "suspended")
         .length,
+      independent: new Set(
+        workspaceDirectory
+          .filter(
+            (membership) =>
+              membership.status === "active" &&
+              membership.workspace_id !== auth.workspace?.id,
+          )
+          .map((membership) => membership.workspace_id),
+      ).size,
+      currentMembers: memberships.filter(
+        (membership) => membership.status === "active",
+      ).length,
     }),
-    [profiles],
+    [auth.workspace?.id, memberships, profiles, workspaceDirectory],
   );
 
   async function loadProfiles() {
@@ -66,6 +86,7 @@ export default function AdminPage() {
       const [
         result,
         memberResult,
+        directoryResult,
         providerResult,
         permissionResult,
         usageResult,
@@ -74,6 +95,7 @@ export default function AdminPage() {
         auth.workspace?.id
           ? listWorkspaceMembers(auth.workspace.id)
           : Promise.resolve([]),
+        listWorkspaceAccessDirectory(),
         auth.workspace?.id
           ? listAIProviderSettings(auth.workspace.id)
           : Promise.resolve([]),
@@ -86,6 +108,7 @@ export default function AdminPage() {
       ]);
       setProfiles(result);
       setMemberships(memberResult);
+      setWorkspaceDirectory(directoryResult);
       setAIProviders(
         CLOUD_AI_PROVIDERS.map((provider) => ({
           provider: provider.id,
@@ -135,31 +158,14 @@ export default function AdminPage() {
           item.user_id === profile.user_id ? updated : item,
         ),
       );
-      if (
-        nextStatus === "active" &&
-        auth.workspace?.id &&
-        !memberships.some(
-          (membership) =>
-            membership.user_id === profile.user_id &&
-            membership.status === "active",
-        )
-      ) {
-        const membership = await setWorkspaceMember({
-          workspaceId: auth.workspace.id,
-          userId: profile.user_id,
-          role: "officer",
-          status: "active",
-        });
-        setMemberships((current) => [
-          ...current.filter((item) => item.user_id !== profile.user_id),
-          membership,
-        ]);
-      }
       setState({
         loading: false,
         saving: "",
         error: "",
-        message: `Access updated for ${profile.display_name || profile.email}.`,
+        message:
+          nextStatus === "active" && profile.status !== "active"
+            ? `${profile.display_name || profile.email} can now sign in. Choose workspace access separately.`
+            : `Account access updated for ${profile.display_name || profile.email}.`,
       });
     } catch (error) {
       setState((current) => ({
@@ -194,6 +200,14 @@ export default function AdminPage() {
         ...current.filter((item) => item.user_id !== profile.user_id),
         membership,
       ]);
+      setWorkspaceDirectory((current) => [
+        ...current.filter(
+          (item) =>
+            item.user_id !== profile.user_id ||
+            item.workspace_id !== auth.workspace.id,
+        ),
+        { ...membership, workspace: auth.workspace },
+      ]);
       setState({
         loading: false,
         saving: "",
@@ -205,6 +219,72 @@ export default function AdminPage() {
         ...current,
         saving: "",
         error: error.message || "Unable to update workspace access.",
+        message: "",
+      }));
+    }
+  }
+
+  function openWorkspaceSetup(profile) {
+    const person =
+      profile.display_name?.trim() || profile.email?.split("@")[0] || "New";
+    setWorkspaceSetup({
+      profile,
+      name: `${person} Workspace`,
+      code: workspaceCodeFrom(person),
+    });
+  }
+
+  async function provisionWorkspace(event) {
+    event.preventDefault();
+    if (!workspaceSetup || !auth.workspace?.id) return;
+    const { profile, name, code } = workspaceSetup;
+    setState((current) => ({
+      ...current,
+      saving: `workspace:${profile.user_id}`,
+      error: "",
+      message: "",
+    }));
+    try {
+      const workspace = await createWorkspaceForUser({
+        userId: profile.user_id,
+        name,
+        code,
+        sourceWorkspaceId: auth.workspace.id,
+      });
+      setMemberships((current) =>
+        current.map((membership) =>
+          membership.user_id === profile.user_id
+            ? { ...membership, status: "suspended" }
+            : membership,
+        ),
+      );
+      setWorkspaceDirectory((current) => [
+        ...current.map((membership) =>
+          membership.user_id === profile.user_id &&
+          membership.workspace_id === auth.workspace.id
+            ? { ...membership, status: "suspended" }
+            : membership,
+        ),
+        {
+          workspace_id: workspace.id,
+          user_id: profile.user_id,
+          role: "workspace_admin",
+          status: "active",
+          workspace,
+        },
+      ]);
+      setWorkspaceSetup(null);
+      setState({
+        loading: false,
+        saving: "",
+        error: "",
+        message: `${profile.display_name || profile.email} now manages the separate workspace “${workspace.name}” and no longer has access to ${auth.workspace.name}.`,
+      });
+    } catch (error) {
+      setState((current) => ({
+        ...current,
+        saving: "",
+        error: error.message || "Unable to create the separate workspace.",
         message: "",
       }));
     }
@@ -347,11 +427,15 @@ export default function AdminPage() {
           items={[
             [
               "Approve the account",
-              "A new registration cannot open official work until a system administrator approves it.",
+              "Approval only permits sign-in. It does not add the person to your current workspace or expose any Issues.",
             ],
             [
-              "Choose workspace access",
-              "View only permits reading. Can edit permits normal Issue work. A Workspace manager can also manage people, divisions and sharing.",
+              "Add to this workspace",
+              "Use View only, Can edit or Workspace manager only when the person should work with people and Issues in the workspace named above.",
+            ],
+            [
+              "Give them their own workspace",
+              "Create a separate workspace when the person or office should manage independent Issues. They become its manager and are removed from this workspace.",
             ],
             [
               "Remove access",
@@ -361,10 +445,19 @@ export default function AdminPage() {
         />
       )}
       {activeTab === "people" && (
-        <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="mb-5 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
           <Metric label="Registered" value={counts.total} />
           <Metric label="Pending" value={counts.pending} tone="amber" />
-          <Metric label="Active" value={counts.active} tone="emerald" />
+          <Metric
+            label="In this workspace"
+            value={counts.currentMembers}
+            tone="emerald"
+          />
+          <Metric
+            label="Independent workspaces"
+            value={counts.independent}
+            tone="cyan"
+          />
           <Metric label="Suspended" value={counts.suspended} tone="rose" />
         </div>
       )}
@@ -631,181 +724,522 @@ export default function AdminPage() {
         </>
       )}
       {activeTab === "people" && (
-        <section className="surface overflow-hidden rounded-md">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
-            <div>
-              <h2 className="text-sm font-semibold text-slate-950">
-                Registered users
-              </h2>
-              <p className="mt-1 text-xs text-slate-500">
-                New registrations remain pending until approved.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={loadProfiles}
-              disabled={state.loading}
-              className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700"
-            >
-              <RefreshCw
-                className={`h-4 w-4 ${state.loading ? "animate-spin" : ""}`}
-              />
-              Refresh
-            </button>
-          </div>
-          {state.loading ? (
-            <div className="flex items-center justify-center gap-2 px-4 py-12 text-sm text-slate-600">
-              <LoaderCircle className="h-5 w-5 animate-spin" />
-              Loading registered users
-            </div>
-          ) : (
-            <div>
-              <div className="hidden grid-cols-[minmax(0,1fr)_130px_130px_170px_auto] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-500 lg:grid">
-                <span>Person</span>
-                <span>Account role</span>
-                <span>Status</span>
-                <span>Workspace access</span>
-                <span className="text-right">Account action</span>
-              </div>
-              <div className="divide-y divide-slate-200">
-                {profiles.map((profile) => {
-                  const isSelf = profile.user_id === auth.user?.id;
-                  const saving = state.saving === profile.user_id;
-                  const membership = memberships.find(
-                    (item) => item.user_id === profile.user_id,
-                  );
-                  const membershipValue =
-                    membership?.status === "active" ? membership.role : "none";
-                  return (
-                    <div
-                      key={profile.user_id}
-                      className="grid gap-3 px-4 py-4 lg:grid-cols-[minmax(0,1fr)_130px_130px_170px_auto] lg:items-center"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-slate-900">
-                          {profile.display_name || "Unnamed user"}{" "}
-                          {isSelf && (
-                            <span className="font-normal text-slate-500">
-                              (you)
-                            </span>
-                          )}
-                        </p>
-                        <p className="mt-1 truncate text-xs text-slate-500">
-                          {profile.email}
-                        </p>
-                      </div>
-                      <select
-                        aria-label={`Role for ${profile.email}`}
-                        value={profile.role}
-                        disabled={saving || isSelf || !auth.isAdmin}
-                        onChange={(event) =>
-                          changeAccess(
-                            profile,
-                            profile.status,
-                            event.target.value,
-                          )
-                        }
-                        className="h-9 rounded-md border border-slate-300 bg-white px-2 text-xs disabled:bg-slate-100"
-                      >
-                        <option value="user">Standard user</option>
-                        <option value="platform_admin">
-                          System administrator
-                        </option>
-                      </select>
-                      <AccessStatus status={profile.status} />
-                      <select
-                        aria-label={`Workspace access for ${profile.email}`}
-                        value={membershipValue}
-                        disabled={
-                          saving || isSelf || profile.status !== "active"
-                        }
-                        onChange={(event) =>
-                          changeMembership(profile, event.target.value)
-                        }
-                        className="h-9 rounded-md border border-slate-300 bg-white px-2 text-xs disabled:bg-slate-100"
-                      >
-                        <option value="none">No workspace access</option>
-                        <option value="viewer">View only</option>
-                        <option value="officer">Can edit</option>
-                        <option value="workspace_admin">
-                          Workspace manager
-                        </option>
-                      </select>
-                      <p className="text-xs leading-5 text-slate-500 lg:col-start-4">
-                        {workspaceAccessTip(membershipValue)}
-                      </p>
-                      <div className="flex flex-wrap gap-2 lg:justify-end">
-                        {auth.isAdmin && profile.status === "pending" && (
-                          <ActionButton
-                            disabled={saving}
-                            onClick={() => changeAccess(profile, "active")}
-                            tone="approve"
-                          >
-                            Approve
-                          </ActionButton>
-                        )}
-                        {auth.isAdmin &&
-                          profile.status === "active" &&
-                          !isSelf && (
-                            <ActionButton
-                              disabled={saving}
-                              onClick={() => changeAccess(profile, "suspended")}
-                              tone="suspend"
-                            >
-                              Suspend
-                            </ActionButton>
-                          )}
-                        {auth.isAdmin && profile.status === "suspended" && (
-                          <ActionButton
-                            disabled={saving}
-                            onClick={() => changeAccess(profile, "active")}
-                            tone="approve"
-                          >
-                            Restore
-                          </ActionButton>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-                {!profiles.length && (
-                  <div className="px-4 py-12 text-center">
-                    <UserRoundCog className="mx-auto h-7 w-7 text-slate-400" />
-                    <p className="mt-2 text-sm text-slate-600">
-                      No registered users found.
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </section>
+        <PeopleDirectory
+          auth={auth}
+          profiles={profiles}
+          memberships={memberships}
+          workspaceDirectory={workspaceDirectory}
+          loading={state.loading}
+          saving={state.saving}
+          onRefresh={loadProfiles}
+          onAccountChange={changeAccess}
+          onMembershipChange={changeMembership}
+          onOwnWorkspace={openWorkspaceSetup}
+        />
       )}
-      {activeTab === "people" && (
-        <div className="mt-4 flex gap-3 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-950">
-          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
-          <p>
-            Account approval and workspace access are separate. A person needs
-            both an active account and active workspace access before official
-            Issues can open.
-          </p>
-        </div>
+      {workspaceSetup && (
+        <WorkspaceSetupDialog
+          value={workspaceSetup}
+          currentWorkspace={auth.workspace}
+          saving={
+            state.saving === `workspace:${workspaceSetup.profile.user_id}`
+          }
+          onChange={setWorkspaceSetup}
+          onClose={() => setWorkspaceSetup(null)}
+          onSubmit={provisionWorkspace}
+        />
       )}
     </>
   );
 }
 
-function workspaceAccessTip(role) {
-  if (role === "viewer") {
-    return "Can view Issues shared with the entire workspace. Division roles or explicit grants may provide additional access.";
+function PeopleDirectory({
+  auth,
+  profiles,
+  memberships,
+  workspaceDirectory,
+  loading,
+  saving,
+  onRefresh,
+  onAccountChange,
+  onMembershipChange,
+  onOwnWorkspace,
+}) {
+  return (
+    <section className="surface overflow-hidden rounded-md">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-4 py-4 sm:px-5">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-950">
+            User access directory
+          </h2>
+          <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-500">
+            Review the account, workspace placement and practical rights of
+            every registered person.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={loading}
+          className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60"
+        >
+          <RefreshCw
+            className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
+          />
+          Refresh
+        </button>
+      </div>
+
+      <div className="grid border-b border-slate-200 bg-slate-50 md:grid-cols-3 md:divide-x md:divide-slate-200">
+        <RightsKey
+          icon={CircleUserRound}
+          title="Account"
+          description="Controls whether the person can sign in. Approval alone reveals no official work."
+        />
+        <RightsKey
+          icon={Users}
+          title="This workspace"
+          description={`Controls access to ${auth.workspace?.name}. Editors can see workspace-wide Issues.`}
+        />
+        <RightsKey
+          icon={Building2}
+          title="Independent workspace"
+          description="Keeps another office's Issues separate. Its manager administers that workspace."
+        />
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center gap-2 px-4 py-14 text-sm text-slate-600">
+          <LoaderCircle className="h-5 w-5 animate-spin" />
+          Loading user rights
+        </div>
+      ) : (
+        <div className="divide-y divide-slate-200">
+          {profiles.map((profile) => {
+            const isSelf = profile.user_id === auth.user?.id;
+            const accountSaving = saving === profile.user_id;
+            const workspaceSaving =
+              saving === `workspace:${profile.user_id}`;
+            const currentMembership = memberships.find(
+              (item) => item.user_id === profile.user_id,
+            );
+            const membershipValue =
+              currentMembership?.status === "active"
+                ? currentMembership.role
+                : "none";
+            const assignments = workspaceDirectory.filter(
+              (item) =>
+                item.user_id === profile.user_id &&
+                item.status === "active" &&
+                item.workspace?.is_active !== false,
+            );
+            const hasIndependentWorkspace = assignments.some(
+              (item) => item.workspace_id !== auth.workspace?.id,
+            );
+
+            return (
+              <article key={profile.user_id} className="px-4 py-5 sm:px-5">
+                <div className="flex min-w-0 items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-slate-100 text-sm font-semibold text-slate-700">
+                    {userInitials(profile)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="min-w-0 truncate text-sm font-semibold text-slate-950">
+                        {profile.display_name || "Unnamed user"}
+                        {isSelf ? " (you)" : ""}
+                      </h3>
+                      <AccessStatus status={profile.status} />
+                      <span
+                        className={`inline-flex rounded-md px-2 py-1 text-[11px] font-semibold ${profile.role === "platform_admin" ? "bg-indigo-100 text-indigo-800" : "bg-slate-100 text-slate-600"}`}
+                      >
+                        {profile.role === "platform_admin"
+                          ? "System administrator"
+                          : "Standard account"}
+                      </span>
+                    </div>
+                    <p className="mt-1 truncate text-xs text-slate-500">
+                      {profile.email}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4">
+                  <p className="text-[11px] font-semibold uppercase text-slate-500">
+                    Active workspace rights
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {assignments.map((assignment) => (
+                      <WorkspaceRight
+                        key={`${assignment.workspace_id}:${assignment.user_id}`}
+                        assignment={assignment}
+                        current={
+                          assignment.workspace_id === auth.workspace?.id
+                        }
+                      />
+                    ))}
+                    {!assignments.length && (
+                      <span className="inline-flex min-h-8 items-center rounded-md border border-dashed border-slate-300 px-2.5 text-xs text-slate-500">
+                        No active workspace assigned
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="mt-4 grid gap-4 border-t border-slate-100 pt-4 lg:grid-cols-[minmax(160px,0.65fr)_minmax(220px,1fr)_minmax(220px,auto)] lg:items-end">
+                  <ControlField
+                    label="System authority"
+                    help="System administrators approve accounts and provision workspaces."
+                  >
+                    <select
+                      aria-label={`System authority for ${profile.email}`}
+                      value={profile.role}
+                      disabled={accountSaving || isSelf || !auth.isAdmin}
+                      onChange={(event) =>
+                        onAccountChange(
+                          profile,
+                          profile.status,
+                          event.target.value,
+                        )
+                      }
+                      className="h-10 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-800 disabled:bg-slate-100 disabled:text-slate-500"
+                    >
+                      <option value="user">Standard account</option>
+                      <option value="platform_admin">
+                        System administrator
+                      </option>
+                    </select>
+                  </ControlField>
+
+                  <ControlField
+                    label={`Access to ${auth.workspace?.name}`}
+                    help={workspaceAccessTip(membershipValue)}
+                  >
+                    <select
+                      aria-label={`Access to ${auth.workspace?.name} for ${profile.email}`}
+                      value={membershipValue}
+                      disabled={
+                        accountSaving ||
+                        isSelf ||
+                        profile.status !== "active"
+                      }
+                      onChange={(event) =>
+                        onMembershipChange(profile, event.target.value)
+                      }
+                      className="h-10 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-800 disabled:bg-slate-100 disabled:text-slate-500"
+                    >
+                      <option value="none">No access to this workspace</option>
+                      <option value="viewer">Viewer - can read</option>
+                      <option value="officer">Editor - can work on Issues</option>
+                      <option value="workspace_admin">
+                        Manager - controls this workspace
+                      </option>
+                    </select>
+                  </ControlField>
+
+                  <div>
+                    <p className="mb-1.5 text-xs font-semibold text-slate-700">
+                      Administrative actions
+                    </p>
+                    <div className="flex min-h-10 flex-wrap items-center gap-2">
+                      {auth.isAdmin &&
+                        profile.status === "active" &&
+                        !hasIndependentWorkspace &&
+                        !isSelf && (
+                          <ActionButton
+                            disabled={accountSaving || workspaceSaving}
+                            onClick={() => onOwnWorkspace(profile)}
+                          >
+                            <Building2 className="h-3.5 w-3.5" />
+                            {membershipValue === "none"
+                              ? "Create independent workspace"
+                              : "Move to independent workspace"}
+                          </ActionButton>
+                        )}
+                      {auth.isAdmin && profile.status === "pending" && (
+                        <ActionButton
+                          disabled={accountSaving}
+                          onClick={() => onAccountChange(profile, "active")}
+                          tone="approve"
+                        >
+                          Approve account
+                        </ActionButton>
+                      )}
+                      {auth.isAdmin &&
+                        profile.status === "active" &&
+                        !isSelf && (
+                          <ActionButton
+                            disabled={accountSaving}
+                            onClick={() =>
+                              onAccountChange(profile, "suspended")
+                            }
+                            tone="suspend"
+                          >
+                            Suspend account
+                          </ActionButton>
+                        )}
+                      {auth.isAdmin && profile.status === "suspended" && (
+                        <ActionButton
+                          disabled={accountSaving}
+                          onClick={() => onAccountChange(profile, "active")}
+                          tone="approve"
+                        >
+                          Restore account
+                        </ActionButton>
+                      )}
+                      {!auth.isAdmin && (
+                        <span className="text-xs text-slate-500">
+                          Workspace controls only
+                        </span>
+                      )}
+                      {auth.isAdmin &&
+                        hasIndependentWorkspace &&
+                        !isSelf && (
+                          <span className="inline-flex h-9 items-center text-xs font-medium text-teal-800">
+                            Independent workspace assigned
+                          </span>
+                        )}
+                    </div>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+          {!profiles.length && (
+            <div className="px-4 py-12 text-center">
+              <UserRoundCog className="mx-auto h-7 w-7 text-slate-400" />
+              <p className="mt-2 text-sm text-slate-600">
+                No registered users found.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+      <div className="flex gap-3 border-t border-slate-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-950 sm:px-5">
+        <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
+        <p>
+          Account approval, system authority and workspace rights are separate.
+          An Editor can see workspace-wide Issues in that workspace. Use an
+          independent workspace when another office needs a private register.
+        </p>
+      </div>
+    </section>
+  );
+}
+
+function RightsKey({ icon: Icon, title, description }) {
+  return (
+    <div className="flex gap-3 px-4 py-3 sm:px-5">
+      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-cyan-700" />
+      <div>
+        <p className="text-xs font-semibold text-slate-800">{title}</p>
+        <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
+      </div>
+    </div>
+  );
+}
+
+function ControlField({ label, help, children }) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-xs font-semibold text-slate-700">
+        {label}
+      </span>
+      {children}
+      <span className="mt-1.5 block text-[11px] leading-4 text-slate-500">
+        {help}
+      </span>
+    </label>
+  );
+}
+
+function WorkspaceRight({ assignment, current }) {
+  const role = workspaceRoleMeta(assignment.role);
+  const Icon = role.icon;
+  return (
+    <span
+      className={`inline-flex min-h-8 max-w-full items-center gap-2 rounded-md border px-2.5 py-1 text-xs ${role.style}`}
+      title={`${role.label} in ${assignment.workspace?.name}`}
+    >
+      <Icon className="h-3.5 w-3.5 shrink-0" />
+      <strong className="font-semibold">{role.label}</strong>
+      <span className="truncate">{assignment.workspace?.name}</span>
+      {current && (
+        <span className="shrink-0 border-l border-current/20 pl-2 text-[10px] font-semibold uppercase">
+          Current
+        </span>
+      )}
+    </span>
+  );
+}
+
+function workspaceRoleMeta(role) {
+  if (role === "workspace_admin") {
+    return {
+      label: "Manager",
+      icon: Shield,
+      style: "border-teal-200 bg-teal-50 text-teal-900",
+    };
   }
   if (role === "officer") {
-    return "Can edit Issues shared with the entire workspace. Division-only Issues follow the person's division role.";
+    return {
+      label: "Editor",
+      icon: FilePenLine,
+      style: "border-cyan-200 bg-cyan-50 text-cyan-900",
+    };
+  }
+  return {
+    label: "Viewer",
+    icon: Eye,
+    style: "border-slate-200 bg-slate-50 text-slate-700",
+  };
+}
+
+function userInitials(profile) {
+  const source = profile.display_name?.trim() || profile.email || "?";
+  const words = source.split(/\s+/).filter(Boolean);
+  return words
+    .slice(0, 2)
+    .map((word) => word[0]?.toUpperCase())
+    .join("");
+}
+
+function workspaceAccessTip(role) {
+  if (role === "viewer") {
+    return "Can read workspace-wide Issues here. This is not an isolated personal workspace.";
+  }
+  if (role === "officer") {
+    return "Can edit workspace-wide Issues here. Use Own workspace for independent work.";
   }
   if (role === "workspace_admin") {
-    return "Can edit all Issues and manage workspace people, divisions and sharing.";
+    return "Can edit all Issues here and manage this workspace's people, divisions and sharing.";
   }
   return "The person cannot open this workspace.";
+}
+
+function workspaceCodeFrom(value) {
+  const code = String(value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
+  return code.length >= 2 ? code : "new-workspace";
+}
+
+function WorkspaceSetupDialog({
+  value,
+  currentWorkspace,
+  saving,
+  onChange,
+  onClose,
+  onSubmit,
+}) {
+  const person =
+    value.profile.display_name || value.profile.email || "This person";
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 p-0 sm:items-center sm:p-4"
+      role="presentation"
+    >
+      <form
+        onSubmit={onSubmit}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="workspace-setup-title"
+        className="w-full max-w-lg rounded-t-lg bg-white shadow-2xl sm:rounded-lg"
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-5">
+          <div>
+            <h2
+              id="workspace-setup-title"
+              className="text-base font-semibold text-slate-950"
+            >
+              Create an independent workspace
+            </h2>
+            <p className="mt-1 text-xs leading-5 text-slate-500">
+              {person} will manage this workspace without access to your
+              workspace’s Issues.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            aria-label="Close workspace setup"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 disabled:opacity-50"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="space-y-4 px-4 py-5 sm:px-5">
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-semibold text-slate-700">
+              Workspace name
+            </span>
+            <input
+              autoFocus
+              required
+              minLength={2}
+              maxLength={120}
+              value={value.name}
+              onChange={(event) =>
+                onChange({ ...value, name: event.target.value })
+              }
+              className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-950 focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-100"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-semibold text-slate-700">
+              Workspace code
+            </span>
+            <input
+              required
+              minLength={2}
+              maxLength={48}
+              pattern="[a-z0-9](?:[a-z0-9]|-){1,47}"
+              value={value.code}
+              onChange={(event) =>
+                onChange({
+                  ...value,
+                  code: event.target.value
+                    .toLowerCase()
+                    .replace(/[^a-z0-9-]/g, ""),
+                })
+              }
+              className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-950 focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-100"
+            />
+            <span className="mt-1.5 block text-xs text-slate-500">
+              A short unique identifier using lowercase letters, numbers and
+              hyphens.
+            </span>
+          </label>
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-3 text-xs leading-5 text-amber-950">
+            Any access {person} currently has to{" "}
+            <strong>{currentWorkspace?.name}</strong> will be removed. Existing
+            Issues stay in their present workspace and are not copied.
+          </div>
+        </div>
+        <div className="flex flex-col-reverse gap-2 border-t border-slate-200 px-4 py-4 sm:flex-row sm:justify-end sm:px-5">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={saving}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-70"
+          >
+            {saving && <LoaderCircle className="h-4 w-4 animate-spin" />}
+            {saving ? "Creating workspace..." : "Create and move user"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
 }
 
 function AdminGuide({ title, intro, items }) {
@@ -906,6 +1340,7 @@ function Metric({ label, value, tone = "slate" }) {
     slate: "border-slate-200 bg-white text-slate-950",
     amber: "border-amber-200 bg-amber-50 text-amber-950",
     emerald: "border-emerald-200 bg-emerald-50 text-emerald-950",
+    cyan: "border-cyan-200 bg-cyan-50 text-cyan-950",
     rose: "border-rose-200 bg-rose-50 text-rose-950",
   };
   return (
@@ -933,16 +1368,17 @@ function AccessStatus({ status }) {
 }
 
 function ActionButton({ children, disabled, onClick, tone }) {
-  const style =
-    tone === "approve"
-      ? "bg-teal-700 text-white"
-      : "border border-rose-200 bg-rose-50 text-rose-800";
+  const styles = {
+    approve: "bg-teal-700 text-white",
+    suspend: "border border-rose-200 bg-rose-50 text-rose-800",
+    neutral: "border border-slate-300 bg-white text-slate-700",
+  };
   return (
     <button
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className={`h-9 rounded-md px-3 text-xs font-semibold disabled:opacity-50 ${style}`}
+      className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-md px-3 text-xs font-semibold disabled:opacity-50 ${styles[tone || "neutral"]}`}
     >
       {disabled ? "Saving..." : children}
     </button>

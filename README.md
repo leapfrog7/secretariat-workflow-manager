@@ -77,8 +77,19 @@ See [REPORTING_MODULE.md](REPORTING_MODULE.md) for the phased path to weekly/mon
 - Hold new registrations for administrator approval.
 - Require both an active account and active workspace membership.
 - Approve, suspend and restore users from the Administration page.
-- Grant Officer or Workspace Administrator membership.
+- Keep approval membership-neutral: activating an account does not expose any
+  official workspace.
+- Add a person to the current workspace as a viewer, editor or manager only
+  when they should share its Issues.
+- Provision an independent workspace for a separate person or office and remove
+  their access to the administrator's current workspace in one operation.
+- Review each person's account state, system authority and active workspace
+  assignments in the Administration access directory.
 - Protect cloud tables with PostgreSQL row-level security policies.
+
+Platform administration controls accounts and workspace provisioning. It does
+not itself grant access to official Issues; all operational access requires an
+active membership in the relevant workspace.
 
 ## Architecture
 

@@ -117,6 +117,54 @@ export default function ConfiguredAuthProvider({ children }) {
     };
   }, [profileState.profile, profileState.userId, userId]);
 
+  useEffect(() => {
+    const profile = profileState.userId === userId ? profileState.profile : null;
+    const workspace =
+      workspaceState.userId === userId ? workspaceState.workspace : null;
+    if (
+      !userId ||
+      profile?.status !== 'active' ||
+      !workspace?.id ||
+      typeof window === 'undefined'
+    ) {
+      return undefined;
+    }
+
+    let checking = false;
+    async function revalidateWorkspace() {
+      if (checking || document.visibilityState === 'hidden') return;
+      checking = true;
+      try {
+        const workspaces = await listMyWorkspaces(userId);
+        const current = workspaces.find((item) => item.id === workspace.id);
+        if (
+          !current ||
+          current.membership?.role !== workspace.membership?.role ||
+          current.membership?.status !== workspace.membership?.status
+        ) {
+          window.location.reload();
+        }
+      } catch {
+        // A temporary network failure must not replace the existing offline view.
+      } finally {
+        checking = false;
+      }
+    }
+
+    const interval = window.setInterval(revalidateWorkspace, 60_000);
+    window.addEventListener('focus', revalidateWorkspace);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', revalidateWorkspace);
+    };
+  }, [
+    profileState.profile,
+    profileState.userId,
+    userId,
+    workspaceState.userId,
+    workspaceState.workspace,
+  ]);
+
   async function refreshProfile() {
     if (!user) return null;
     const profile = await getProfile(user.id);

@@ -12,6 +12,9 @@ level security (RLS).
 1. **Platform role**
    - `platform_admin`: operates the service and approves accounts.
    - `user`: has no official data access until added to a workspace.
+   - Platform administration is not an official-data bypass. A platform
+     administrator needs an active membership in a workspace to read or edit its
+     Issues.
 2. **Workspace role**
    - `workspace_admin`: manages workspace users, divisions and policy.
    - `officer`: may create Issues and receives access through a division or grant.
@@ -90,6 +93,12 @@ Current implementation status:
   cloud draft retention across multiple clients.
 - Migration `021_issue_notes.sql` must be applied before cloud Noting and note
   revision synchronization are enabled.
+- Migration `022_workspace_provisioning_and_isolation.sql` must be applied before
+  using independent workspace provisioning. Account approval must remain
+  separate from workspace membership.
+- Migration `023_administration_workspace_directory.sql` permits platform
+  administrators to read workspace and membership metadata for the access
+  directory. It must not grant access to Issue content.
 - Division enforcement remains off until a workspace administrator creates
   divisions, assigns active members and Issues, passes the readiness report, and
   explicitly enables it.

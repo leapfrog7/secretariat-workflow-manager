@@ -16,6 +16,7 @@ const ids = {
   personalParagraph: '60000000-0000-4000-8000-000000000001',
   sharedParagraph: '60000000-0000-4000-8000-000000000002',
   note: '70000000-0000-4000-8000-000000000001',
+  isolatedIssue: '80000000-0000-4000-8000-000000000001',
 };
 
 async function applyMigrations() {
@@ -114,7 +115,8 @@ before(async () => {
       ('division-admin', 'division-admin@example.test', 'Division Admin', 'active', 'user'),
       ('editor', 'editor@example.test', 'Editor', 'active', 'user'),
       ('viewer', 'viewer@example.test', 'Viewer', 'active', 'user'),
-      ('target', 'target@example.test', 'Target User', 'active', 'user')
+      ('target', 'target@example.test', 'Target User', 'active', 'user'),
+      ('platform-admin', 'platform@example.test', 'Platform Admin', 'active', 'platform_admin')
   `);
   await client.query(
     'INSERT INTO public.workspaces (id, name, code, created_by, division_access_enabled) VALUES ($1, $2, $3, $4, true)',
@@ -449,4 +451,93 @@ test('Paragraph Bank separates personal wording from administrator-managed share
     assert.equal(result.rows[0].revision, 1);
     assert.equal(result.rows[0].payload.title, 'Personal reminder');
   });
+});
+
+test('workspace provisioning isolates independent offices from the platform administrator workspace', { skip: !databaseUrl }, async () => {
+  await useIdentity('platform-admin');
+  const visibleBeforeProvisioning = await client.query(
+    'SELECT id FROM public.cloud_issues WHERE workspace_id = $1',
+    [ids.workspace],
+  );
+  assert.equal(visibleBeforeProvisioning.rowCount, 0);
+  assert.equal(await accessCapability('platform-admin'), false);
+
+  await useIdentity('platform-admin');
+  const provisioned = await client.query(
+    `SELECT * FROM public.admin_create_workspace_for_user(
+      'target', 'Target Office', 'target-office', $1::uuid
+    )`,
+    [ids.workspace],
+  );
+  const newWorkspaceId = provisioned.rows[0].id;
+  assert.ok(newWorkspaceId);
+
+  await useOwner();
+  const oldMembership = await client.query(
+    `SELECT status
+     FROM public.workspace_members
+     WHERE workspace_id = $1 AND user_id = 'target'`,
+    [ids.workspace],
+  );
+  assert.equal(oldMembership.rows[0].status, 'suspended');
+
+  const newMembership = await client.query(
+    `SELECT role, status
+     FROM public.workspace_members
+     WHERE workspace_id = $1 AND user_id = 'target'`,
+    [newWorkspaceId],
+  );
+  assert.deepEqual(newMembership.rows[0], {
+    role: 'workspace_admin',
+    status: 'active',
+  });
+  await client.query(
+    `INSERT INTO public.cloud_issues (
+      workspace_id, id, payload, status, visibility,
+      created_by, updated_by, revision
+    ) VALUES ($1, $2, $3::jsonb, 'Pending', 'workspace', 'target', 'target', 1)`,
+    [
+      newWorkspaceId,
+      ids.isolatedIssue,
+      JSON.stringify({
+        id: ids.isolatedIssue,
+        shortTitle: 'Private target workspace Issue',
+        subject: 'Private target workspace Issue',
+      }),
+    ],
+  );
+
+  await useIdentity('target');
+  const oldIssues = await client.query(
+    'SELECT id FROM public.cloud_issues WHERE workspace_id = $1',
+    [ids.workspace],
+  );
+  assert.equal(oldIssues.rowCount, 0);
+
+  const ownWorkspace = await client.query(
+    'SELECT id FROM public.workspaces WHERE id = $1',
+    [newWorkspaceId],
+  );
+  assert.equal(ownWorkspace.rowCount, 1);
+
+  await useIdentity('platform-admin');
+  const targetWorkspace = await client.query(
+    'SELECT id FROM public.workspaces WHERE id = $1',
+    [newWorkspaceId],
+  );
+  assert.equal(targetWorkspace.rowCount, 1);
+
+  const directoryMembership = await client.query(
+    `SELECT role
+     FROM public.workspace_members
+     WHERE workspace_id = $1 AND user_id = 'target'`,
+    [newWorkspaceId],
+  );
+  assert.equal(directoryMembership.rows[0].role, 'workspace_admin');
+
+  const targetIssues = await client.query(
+    'SELECT id FROM public.cloud_issues WHERE workspace_id = $1',
+    [newWorkspaceId],
+  );
+  assert.equal(targetIssues.rowCount, 0);
 });

@@ -74,7 +74,8 @@ export default function HelpPage() {
             <GuideLocation>Sign-in screen and the workspace name in the application header</GuideLocation>
             <GuideRows rows={[
               ['Create an account', 'Register with your email address and password. A new account remains in Approval pending until a system administrator activates it.'],
-              ['Workspace access', 'After account approval, the user must also belong to an official workspace. The workspace name in the header identifies the shared register currently in use.'],
+              ['Workspace access', 'Approval permits sign-in but does not reveal official work. A workspace manager must separately add you to a shared workspace or give you an independent workspace.'],
+              ['Shared or independent', 'People in the same workspace may see workspace-wide Issues according to their role. A separate office or team should use its own workspace so its register remains isolated.'],
               ['Check again', 'Use Check again on an approval or workspace-access screen after an administrator has changed your access. There is no need to create a second account.'],
               ['Across laptops', 'Sign in to the same account and workspace on another laptop to receive the complete Issue workspace, shared officer directory and saved drafting context.'],
               ['Why an Issue may be read only', 'Some Issues may be shared with you for viewing only. You can read their position and records, but editing controls are hidden. The Share & Access tab shows the reason for your access.'],

@@ -59,6 +59,32 @@ export async function listWorkspaceMembers(workspaceId) {
   return data || [];
 }
 
+export async function listWorkspaceAccessDirectory() {
+  const client = requireClient();
+  const [{ data: memberships, error: membershipError }, { data: workspaces, error: workspaceError }] =
+    await Promise.all([
+      client
+        .from('workspace_members')
+        .select(MEMBER_FIELDS)
+        .order('created_at', { ascending: true }),
+      client
+        .from('workspaces')
+        .select(WORKSPACE_FIELDS)
+        .eq('is_active', true)
+        .order('created_at', { ascending: true }),
+    ]);
+
+  if (membershipError) throw membershipError;
+  if (workspaceError) throw workspaceError;
+  const workspacesById = new Map(
+    (workspaces || []).map((workspace) => [workspace.id, workspace]),
+  );
+  return (memberships || []).map((membership) => ({
+    ...membership,
+    workspace: workspacesById.get(membership.workspace_id) || null,
+  }));
+}
+
 export async function setWorkspaceMember({ workspaceId, userId, role, status }) {
   const client = requireClient();
   const { data, error } = await client.rpc('admin_set_workspace_member', {
@@ -66,6 +92,24 @@ export async function setWorkspaceMember({ workspaceId, userId, role, status }) 
     target_user_id: userId,
     next_role: role,
     next_status: status,
+  });
+
+  if (error) throw error;
+  return Array.isArray(data) ? data[0] : data;
+}
+
+export async function createWorkspaceForUser({
+  userId,
+  name,
+  code,
+  sourceWorkspaceId = null,
+}) {
+  const client = requireClient();
+  const { data, error } = await client.rpc('admin_create_workspace_for_user', {
+    target_user_id: userId,
+    workspace_name: name,
+    workspace_code: code,
+    source_workspace_id: sourceWorkspaceId || null,
   });
 
   if (error) throw error;
