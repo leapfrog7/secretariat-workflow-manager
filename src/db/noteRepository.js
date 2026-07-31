@@ -1,5 +1,5 @@
 import { db } from './database';
-import { queueCloudIssueItemUpsert } from '../features/cloud/cloudIssueItemSync';
+import { queueCloudIssueItemDelete, queueCloudIssueItemUpsert } from '../features/cloud/cloudIssueItemSync';
 import {
   normalizeNote,
   noteRevisionSnapshot,
@@ -41,4 +41,13 @@ export async function saveNote(input) {
   await db.notes.put(note);
   await queueCloudIssueItemUpsert('note', note);
   return note;
+}
+
+export async function deleteNote(id) {
+  const existing = await db.notes.get(id);
+  if (!existing) return false;
+  const note = normalizeNote(existing);
+  await db.notes.delete(id);
+  await queueCloudIssueItemDelete('note', note);
+  return true;
 }

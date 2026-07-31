@@ -47,6 +47,33 @@ export function normalizeAITextResponse(value, { operation = 'draft' } = {}) {
   return sanitized;
 }
 
+export function buildDraftAIRequest({
+  context,
+  communicationType,
+  officeProfile,
+  signatory,
+  recipient,
+  recipientRelationship,
+  draftMode = 'conservative',
+  instruction,
+  additionalInstruction,
+}) {
+  return {
+    instructions: GOVERNMENT_DRAFT_SYSTEM_PROMPT,
+    input: buildGovernmentDraftPrompt({
+      communicationType,
+      officeProfile,
+      signatory,
+      recipient,
+      recipientRelationship,
+      draftMode,
+      context,
+      instruction,
+      additionalInstruction,
+    }),
+  };
+}
+
 function documentInput({
   communicationType,
   documentDetails,
@@ -87,25 +114,26 @@ export async function generateDraftBody({
   draftMode = 'conservative',
   documentDetails = {},
   instruction,
+  additionalInstruction,
   signal,
 }) {
   requireProvider(provider);
   if (!context?.trim()) throw new Error('The AI context is empty.');
   if (!signatory?.name) throw new Error('Select an authorized signatory before generating the draft.');
-  const input = buildGovernmentDraftPrompt({
+  const request = buildDraftAIRequest({
+    context,
     communicationType,
     officeProfile,
     signatory,
     recipient,
     recipientRelationship,
     draftMode,
-    context,
     instruction,
+    additionalInstruction,
   });
   const response = await provider.generateText({
     operation: 'draft',
-    instructions: GOVERNMENT_DRAFT_SYSTEM_PROMPT,
-    input,
+    ...request,
     signal,
   });
   const normalizedBody = normalizeAITextResponse(response.text, { operation: 'draft' });

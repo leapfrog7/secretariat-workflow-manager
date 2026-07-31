@@ -24,7 +24,7 @@ export function normalizeOfficeProfile(input = {}) {
   };
 }
 
-export function buildGovernmentDraftPrompt({ communicationType, officeProfile, signatory, recipient, recipientRelationship, draftMode = 'conservative', context, instruction }) {
+export function buildGovernmentDraftPrompt({ communicationType, officeProfile, signatory, recipient, recipientRelationship, draftMode = 'conservative', context, instruction, additionalInstruction }) {
   const profile = normalizeOfficeProfile(officeProfile);
   const senderName = profile.ministry || profile.department || profile.governmentName || 'the issuing office';
   const recipientBlock = formatRecipient(recipient);
@@ -36,11 +36,13 @@ export function buildGovernmentDraftPrompt({ communicationType, officeProfile, s
     `RECIPIENT RELATIONSHIP\n${recipientRelationship || '[RELATIONSHIP NOT SPECIFIED]'}`,
     `AUTHORIZED SIGNATORY\n${[signatory?.name, signatory?.designation].filter(Boolean).join('\n') || '[AUTHORIZED SIGNATORY]'}`,
     `FORM-SPECIFIC BODY RULE\n${getDraftTemplate(communicationType).bodyInstruction}`,
+    'DECISION BASIS\nIf SELECTED NOTES appear in the Issue context, treat their examination and proposed course as the primary basis for the outgoing communication. Use the running summary, communications and references for supporting facts and citations. If no Note is selected, follow the officer\'s goal below and use the Issue context as evidence. Never convert a tentative proposal into an approval or final decision.',
     `DRAFTING MODE\n${draftMode === 'detailed' ? 'Detailed context mode: use relevant supplied context, but do not infer beyond it.' : 'Conservative mode: restate the purpose/requested action in one concise substantive paragraph. Do not add a second request, explanation, background inference, or courtesy paragraph.'}`,
     `MINISTRY HOUSE STYLE\n${profile.houseStyleNotes?.trim() || 'No additional house-style instruction.'}`,
     'FACT DISCIPLINE\nEvery factual phrase must be traceable to ISSUE CONTEXT, PURPOSE / REQUESTED ACTION, or the configured sender and recipient above. Prefer omission over elaboration. Use the minimum sentences needed and state each request only once. Do not add generic importance, benefits, protocol, urgency, report contents, contact instructions, approvals, legal authority, enclosures, availability of records, or distribution. Do not say that a document is attached, enclosed, or available unless that fact is supplied. Preserve eReceipt numbers, dates, amounts, names, and citations exactly. Use [DETAIL REQUIRED] only when a missing fact is essential to the body.',
     `PERSPECTIVE EXAMPLE\nCorrect: "I am directed to request the Department of Legal Affairs to provide its comments to this Ministry by [DATE]."\nWrong: "The Ministry should send us its comments." The configured Ministry is always the sender.`,
-    `PURPOSE / REQUESTED ACTION\n${instruction?.trim() || '[PURPOSE OR REQUESTED ACTION NOT SPECIFIED]'}`,
+    `COMMUNICATION GOAL / REQUESTED OUTCOME\n${instruction?.trim() || '[GOAL NOT SEPARATELY SPECIFIED; FOLLOW THE SELECTED NOTE]'}`,
+    `OFFICER'S ADDITIONAL DRAFTING INSTRUCTION\n${additionalInstruction?.trim() || 'No additional instruction.'}`,
     'OUTPUT REQUEST\nWrite only the substantive body paragraph or numbered paragraphs. Do not output the government heading, number, date, title, subject, salutation, complimentary close, signature, recipient block, endorsement, copy list, Markdown, preface, or explanation. The application adds those elements programmatically.',
     `ISSUE CONTEXT\n${context}`,
   ].join('\n\n');

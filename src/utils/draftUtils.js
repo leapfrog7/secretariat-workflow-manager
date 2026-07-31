@@ -13,6 +13,7 @@ export function normalizeDraft(input = {}) {
     recipient: input.recipient && typeof input.recipient === 'object' ? input.recipient : {},
     documentDetails: input.documentDetails && typeof input.documentDetails === 'object' ? input.documentDetails : {},
     instruction: input.instruction || '',
+    additionalInstruction: input.additionalInstruction || '',
     content: input.content || '',
     document: normalizeDraftDocument(input.document, {
       content: input.content,

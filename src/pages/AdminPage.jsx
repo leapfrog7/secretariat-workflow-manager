@@ -589,7 +589,7 @@ export default function AdminPage() {
                 </h2>
                 <p className="mt-1 text-xs text-slate-500">
                   Enable providers, choose server-side models, and set workspace
-                  safeguards. API keys are configured only in Vercel.
+                  safeguards. API keys are configured only in the protected Cloud Run environment.
                 </p>
               </div>
             </div>

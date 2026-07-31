@@ -30,6 +30,11 @@ test('every communication type has a versioned deterministic template', () => {
   assert.equal(memorandum.blocks.find((block) => block.role === 'documentTitle').alignment, 'center');
   assert.equal(memorandum.blocks.find((block) => block.role === 'communicationNumber').alignment, 'center');
   assert.equal(memorandum.blocks.find((block) => block.role === 'signature').alignment, 'right');
+  assert.match(memorandum.bodyInstruction, /third-person institutional voice/);
+  assert.match(memorandum.bodyInstruction, /undersigned is directed/);
+  assert.match(getDraftTemplate('Letter').bodyInstruction, /first-person official voice/);
+  assert.match(getDraftTemplate('D.O. Letter').bodyInstruction, /personal, friendly and professional/);
+  assert.match(getDraftTemplate('Office Order').bodyInstruction, /third-person institutional voice/);
 
   COMMUNICATION_TYPES.forEach((communicationType) => {
     const numberBlock = getDraftTemplate(communicationType).blocks.find((block) => block.role === 'communicationNumber');

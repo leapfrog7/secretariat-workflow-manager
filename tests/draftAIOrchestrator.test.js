@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  buildDraftAIRequest,
   generateDraftBody,
   insertDraftBodyText,
   normalizeAITextResponse,
@@ -70,6 +71,11 @@ test('one provider-independent contract produces only semantic body blocks', asy
   assert.equal(provider.calls.length, 1);
   assert.equal(provider.calls[0].operation, 'draft');
   assert.match(provider.calls[0].instructions, /substantive body/);
+  assert.match(provider.calls[0].instructions, /Letters and D\.O\. Letters.*first-person voice/);
+  assert.match(provider.calls[0].instructions, /selected file Notes.*primary drafting direction/);
+  assert.match(provider.calls[0].input, /third-person institutional voice/);
+  assert.match(provider.calls[0].input, /DECISION BASIS/);
+  assert.match(provider.calls[0].input, /COMMUNICATION GOAL \/ REQUESTED OUTCOME/);
   assert.equal(result.document.metadata.subject, 'Monthly report');
   assert.deepEqual(result.document.blocks.map((block) => block.role), ['bodyParagraph']);
   assert.deepEqual(result.document.blocks.map((block) => block.source), ['ai']);
@@ -77,6 +83,29 @@ test('one provider-independent contract produces only semantic body blocks', asy
   assert.match(result.text, /Subject: Monthly report/);
   assert.match(result.text, /OFFICE MEMORANDUM/);
   assert.match(result.text, /\(A\. Officer\)/);
+});
+
+test('prompt preview contract matches the request sent to the provider', async () => {
+  const provider = fakeProvider('The monthly report may kindly be furnished by 31 July 2026.');
+  const request = {
+    context: 'The monthly report is due by 31 July 2026.',
+    communicationType: 'Office Memorandum',
+    officeProfile,
+    signatory,
+    recipient,
+    recipientRelationship: 'Another Ministry / Department',
+    draftMode: 'detailed',
+    instruction: 'Request the monthly report.',
+    additionalInstruction: 'Keep the request courteous and put the deadline last.',
+  };
+  const preview = buildDraftAIRequest(request);
+
+  await generateDraftBody({ provider, ...request, documentDetails });
+
+  assert.equal(provider.calls[0].instructions, preview.instructions);
+  assert.equal(provider.calls[0].input, preview.input);
+  assert.match(preview.input, /OFFICER'S ADDITIONAL DRAFTING INSTRUCTION/);
+  assert.match(preview.input, /Keep the request courteous and put the deadline last\./);
 });
 
 test('AI normalization rejects unusable, excessive and structural responses', () => {

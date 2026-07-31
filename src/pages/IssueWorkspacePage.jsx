@@ -20,7 +20,7 @@ import { deleteReference, getReferencesByIssue, saveReference } from '../db/refe
 import { getAllOfficers } from '../db/officerRepository';
 import { countMilestonesByIssue, getMilestonesByIssue } from '../db/milestoneRepository';
 import { countSummaryVersions, deleteSummaryVersion, getLatestSummary, getSummaryVersions, saveSummaryVersion } from '../db/summaryRepository';
-import { getNotesByIssue, saveNote } from '../db/noteRepository';
+import { deleteNote, getNotesByIssue, saveNote } from '../db/noteRepository';
 import { useToast } from '../components/common/ToastProvider';
 import { formatDateTime, formatDisplayDate, todayISO, tomorrowISO } from '../utils/dateUtils';
 import { ISSUE_RECURRENCE_TYPES, ISSUE_STATUSES } from '../constants/issueConstants';
@@ -294,8 +294,9 @@ export default function IssueWorkspacePage() {
     try {
       if (target.kind === 'communication') await deleteCommunication(target.item.id);
       else if (target.kind === 'reference') await deleteReference(target.item.id);
+      else if (target.kind === 'note') await deleteNote(target.item.id);
       else await deleteSummaryVersion(target.item.id);
-      showToast(target.kind === 'communication' ? 'Communication deleted.' : target.kind === 'reference' ? 'Reference deleted.' : `Summary version ${target.item.version} deleted.`);
+      showToast(target.kind === 'communication' ? 'Communication deleted.' : target.kind === 'reference' ? 'Reference deleted.' : target.kind === 'note' ? `Note ${target.item.sequence} deleted.` : `Summary version ${target.item.version} deleted.`);
       setState((current) => ({ ...current, deleteTarget: null }));
       await load();
     } catch (error) {
@@ -473,6 +474,7 @@ export default function IssueWorkspacePage() {
               }}
               readOnly={!canEditIssue}
               onSave={saveNoteEntry}
+              onDelete={(item) => setState((current) => ({ ...current, deleteTarget: { kind: 'note', item } }))}
               onCreateDraft={createDraftFromNote}
             />
           </div>
@@ -503,8 +505,8 @@ export default function IssueWorkspacePage() {
       <ConfirmDialog open={state.confirmArchive} title={issue.isArchived ? 'Restore Issue?' : 'Archive Issue?'} message={issue.isArchived ? 'The Issue will return to the current register.' : 'The Issue will be hidden from the current register but retained in the database.'} confirmLabel={issue.isArchived ? 'Restore' : 'Archive'} onCancel={() => setState((current) => ({ ...current, confirmArchive: false }))} onConfirm={toggleArchiveIssue} />
       <ConfirmDialog
         open={Boolean(state.deleteTarget)}
-        title={state.deleteTarget?.kind === 'communication' ? 'Delete communication?' : state.deleteTarget?.kind === 'reference' ? 'Delete reference?' : `Delete summary version ${state.deleteTarget?.item?.version || ''}?`}
-        message={state.deleteTarget?.kind === 'summary' ? 'This saved version will be permanently removed. If it is the latest version, the preceding version will become the current running summary.' : 'This entry will be permanently removed from the Issue.'}
+        title={state.deleteTarget?.kind === 'communication' ? 'Delete communication?' : state.deleteTarget?.kind === 'reference' ? 'Delete reference?' : state.deleteTarget?.kind === 'note' ? `Delete Note ${state.deleteTarget?.item?.sequence || ''}?` : `Delete summary version ${state.deleteTarget?.item?.version || ''}?`}
+        message={state.deleteTarget?.kind === 'summary' ? 'This saved version will be permanently removed. If it is the latest version, the preceding version will become the current running summary.' : state.deleteTarget?.kind === 'note' ? 'This note and its saved revision history will be permanently removed from the Issue. Other note numbers will remain unchanged.' : 'This entry will be permanently removed from the Issue.'}
         confirmLabel="Delete"
         destructive
         onCancel={() => setState((current) => ({ ...current, deleteTarget: null }))}

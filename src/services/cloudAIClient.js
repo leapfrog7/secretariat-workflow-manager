@@ -1,14 +1,15 @@
 import { cloudClient } from '../features/auth/cloudClient';
 import { RUNNING_SUMMARY_SYSTEM_PROMPT } from './lmStudioClient';
 import { buildReportRefinementInput, normalizeReportRefinement, REPORT_REFINEMENT_SYSTEM_PROMPT } from '../utils/reportAIUtils';
+import { resolveCloudAIBaseUrl } from '../utils/cloudAIUrl';
 
 function apiUrl(path) {
-  const base = String(import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '');
+  const base = resolveCloudAIBaseUrl(import.meta.env.VITE_API_BASE_URL);
   return `${base}${path}`;
 }
 
 function localApiBase() {
-  const base = String(import.meta.env.VITE_API_BASE_URL || '').trim().replace(/\/$/, '');
+  const base = resolveCloudAIBaseUrl(import.meta.env.VITE_API_BASE_URL);
   return /^https?:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?$/i.test(base) ? base : '';
 }
 
@@ -38,7 +39,7 @@ async function cloudRequest(path, options = {}) {
     if (localBase) {
       throw new Error(`Cannot reach the local Cloud AI API at ${localBase}. Restart development with "npm run dev".`);
     }
-    throw new Error('Cannot reach the Cloud AI service. Confirm that the Vercel API is deployed.');
+    throw new Error('Cannot reach the Cloud AI service on Google Cloud Run. Check the network connection and try again.');
   }
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(payload.error || `Cloud AI request failed (${response.status}).`);
