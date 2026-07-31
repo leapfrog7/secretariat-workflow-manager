@@ -67,18 +67,46 @@ export function noteRevisionSnapshot(note) {
   });
 }
 
+function inlineMarkdownContent(value, forceBold = false) {
+  const source = String(value || '');
+  const content = [];
+  const pattern = /(\*\*|__)(.+?)\1/g;
+  let cursor = 0;
+  let match = pattern.exec(source);
+  const pushText = (text, bold = false) => {
+    if (!text) return;
+    content.push({
+      type: 'text',
+      text,
+      ...(bold || forceBold ? { marks: [{ type: 'bold' }] } : {}),
+    });
+  };
+  while (match) {
+    pushText(source.slice(cursor, match.index));
+    pushText(match[2], true);
+    cursor = match.index + match[0].length;
+    match = pattern.exec(source);
+  }
+  pushText(source.slice(cursor));
+  return content;
+}
+
 export function plainTextToNoteRichText(value) {
   const lines = String(value || '').replace(/\r\n/g, '\n').split('\n');
   const content = [];
   let activeList = null;
-  const pushParagraph = (text) => {
+  const pushParagraph = (text, bold = false) => {
+    const inlineContent = inlineMarkdownContent(text, bold);
     content.push({
       type: 'paragraph',
-      ...(text ? { content: [{ type: 'text', text }] } : {}),
+      ...(inlineContent.length ? { content: inlineContent } : {}),
     });
   };
   lines.forEach((rawLine) => {
-    const line = rawLine.trim();
+    const trimmedLine = rawLine.trim();
+    if (/^([-*_])\1{2,}$/.test(trimmedLine)) return;
+    const heading = trimmedLine.match(/^#{1,6}\s+(.+)$/);
+    const line = (heading?.[1] || trimmedLine).replace(/^>\s?/, '');
     const bullet = line.match(/^[-*]\s+(.+)$/);
     const ordered = line.match(/^\d+[.)]\s+(.+)$/);
     const listType = bullet ? 'bulletList' : ordered ? 'orderedList' : '';
@@ -91,13 +119,15 @@ export function plainTextToNoteRichText(value) {
         type: 'listItem',
         content: [{
           type: 'paragraph',
-          content: [{ type: 'text', text: bullet?.[1] || ordered?.[1] }],
+          content: inlineMarkdownContent(bullet?.[1] || ordered?.[1]),
         }],
       });
       return;
     }
     activeList = null;
-    if (line || (content.length && content.at(-1)?.type !== 'paragraph')) pushParagraph(line);
+    const subject = line.match(/^subject\s*:\s*(.+)$/i);
+    const paragraphText = subject ? `Subject: ${subject[1]}` : line;
+    if (paragraphText || (content.length && content.at(-1)?.type !== 'paragraph')) pushParagraph(paragraphText, Boolean(heading || subject));
   });
   return normalizeDraftRichText({
     type: 'doc',

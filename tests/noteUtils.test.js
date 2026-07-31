@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   normalizeNote,
   noteRevisionSnapshot,
+  plainTextToNoteRichText,
   validateNote,
 } from '../src/features/noting/noteUtils.js';
 
@@ -50,4 +51,52 @@ test('note revision snapshots preserve the earlier wording and attribution', () 
   assert.equal(revision.content, 'Earlier examination.');
   assert.equal(revision.editedByUserId, 'user-1');
   assert.equal(revision.editedByName, 'Section Officer');
+});
+
+test('notes retain bounded paragraph indentation and font size marks', () => {
+  const note = normalizeNote({
+    richText: {
+      type: 'doc',
+      content: [{
+        type: 'paragraph',
+        attrs: { indent: 3 },
+        content: [{
+          type: 'text',
+          text: 'Indented examination.',
+          marks: [{ type: 'fontSize', attrs: { size: 14 } }],
+        }],
+      }],
+    },
+  });
+
+  assert.equal(note.richText.content[0].attrs.indent, 3);
+  assert.deepEqual(note.richText.content[0].content[0].marks, [{
+    type: 'fontSize',
+    attrs: { size: 14 },
+  }]);
+});
+
+test('AI note Markdown markers become clean rich-text formatting', () => {
+  const richText = plainTextToNoteRichText([
+    '# Examination',
+    '**Facts:** The reference was received on 30 July 2026.',
+    '---',
+    '- **Action:** Obtain the missing report.',
+  ].join('\n'));
+
+  assert.equal(richText.content.length, 3);
+  assert.equal(richText.content[0].content[0].text, 'Examination');
+  assert.deepEqual(richText.content[0].content[0].marks, [{ type: 'bold' }]);
+  assert.equal(richText.content[1].content[0].text, 'Facts:');
+  assert.deepEqual(richText.content[1].content[0].marks, [{ type: 'bold' }]);
+  assert.equal(richText.content[2].type, 'bulletList');
+  assert.equal(richText.content[2].content[0].content[0].content[0].text, 'Action:');
+});
+
+test('AI note subject is normalized as one bold sentence-case label', () => {
+  const richText = plainTextToNoteRichText('SUBJECT: Examination of the pending reference\n\nThe matter may be examined.');
+
+  assert.equal(richText.content[0].content[0].text, 'Subject: Examination of the pending reference');
+  assert.deepEqual(richText.content[0].content[0].marks, [{ type: 'bold' }]);
+  assert.equal(richText.content[1].content[0].text, 'The matter may be examined.');
 });

@@ -116,7 +116,8 @@ before(async () => {
       ('editor', 'editor@example.test', 'Editor', 'active', 'user'),
       ('viewer', 'viewer@example.test', 'Viewer', 'active', 'user'),
       ('target', 'target@example.test', 'Target User', 'active', 'user'),
-      ('platform-admin', 'platform@example.test', 'Platform Admin', 'active', 'platform_admin')
+      ('platform-admin', 'platform@example.test', 'Platform Admin', 'active', 'platform_admin'),
+      ('pending-user', 'pending@example.test', 'Pending User', 'pending', 'user')
   `);
   await client.query(
     'INSERT INTO public.workspaces (id, name, code, created_by, division_access_enabled) VALUES ($1, $2, $3, $4, true)',
@@ -505,6 +506,40 @@ test('workspace provisioning isolates independent offices from the platform admi
         subject: 'Private target workspace Issue',
       }),
     ],
+  );
+
+  await useIdentity('platform-admin');
+  const approved = await client.query(
+    `SELECT public.admin_approve_and_assign_user(
+      'pending-user', $1::uuid, 'viewer'
+    ) AS result`,
+    [ids.workspace],
+  );
+  assert.equal(approved.rows[0].result.profile.status, 'active');
+  assert.equal(approved.rows[0].result.membership.role, 'viewer');
+
+  const transferred = await client.query(
+    `SELECT public.admin_approve_and_assign_user(
+      'pending-user', $1::uuid, 'officer'
+    ) AS result`,
+    [newWorkspaceId],
+  );
+  assert.equal(transferred.rows[0].result.membership.role, 'officer');
+
+  await useOwner();
+  const pendingMemberships = await client.query(
+    `SELECT workspace_id, role, status
+     FROM public.workspace_members
+     WHERE user_id = 'pending-user'
+     ORDER BY workspace_id`,
+  );
+  assert.equal(
+    pendingMemberships.rows.filter((membership) => membership.status === 'active').length,
+    1,
+  );
+  assert.equal(
+    pendingMemberships.rows.find((membership) => membership.workspace_id === newWorkspaceId).role,
+    'officer',
   );
 
   await useIdentity('target');

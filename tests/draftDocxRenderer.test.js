@@ -64,11 +64,11 @@ test('DOCX export preserves rich body emphasis, alignment and numbering', async 
     content: [
       {
         type: 'paragraph',
-        attrs: { textAlign: 'center' },
+        attrs: { textAlign: 'center', indent: 2 },
         content: [{
           type: 'text',
           text: 'Emphasised text',
-          marks: [{ type: 'bold' }, { type: 'italic' }, { type: 'underline' }],
+          marks: [{ type: 'bold' }, { type: 'italic' }, { type: 'underline' }, { type: 'fontSize', attrs: { size: 16 } }],
         }],
       },
       {
@@ -86,7 +86,11 @@ test('DOCX export preserves rich body emphasis, alignment and numbering', async 
   assert.match(xml, /<w:b\/>/);
   assert.match(xml, /<w:i\/>/);
   assert.match(xml, /<w:u w:val="single"\/>/);
+  assert.match(xml, /<w:sz w:val="32"\/>/);
   assert.match(xml, /w:jc w:val="center"/);
+  const emphasizedPosition = xml.indexOf('Emphasised text');
+  const emphasizedParagraph = xml.slice(xml.lastIndexOf('<w:p', emphasizedPosition), xml.indexOf('</w:p>', emphasizedPosition));
+  assert.match(emphasizedParagraph, /w:left="1440"/);
   assert.match(xml, /<w:numPr>/);
 });
 
@@ -134,7 +138,7 @@ test('DOCX export preserves body tables and recipient indentation', async () => 
   const toPosition = xml.indexOf('>To<');
   const toParagraph = xml.slice(xml.lastIndexOf('<w:p', toPosition), xml.indexOf('</w:p>', toPosition));
   assert.doesNotMatch(toParagraph, /w:left=/);
-  assert.match(xml, /<w:pgMar[^>]*w:top="1080"[^>]*w:right="1080"[^>]*w:bottom="1080"[^>]*w:left="1080"/);
+  assert.match(xml, /<w:pgMar[^>]*w:top="1440"[^>]*w:right="1440"[^>]*w:bottom="1440"[^>]*w:left="1440"/);
 });
 
 test('new drafts use a small recipient indent and narrow margins when selected', async () => {

@@ -94,11 +94,14 @@ Current implementation status:
 - Migration `021_issue_notes.sql` must be applied before cloud Noting and note
   revision synchronization are enabled.
 - Migration `022_workspace_provisioning_and_isolation.sql` must be applied before
-  using independent workspace provisioning. Account approval must remain
-  separate from workspace membership.
+  using independent workspace provisioning. Account approval and workspace
+  membership remain distinct permissions even when committed together.
 - Migration `023_administration_workspace_directory.sql` permits platform
   administrators to read workspace and membership metadata for the access
   directory. It must not grant access to Issue content.
+- Migration `024_admin_approve_and_assign_workspace.sql` atomically activates a
+  pending account and its selected primary workspace role. Previous active
+  memberships are suspended when a user is transferred.
 - Division enforcement remains off until a workspace administrator creates
   divisions, assigns active members and Issues, passes the readiness report, and
   explicitly enables it.
@@ -212,3 +215,21 @@ invent file facts, approvals or decisions, and its result remains an editable
 preview until the user saves it. Attribution, chronology and revision storage
 remain deterministic application responsibilities. Selected notes may also be
 supplied to Drafting context when preparing a communication.
+
+## Cloud Run Migration
+
+The protected API is being migrated from Vercel Functions to Google Cloud Run
+because the production `vercel.app` API origin is unavailable on the target
+office network. Follow `CLOUD_RUN_DEPLOYMENT.md`.
+
+`server/apiServer.js` is the portable HTTP adapter and must continue routing the
+existing handlers under `api/`; do not fork AI authorization, quota or logging
+logic by hosting provider. `server/cloudRun.js` is the Cloud Run entry point,
+while local development uses the same adapter. GitHub Pages remains the
+frontend and Neon remains the authority for authentication, permissions and AI
+usage reservation.
+
+Do not change `VITE_API_BASE_URL` until the Cloud Run health, authentication,
+Gemini generation and Neon logging checks all pass. Retain Vercel as a rollback
+during the initial cutover. Migrate the daily scheduler only after interactive
+AI traffic is stable.

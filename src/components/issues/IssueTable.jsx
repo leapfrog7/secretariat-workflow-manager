@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { Archive, LoaderCircle, LockKeyhole, RotateCcw, Trash2 } from 'lucide-react';
+import { Archive, LoaderCircle, LockKeyhole, PencilLine, RotateCcw, Trash2 } from 'lucide-react';
 import StatusBadge from '../common/StatusBadge';
 import DeadlineIndicator from '../common/DeadlineIndicator';
 import { formatDisplayDate, getIssueAgeDays } from '../../utils/dateUtils';
@@ -7,7 +7,7 @@ import { isScheduledIssue } from '../../utils/scheduleUtils';
 import SourceSearchMatch from './SourceSearchMatch';
 import { getIssuePositionPreview } from '../../utils/issueUtils';
 
-export default function IssueTable({ issues, officers = [], registerMode = 'Current', workingId = '', canEdit = true, showDivision = false, onRestore, onBringBack, onArchive, onDelete }) {
+export default function IssueTable({ issues, officers = [], registerMode = 'Current', workingId = '', canEdit = true, showDivision = false, onQuickPosition, onRestore, onBringBack, onArchive, onDelete }) {
   const showReturnDate = ['Scheduled', 'All'].includes(registerMode);
   return (
     <div className="issue-register-table surface overflow-hidden rounded-md">
@@ -26,7 +26,7 @@ export default function IssueTable({ issues, officers = [], registerMode = 'Curr
           </thead>
           <tbody className="divide-y divide-[#e3ebe9] bg-white">
             {issues.map((issue) => (
-              <IssueRow key={issue.id} issue={issue} officers={officers} showReturnDate={showReturnDate} showDivision={showDivision} working={workingId === issue.id} showActions={canEdit} canEdit={canEdit && issue.accessLevel !== 'viewer'} onRestore={onRestore} onBringBack={onBringBack} onArchive={onArchive} onDelete={onDelete} />
+              <IssueRow key={issue.id} issue={issue} officers={officers} showReturnDate={showReturnDate} showDivision={showDivision} working={workingId === issue.id} showActions={canEdit} canEdit={canEdit && issue.accessLevel !== 'viewer'} onQuickPosition={onQuickPosition} onRestore={onRestore} onBringBack={onBringBack} onArchive={onArchive} onDelete={onDelete} />
             ))}
           </tbody>
         </table>
@@ -35,11 +35,12 @@ export default function IssueTable({ issues, officers = [], registerMode = 'Curr
   );
 }
 
-function IssueRow({ issue, officers, showReturnDate, showDivision, working, showActions, canEdit, onRestore, onBringBack, onArchive, onDelete }) {
+function IssueRow({ issue, officers, showReturnDate, showDivision, working, showActions, canEdit, onQuickPosition, onRestore, onBringBack, onArchive, onDelete }) {
   const navigate = useNavigate();
   const officer = officers.find((item) => item.id === issue.assignedOfficerId);
   const ageDays = getIssueAgeDays(issue);
   const scheduled = isScheduledIssue(issue);
+  const canQuickUpdate = canEdit && !issue.isArchived && !scheduled;
   const positionPreview = getIssuePositionPreview(issue.currentPosition);
   const openIssue = (event) => {
     if (event.target.closest?.('a, button, input, select, textarea')) return;
@@ -65,7 +66,12 @@ function IssueRow({ issue, officers, showReturnDate, showDivision, working, show
                   <SourceSearchMatch match={issue.searchMatch} />
                 </td>
                 <td className="px-4 py-3.5 align-top">
-                  {positionPreview ? <p className="line-clamp-2 text-xs leading-5 text-slate-600" title={issue.currentPosition}>{positionPreview}</p> : <span className="text-xs italic text-slate-400">No position recorded</span>}
+                  <div className="flex items-start gap-2">
+                    <div className="min-w-0 flex-1">
+                      {positionPreview ? <p className="line-clamp-2 text-xs leading-5 text-slate-600" title={issue.currentPosition}>{positionPreview}</p> : <span className="text-xs italic text-slate-400">No position recorded</span>}
+                    </div>
+                    {canQuickUpdate && <ActionIcon label="Quick position update" tone="teal" onClick={() => onQuickPosition(issue)}><PencilLine className="h-4 w-4" /></ActionIcon>}
+                  </div>
                 </td>
                 <td className="px-4 py-3.5 align-top"><StatusBadge status={issue.status} /></td>
                 <td className="max-w-[200px] px-4 py-3.5 text-slate-700" title={officer?.name}>

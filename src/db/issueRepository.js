@@ -15,7 +15,11 @@ import { normalizeDraft } from '../utils/draftUtils';
 import { normalizeNote } from '../features/noting/noteUtils';
 import { addChronologyEvent } from './chronologyRepository';
 import { calculateNextAppearance, isScheduledIssue } from '../utils/scheduleUtils';
-import { resolvePositionUpdate } from '../utils/positionUpdateUtils';
+import {
+  findCurrentPositionMilestone,
+  positionRecordedAt,
+  resolvePositionUpdate,
+} from '../utils/positionUpdateUtils';
 import { queueCloudIssueDelete, queueCloudIssueUpsert } from '../features/cloud/cloudIssueSync';
 import { queueCloudIssueItemUpsert } from '../features/cloud/cloudIssueItemSync';
 
@@ -23,6 +27,21 @@ async function queueMilestoneRecordedAt(issueId, recordedAt, options) {
   const milestones = await db.issueMilestones.where('issueId').equals(issueId).toArray();
   const milestone = milestones.find((item) => item.recordedAt === recordedAt);
   if (milestone) await queueCloudIssueItemUpsert('milestone', normalizeMilestone(milestone), options);
+}
+
+async function syncIssueAndMilestone(issue, milestone) {
+  let synced = null;
+  let issueSyncError = null;
+  try {
+    synced = await queueCloudIssueUpsert(issue);
+  } catch (error) {
+    issueSyncError = error;
+  }
+  if (milestone) {
+    await queueCloudIssueItemUpsert('milestone', milestone);
+  }
+  if (issueSyncError) throw issueSyncError;
+  return synced;
 }
 
 function requireValidIssue(input) {
@@ -151,6 +170,7 @@ export async function updateIssue(id, input) {
 }
 
 export async function updateIssuePosition(id, input) {
+  let savedMilestone = null;
   const issue = await db.transaction('rw', db.issues, db.issueMilestones, db.officers, db.chronology, async () => {
     const existingRaw = await db.issues.get(id);
     if (!existingRaw) throw new Error('Issue not found.');
@@ -191,16 +211,18 @@ export async function updateIssuePosition(id, input) {
     await db.issues.put(issue);
     if (changed) {
       const officer = issue.assignedOfficerId ? await db.officers.get(issue.assignedOfficerId) : null;
-      await db.issueMilestones.add(normalizeMilestone({
+      savedMilestone = normalizeMilestone({
         id: crypto.randomUUID(),
         issueId: id,
         status: issue.status,
         assignedOfficerId: issue.assignedOfficerId,
         assignedOfficerName: officer?.name || '',
         note: positionUpdate.milestoneNote,
-        recordedAt: issue.updatedAt,
+        recordedAt: positionRecordedAt(input.positionRecordedDate, new Date(now)),
         createdAt: issue.updatedAt,
-      }));
+        updatedAt: issue.updatedAt,
+      });
+      await db.issueMilestones.add(savedMilestone);
     }
     if (becameScheduled) {
       await db.chronology.add(normalizeChronologyEvent({
@@ -215,8 +237,45 @@ export async function updateIssuePosition(id, input) {
     }
     return issue;
   });
-  const synced = await queueCloudIssueUpsert(issue);
-  await queueMilestoneRecordedAt(issue.id, issue.updatedAt);
+  const synced = await syncIssueAndMilestone(issue, savedMilestone);
+  return synced || issue;
+}
+
+export async function correctCurrentIssuePosition(id, positionNote) {
+  const note = String(positionNote || '').trim();
+  if (!note) throw new Error('Enter the corrected position.');
+
+  let correctedMilestone = null;
+  const issue = await db.transaction('rw', db.issues, db.issueMilestones, async () => {
+    const existingRaw = await db.issues.get(id);
+    if (!existingRaw) throw new Error('Issue not found.');
+    const existing = normalizeIssue(existingRaw);
+    const milestones = await db.issueMilestones.where('issueId').equals(id).toArray();
+    const currentMilestone = findCurrentPositionMilestone(
+      milestones,
+      existing.currentPosition,
+    );
+    if (!currentMilestone) {
+      throw new Error('The current position has no milestone that can be corrected.');
+    }
+
+    const now = new Date().toISOString();
+    const prepared = requireValidIssue({
+      ...existing,
+      currentPosition: note,
+      updatedAt: now,
+    });
+    correctedMilestone = normalizeMilestone({
+      ...currentMilestone,
+      note,
+      updatedAt: now,
+    });
+    await db.issues.put(prepared);
+    await db.issueMilestones.put(correctedMilestone);
+    return prepared;
+  });
+
+  const synced = await syncIssueAndMilestone(issue, correctedMilestone);
   return synced || issue;
 }
 

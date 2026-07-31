@@ -29,9 +29,10 @@ The project is currently a working multi-user proof of concept. Neon provides au
 - Record incoming, outgoing and internal communications chronologically.
 - Register multiple eReceipts and source documents without uploading PDF files.
 - Capture references such as Office Memoranda, rules, instructions and court directions.
-- Use the dedicated Drafting workspace to select the exact Issue sources made available to AI.
-- Use Noting for the chronological examination of a case. Notes support lists,
-  tables, appendix material, linked sources and retained revision history.
+- Use Casework to move freely between internal examination and preparation of
+  an official communication.
+- Notes support lists, tables, linked sources, retained revision history,
+  plain-language AI assistance and optional request-only Markdown context.
 - Reuse approved wording from the searchable Paragraph Bank. Personal entries remain private; workspace administrators can publish shared entries for all active members.
 
 ### Official drafting
@@ -43,7 +44,9 @@ The project is currently a working multi-user proof of concept. Neon provides au
 - Format the substantive body with bold, italic, underline, lists and paragraph alignment while official headings, subjects, addressees and signatures remain protected.
 - Choose a document font, font size, line spacing and paragraph spacing in the editor; these settings are retained in saved versions and editable Word exports.
 - Use the in-editor Draft tools rail to complete or correct the communication number, date, subject, addressee, signatory and related document details while drafting. Changes appear immediately without regenerating the body.
-- Open Draft Settings to change an existing structured draft from Letter to Office Memorandum or another supported communication type without regenerating or losing its substantive body.
+- Use the Draft More menu to change an existing structured draft from Letter to
+  Office Memorandum or another supported communication type without losing its
+  substantive body.
 - Switch the same rail to Paragraph Bank to insert approved wording at the current cursor. Entries categorized as Address / addressee populate the protected recipient-address block.
 - Use the Review tab before issue to find missing structured details and unresolved placeholders without blocking early drafting.
 - Route Local LM Studio and Cloud API drafting through the same body-only orchestration layer, keeping subjects, addressees and signatures outside model control.
@@ -77,10 +80,10 @@ See [REPORTING_MODULE.md](REPORTING_MODULE.md) for the phased path to weekly/mon
 - Hold new registrations for administrator approval.
 - Require both an active account and active workspace membership.
 - Approve, suspend and restore users from the Administration page.
-- Keep approval membership-neutral: activating an account does not expose any
-  official workspace.
-- Add a person to the current workspace as a viewer, editor or manager only
-  when they should share its Issues.
+- Approve a pending account and assign its primary workspace and starting role
+  in one atomic administrative action.
+- Keep one active primary workspace per user at this stage. Changing placement
+  suspends previous memberships without moving any Issues.
 - Provision an independent workspace for a separate person or office and remove
   their access to the administrator's current workspace in one operation.
 - Review each person's account state, system authority and active workspace
@@ -355,6 +358,12 @@ npm run build
 ```
 
 The production output is written to `dist`.
+
+The protected API now has a portable Cloud Run entry point in
+`server/cloudRun.js`. Vercel remains the active hosted API while the phased
+Cloud Run migration is verified. See
+[`CLOUD_RUN_DEPLOYMENT.md`](CLOUD_RUN_DEPLOYMENT.md) for the account setup,
+secrets, testing and rollback sequence.
 
 Pushes to `main` run `.github/workflows/deploy-pages.yml`. The workflow installs dependencies, builds the application and deploys `dist` to GitHub Pages. Configure these GitHub repository variables under **Settings > Secrets and variables > Actions > Variables**:
 
