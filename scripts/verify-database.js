@@ -27,6 +27,7 @@ const [tables, policies, functions, migrations, triggers, workspaces, membership
         'ensure_platform_workspace',
         'admin_set_workspace_member',
         'admin_create_workspace_for_user',
+        'admin_approve_and_assign_user',
         'authorize_cloud_ai_request',
         'authorize_cloud_ai_report_request',
         'can_refine_issue_report',
@@ -75,7 +76,8 @@ const [tables, policies, functions, migrations, triggers, workspaces, membership
       '020_draft_snapshot_retention.sql',
       '021_issue_notes.sql',
       '022_workspace_provisioning_and_isolation.sql',
-      '023_administration_workspace_directory.sql'
+      '023_administration_workspace_directory.sql',
+      '024_admin_approve_and_assign_workspace.sql'
     )
   `,
   sql`
@@ -107,8 +109,8 @@ const result = {
 const expected = {
   tables: 18,
   policies: 47,
-  functions: 28,
-  migrationRecords: 23,
+  functions: 29,
+  migrationRecords: 24,
   securityGuardTriggers: 5,
 };
 const valid = Object.entries(expected).every(([key, value]) => result[key] === value);

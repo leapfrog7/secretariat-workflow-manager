@@ -15,7 +15,7 @@ import { COMMUNICATION_TYPES, getDraftTemplate } from '../src/features/drafting/
 import { formatGovernmentCommunication, validateGovernmentCommunication } from '../src/utils/governmentDraftUtils.js';
 
 test('every communication type has a versioned deterministic template', () => {
-  assert.equal(COMMUNICATION_TYPES.length, 10);
+  assert.equal(COMMUNICATION_TYPES.length, 11);
   COMMUNICATION_TYPES.forEach((communicationType) => {
     const template = getDraftTemplate(communicationType);
     assert.equal(template.version, 1);

@@ -20,6 +20,7 @@ import PageHeader from "../components/common/PageHeader";
 import { listProfiles, updateProfileAccess } from "../features/auth/accountApi";
 import { useAuth } from "../features/auth/AuthContext";
 import {
+  approveAndAssignUser,
   createWorkspaceForUser,
   listWorkspaceAccessDirectory,
   listWorkspaceMembers,
@@ -45,6 +46,7 @@ export default function AdminPage() {
   const [aiUsage, setAIUsage] = useState([]);
   const [activeTab, setActiveTab] = useState("people");
   const [workspaceSetup, setWorkspaceSetup] = useState(null);
+  const [assignmentSetup, setAssignmentSetup] = useState(null);
   const [state, setState] = useState({
     loading: true,
     saving: "",
@@ -74,6 +76,19 @@ export default function AdminPage() {
     }),
     [auth.workspace?.id, memberships, profiles, workspaceDirectory],
   );
+
+  const availableWorkspaces = useMemo(() => {
+    const workspaces = new Map();
+    if (auth.workspace?.id) workspaces.set(auth.workspace.id, auth.workspace);
+    workspaceDirectory.forEach((membership) => {
+      if (membership.workspace?.id && membership.workspace.is_active !== false) {
+        workspaces.set(membership.workspace.id, membership.workspace);
+      }
+    });
+    return [...workspaces.values()].sort((left, right) =>
+      left.name.localeCompare(right.name),
+    );
+  }, [auth.workspace, workspaceDirectory]);
 
   async function loadProfiles() {
     setState((current) => ({
@@ -163,8 +178,8 @@ export default function AdminPage() {
         saving: "",
         error: "",
         message:
-          nextStatus === "active" && profile.status !== "active"
-            ? `${profile.display_name || profile.email} can now sign in. Choose workspace access separately.`
+          nextStatus === "active" && profile.status === "suspended"
+            ? `${profile.display_name || profile.email} has been restored. Existing workspace access resumes.`
             : `Account access updated for ${profile.display_name || profile.email}.`,
       });
     } catch (error) {
@@ -219,6 +234,53 @@ export default function AdminPage() {
         ...current,
         saving: "",
         error: error.message || "Unable to update workspace access.",
+        message: "",
+      }));
+    }
+  }
+
+  function openAssignmentSetup(profile) {
+    const current = workspaceDirectory.find(
+      (membership) =>
+        membership.user_id === profile.user_id &&
+        membership.status === "active",
+    );
+    setAssignmentSetup({
+      profile,
+      workspaceId: current?.workspace_id || auth.workspace?.id || "",
+      role: current?.role || "officer",
+    });
+  }
+
+  async function submitAssignment(event) {
+    event.preventDefault();
+    if (!assignmentSetup?.workspaceId) return;
+    const { profile, workspaceId, role } = assignmentSetup;
+    setState((current) => ({
+      ...current,
+      saving: `assignment:${profile.user_id}`,
+      error: "",
+      message: "",
+    }));
+    try {
+      const result = await approveAndAssignUser({
+        userId: profile.user_id,
+        workspaceId,
+        role,
+      });
+      setAssignmentSetup(null);
+      await loadProfiles();
+      setState({
+        loading: false,
+        saving: "",
+        error: "",
+        message: `${profile.display_name || profile.email} is now ${workspaceRoleMeta(role).label.toLowerCase()} in ${result.workspace.name}.`,
+      });
+    } catch (error) {
+      setState((current) => ({
+        ...current,
+        saving: "",
+        error: error.message || "Unable to approve and assign this user.",
         message: "",
       }));
     }
@@ -423,23 +485,23 @@ export default function AdminPage() {
       {activeTab === "people" && (
         <AdminGuide
           title="People and roles"
-          intro="Use this tab to decide who can enter the workspace and what they may do there."
+          intro="Users register themselves. The System Administrator approves each account, chooses its primary workspace and sets its starting role."
           items={[
             [
-              "Approve the account",
-              "Approval only permits sign-in. It does not add the person to your current workspace or expose any Issues.",
+              "1. User registers",
+              "The user creates their own password. The account remains pending and cannot open official work.",
             ],
             [
-              "Add to this workspace",
-              "Use View only, Can edit or Workspace manager only when the person should work with people and Issues in the workspace named above.",
+              "2. Approve and assign",
+              "Choose an existing workspace and select Viewer, Editor or Manager. Account and membership activate together.",
             ],
             [
-              "Give them their own workspace",
-              "Create a separate workspace when the person or office should manage independent Issues. They become its manager and are removed from this workspace.",
+              "3. Change placement",
+              "Use Change primary workspace for an existing user. The previous membership is suspended; Issues stay where they were created.",
             ],
             [
-              "Remove access",
-              "No workspace access keeps the account active but removes this workspace from the user. Suspend the account only when all cloud access should stop.",
+              "Workspace managers",
+              "Managers may adjust roles for colleagues already in their workspace. New-user placement remains with the System Administrator.",
             ],
           ]}
         />
@@ -734,6 +796,7 @@ export default function AdminPage() {
           onRefresh={loadProfiles}
           onAccountChange={changeAccess}
           onMembershipChange={changeMembership}
+          onAssignWorkspace={openAssignmentSetup}
           onOwnWorkspace={openWorkspaceSetup}
         />
       )}
@@ -747,6 +810,18 @@ export default function AdminPage() {
           onChange={setWorkspaceSetup}
           onClose={() => setWorkspaceSetup(null)}
           onSubmit={provisionWorkspace}
+        />
+      )}
+      {assignmentSetup && (
+        <WorkspaceAssignmentDialog
+          value={assignmentSetup}
+          workspaces={availableWorkspaces}
+          saving={
+            state.saving === `assignment:${assignmentSetup.profile.user_id}`
+          }
+          onChange={setAssignmentSetup}
+          onClose={() => setAssignmentSetup(null)}
+          onSubmit={submitAssignment}
         />
       )}
     </>
@@ -763,6 +838,7 @@ function PeopleDirectory({
   onRefresh,
   onAccountChange,
   onMembershipChange,
+  onAssignWorkspace,
   onOwnWorkspace,
 }) {
   return (
@@ -794,7 +870,7 @@ function PeopleDirectory({
         <RightsKey
           icon={CircleUserRound}
           title="Account"
-          description="Controls whether the person can sign in. Approval alone reveals no official work."
+          description="Users create their own password. Approval activates the account and its primary workspace together."
         />
         <RightsKey
           icon={Users}
@@ -820,6 +896,8 @@ function PeopleDirectory({
             const accountSaving = saving === profile.user_id;
             const workspaceSaving =
               saving === `workspace:${profile.user_id}`;
+            const assignmentSaving =
+              saving === `assignment:${profile.user_id}`;
             const currentMembership = memberships.find(
               (item) => item.user_id === profile.user_id,
             );
@@ -913,12 +991,17 @@ function PeopleDirectory({
 
                   <ControlField
                     label={`Access to ${auth.workspace?.name}`}
-                    help={workspaceAccessTip(membershipValue)}
+                    help={
+                      auth.isAdmin
+                        ? "System Administrators use Change primary workspace below. Workspace managers use this control for colleagues already placed here."
+                        : workspaceAccessTip(membershipValue)
+                    }
                   >
                     <select
                       aria-label={`Access to ${auth.workspace?.name} for ${profile.email}`}
                       value={membershipValue}
                       disabled={
+                        auth.isAdmin ||
                         accountSaving ||
                         isSelf ||
                         profile.status !== "active"
@@ -947,7 +1030,11 @@ function PeopleDirectory({
                         !hasIndependentWorkspace &&
                         !isSelf && (
                           <ActionButton
-                            disabled={accountSaving || workspaceSaving}
+                            disabled={
+                              accountSaving ||
+                              workspaceSaving ||
+                              assignmentSaving
+                            }
                             onClick={() => onOwnWorkspace(profile)}
                           >
                             <Building2 className="h-3.5 w-3.5" />
@@ -958,13 +1045,24 @@ function PeopleDirectory({
                         )}
                       {auth.isAdmin && profile.status === "pending" && (
                         <ActionButton
-                          disabled={accountSaving}
-                          onClick={() => onAccountChange(profile, "active")}
+                          disabled={accountSaving || assignmentSaving}
+                          onClick={() => onAssignWorkspace(profile)}
                           tone="approve"
                         >
-                          Approve account
+                          Approve and assign
                         </ActionButton>
                       )}
+                      {auth.isAdmin &&
+                        profile.status === "active" &&
+                        !isSelf && (
+                          <ActionButton
+                            disabled={accountSaving || assignmentSaving}
+                            onClick={() => onAssignWorkspace(profile)}
+                          >
+                            <Users className="h-3.5 w-3.5" />
+                            Change primary workspace
+                          </ActionButton>
+                        )}
                       {auth.isAdmin &&
                         profile.status === "active" &&
                         !isSelf && (
@@ -995,7 +1093,7 @@ function PeopleDirectory({
                       {auth.isAdmin &&
                         hasIndependentWorkspace &&
                         !isSelf && (
-                          <span className="inline-flex h-9 items-center text-xs font-medium text-teal-800">
+                          <span className="sr-only">
                             Independent workspace assigned
                           </span>
                         )}
@@ -1018,9 +1116,9 @@ function PeopleDirectory({
       <div className="flex gap-3 border-t border-slate-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-950 sm:px-5">
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
         <p>
-          Account approval, system authority and workspace rights are separate.
-          An Editor can see workspace-wide Issues in that workspace. Use an
-          independent workspace when another office needs a private register.
+          Every active user should have one primary workspace. An Editor can see
+          workspace-wide Issues there. Moving a user changes access only; it
+          never moves Issues between workspaces.
         </p>
       </div>
     </section>
@@ -1124,6 +1222,165 @@ function workspaceCodeFrom(value) {
     .replace(/^-+|-+$/g, "")
     .slice(0, 40);
   return code.length >= 2 ? code : "new-workspace";
+}
+
+function WorkspaceAssignmentDialog({
+  value,
+  workspaces,
+  saving,
+  onChange,
+  onClose,
+  onSubmit,
+}) {
+  const approving = value.profile.status === "pending";
+  const selectedWorkspace = workspaces.find(
+    (workspace) => workspace.id === value.workspaceId,
+  );
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 p-0 sm:items-center sm:p-4"
+      role="presentation"
+    >
+      <form
+        onSubmit={onSubmit}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="workspace-assignment-title"
+        className="w-full max-w-lg rounded-t-lg bg-white shadow-2xl sm:rounded-lg"
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-5">
+          <div>
+            <h2
+              id="workspace-assignment-title"
+              className="text-base font-semibold text-slate-950"
+            >
+              {approving
+                ? "Approve and assign user"
+                : "Change primary workspace"}
+            </h2>
+            <p className="mt-1 text-xs leading-5 text-slate-500">
+              {value.profile.display_name || value.profile.email}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            aria-label="Close workspace assignment"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 disabled:opacity-50"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="space-y-5 px-4 py-5 sm:px-5">
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-semibold text-slate-700">
+              Primary workspace
+            </span>
+            <select
+              required
+              value={value.workspaceId}
+              onChange={(event) =>
+                onChange({ ...value, workspaceId: event.target.value })
+              }
+              className="h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-100"
+            >
+              <option value="">Select workspace</option>
+              {workspaces.map((workspace) => (
+                <option key={workspace.id} value={workspace.id}>
+                  {workspace.name} ({workspace.code})
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <fieldset>
+            <legend className="text-xs font-semibold text-slate-700">
+              Workspace role
+            </legend>
+            <div className="mt-2 grid grid-cols-3 rounded-md border border-slate-300 bg-slate-50 p-1">
+              {[
+                ["viewer", "Viewer"],
+                ["officer", "Editor"],
+                ["workspace_admin", "Manager"],
+              ].map(([role, label]) => (
+                <label key={role} className="cursor-pointer">
+                  <input
+                    type="radio"
+                    name="workspace-role"
+                    value={role}
+                    checked={value.role === role}
+                    onChange={() => onChange({ ...value, role })}
+                    className="sr-only"
+                  />
+                  <span
+                    className={`flex h-9 items-center justify-center rounded text-xs font-semibold transition-colors ${value.role === role ? "bg-white text-teal-800 shadow-sm ring-1 ring-slate-200" : "text-slate-500 hover:text-slate-800"}`}
+                  >
+                    {label}
+                  </span>
+                </label>
+              ))}
+            </div>
+            <p className="mt-2 text-xs leading-5 text-slate-500">
+              {workspaceRoleDescription(value.role)}
+            </p>
+          </fieldset>
+
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-3 text-xs leading-5 text-amber-950">
+            {approving ? (
+              <>
+                Approval will activate the account and place it in{" "}
+                <strong>
+                  {selectedWorkspace?.name || "the selected workspace"}
+                </strong>
+                .
+              </>
+            ) : (
+              <>
+                This user will keep one active primary workspace. Other
+                workspace memberships will be suspended. Existing Issues are
+                not moved.
+              </>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-col-reverse gap-2 border-t border-slate-200 px-4 py-4 sm:flex-row sm:justify-end sm:px-5">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={saving || !value.workspaceId}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-70"
+          >
+            {saving && <LoaderCircle className="h-4 w-4 animate-spin" />}
+            {saving
+              ? "Saving assignment..."
+              : approving
+                ? "Approve and assign"
+                : "Change workspace"}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function workspaceRoleDescription(role) {
+  if (role === "viewer") {
+    return "Can read workspace-wide Issues but cannot change them.";
+  }
+  if (role === "workspace_admin") {
+    return "Can manage the workspace, its members, divisions and Issue access.";
+  }
+  return "Can create and update Issues available in the workspace.";
 }
 
 function WorkspaceSetupDialog({

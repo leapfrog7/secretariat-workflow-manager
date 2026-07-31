@@ -4,11 +4,12 @@ const BASE_BODY_RULES = {
   'Office Memorandum': 'Write in impersonal institutional prose. "The undersigned is directed to" may be used where appropriate. Do not use a salutation or complimentary close.',
   'Office Order': 'State the internal administrative direction precisely. Use numbered paragraphs when there is more than one operative point.',
   Order: 'State only the supplied authority, sanction, or operative decision. Never invent a rule, delegation, Presidential sanction, or approval.',
-  'Inter-Departmental Note': 'Set out the issue in numbered paragraphs and end with the precise advice, concurrence, information, or action sought from the recipient Department.',
+  'I.D. Note': 'Set out the issue in numbered paragraphs and end with the precise advice, concurrence, information, or action sought from the recipient Department.',
   Notification: 'Draft only the operative Gazette notification text. Never invent an appointment, statutory power, effective date, or Gazette classification.',
   Resolution: 'Draft only the resolution text based on supplied authority and decisions. Do not invent constitutional provisions, Presidential approval, or publication directions.',
   'Press Communique / Note': 'Draft factual public-information paragraphs in neutral institutional language. Do not add publicity claims, quotations, embargoes, or policy rationale.',
   Endorsement: 'Draft a single concise forwarding sentence stating whether the enclosed papers are sent for information, necessary action, or both, exactly as instructed.',
+  Other: 'Prepare a neutral official communication using only the supplied facts, purpose and authority. Do not invent a prescribed format.',
 };
 
 const block = (role, alignment = 'left', options = {}) => ({
@@ -57,7 +58,7 @@ const definitions = [
   },
   {
     id: 'inter-departmental-note',
-    label: 'Inter-Departmental Note',
+    label: 'I.D. Note',
     blocks: [block('officeHeading', 'center', { required: true }), subject, body, signature, block('recipient'), block('identificationLine')],
   },
   {
@@ -80,6 +81,11 @@ const definitions = [
     label: 'Endorsement',
     blocks: [...heading, block('documentTitle', 'center', { bold: true, uppercase: true, required: true }), body, signature, block('copyList'), block('recipient')],
   },
+  {
+    id: 'other',
+    label: 'Other',
+    blocks: [...heading, subject, block('recipient'), body, signature, block('copyList')],
+  },
 ];
 
 export const DRAFT_TEMPLATES = definitions.map((definition) => Object.freeze({
@@ -93,6 +99,7 @@ export const COMMUNICATION_TYPES = DRAFT_TEMPLATES.map((template) => template.la
 
 const byId = new Map(DRAFT_TEMPLATES.map((template) => [template.id, template]));
 const byLabel = new Map(DRAFT_TEMPLATES.map((template) => [template.label, template]));
+byLabel.set('Inter-Departmental Note', byId.get('inter-departmental-note'));
 
 export function getDraftTemplate(value) {
   return byId.get(value) || byLabel.get(value) || byLabel.get('Letter');

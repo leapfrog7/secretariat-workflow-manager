@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { Archive, LoaderCircle, RotateCcw, Trash2 } from 'lucide-react';
+import { Archive, LoaderCircle, PencilLine, RotateCcw, Trash2 } from 'lucide-react';
 import StatusBadge from '../common/StatusBadge';
 import DeadlineIndicator from '../common/DeadlineIndicator';
 import { formatDisplayDate, getIssueAgeDays } from '../../utils/dateUtils';
@@ -7,11 +7,12 @@ import { isScheduledIssue } from '../../utils/scheduleUtils';
 import SourceSearchMatch from './SourceSearchMatch';
 import { getIssuePositionPreview } from '../../utils/issueUtils';
 
-export default function IssueCard({ issue, officers = [], working = false, canEdit = true, showDivision = false, onRestore, onBringBack, onArchive, onDelete }) {
+export default function IssueCard({ issue, officers = [], working = false, canEdit = true, showDivision = false, onQuickPosition, onRestore, onBringBack, onArchive, onDelete }) {
   const navigate = useNavigate();
   const officer = officers.find((item) => item.id === issue.assignedOfficerId);
   const ageDays = getIssueAgeDays(issue);
   const scheduled = isScheduledIssue(issue);
+  const canQuickUpdate = canEdit && !issue.isArchived && !scheduled;
   const positionPreview = getIssuePositionPreview(issue.currentPosition);
   const openIssue = (event) => {
     if (event.target.closest?.('a, button, input, select, textarea')) return;
@@ -39,7 +40,10 @@ export default function IssueCard({ issue, officers = [], working = false, canEd
       </div>
       <SourceSearchMatch match={issue.searchMatch} />
       <div className="mt-2 rounded-md bg-slate-50 px-2.5 py-2">
-        <p className="text-[11px] font-semibold uppercase text-slate-500">Present position</p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[11px] font-semibold uppercase text-slate-500">Present position</p>
+          {canQuickUpdate && <CardAction label="Quick position update" onClick={() => onQuickPosition(issue)}><PencilLine className="h-4 w-4" /></CardAction>}
+        </div>
         <p className={`mt-0.5 line-clamp-2 text-xs leading-5 ${positionPreview ? 'text-slate-700' : 'italic text-slate-400'}`} title={issue.currentPosition || undefined}>{positionPreview || 'No position recorded'}</p>
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-1.5">

@@ -115,3 +115,19 @@ export async function createWorkspaceForUser({
   if (error) throw error;
   return Array.isArray(data) ? data[0] : data;
 }
+
+export async function approveAndAssignUser({
+  userId,
+  workspaceId,
+  role,
+}) {
+  const client = requireClient();
+  const { data, error } = await client.rpc('admin_approve_and_assign_user', {
+    target_user_id: userId,
+    target_workspace_id: workspaceId,
+    next_workspace_role: role,
+  });
+
+  if (error) throw error;
+  return data;
+}

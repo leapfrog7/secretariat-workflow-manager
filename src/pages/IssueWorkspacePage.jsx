@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Archive, ArrowLeft, CalendarClock, CheckCircle2, LoaderCircle, Pencil, RotateCcw, Save } from 'lucide-react';
+import { Archive, ArrowLeft, CalendarClock, CheckCircle2, FilePenLine, LoaderCircle, MessageSquareText, Pencil, RotateCcw, Save } from 'lucide-react';
 import PageHeader from '../components/common/PageHeader';
 import LoadingState from '../components/common/LoadingState';
 import ErrorState from '../components/common/ErrorState';
@@ -31,10 +31,9 @@ import { getIssueAccessLevel } from '../features/collaboration/accessApi';
 const tabs = [
   { label: 'Current Position', mobileLabel: 'Position' },
   { label: 'Running Summary', mobileLabel: 'Summary' },
-  { label: 'Record of Communication', mobileLabel: 'Comms' },
+  { label: 'Casework', mobileLabel: 'Casework' },
   { label: 'References', mobileLabel: 'References' },
-  { label: 'Noting', mobileLabel: 'Notes' },
-  { label: 'Drafting', mobileLabel: 'Drafting' },
+  { label: 'Record of Communication', mobileLabel: 'Comms' },
   { label: 'Share & Access', mobileLabel: 'Access' },
 ];
 
@@ -63,9 +62,13 @@ export default function IssueWorkspacePage() {
     draft: null,
     dirty: false,
     activeTab: 'Current Position',
+    caseworkView: 'notes',
     draftingVisited: false,
     draftSeedNoteIds: [],
+    draftSeedCommunicationIds: [],
+    draftSeedReferenceIds: [],
     draftSeedRevision: 0,
+    draftSourceNoteId: '',
     operation: '',
     confirmArchive: false,
     deleteTarget: null,
@@ -114,7 +117,10 @@ export default function IssueWorkspacePage() {
           recurrenceAnchorDay: issue.recurrenceAnchorDay || null,
         },
         dirty: false,
-        draftingVisited: current.activeTab === 'Drafting',
+        draftingVisited:
+          current.draftingVisited ||
+          (current.activeTab === 'Casework' &&
+            current.caseworkView === 'drafting'),
         accessLevel,
       }));
     } catch (error) {
@@ -132,7 +138,15 @@ export default function IssueWorkspacePage() {
     setState((current) => ({
       ...current,
       activeTab: tab,
-      draftingVisited: current.draftingVisited || tab === 'Drafting',
+      draftingVisited: current.draftingVisited,
+    }));
+  };
+
+  const selectCaseworkView = (view) => {
+    setState((current) => ({
+      ...current,
+      caseworkView: view,
+      draftingVisited: current.draftingVisited || view === 'drafting',
     }));
   };
 
@@ -262,12 +276,16 @@ export default function IssueWorkspacePage() {
   const createDraftFromNote = (note) => {
     setState((current) => ({
       ...current,
-      activeTab: 'Drafting',
+      activeTab: 'Casework',
+      caseworkView: 'drafting',
       draftingVisited: true,
       draftSeedNoteIds: [note.id],
+      draftSeedCommunicationIds: [...note.linkedCommunicationIds],
+      draftSeedReferenceIds: [...note.linkedReferenceIds],
       draftSeedRevision: current.draftSeedRevision + 1,
+      draftSourceNoteId: note.id,
     }));
-    showToast(`Note ${note.sequence} added to the drafting context.`);
+    showToast(`Preparing a communication from Note ${note.sequence}.`);
   };
 
   const confirmDelete = async () => {
@@ -350,7 +368,7 @@ export default function IssueWorkspacePage() {
                 ? state.communications.length
                 : tab.label === 'References'
                   ? state.references.length
-                  : tab.label === 'Noting'
+                  : tab.label === 'Casework'
                     ? state.notes.length
                   : null;
             const active = state.activeTab === tab.label;
@@ -381,7 +399,7 @@ export default function IssueWorkspacePage() {
                 ? state.communications.length
                 : tab.label === 'References'
                   ? state.references.length
-                  : tab.label === 'Noting'
+                  : tab.label === 'Casework'
                     ? state.notes.length
                   : null;
             return (
@@ -434,27 +452,51 @@ export default function IssueWorkspacePage() {
       )}
       {state.activeTab === 'Record of Communication' && <CommunicationTab issueId={issueId} communications={state.communications} readOnly={!canEditIssue} onSave={saveCommunicationEntry} onDelete={(item) => setState((current) => ({ ...current, deleteTarget: { kind: 'communication', item } }))} />}
       {state.activeTab === 'References' && <ReferenceTab issueId={issueId} references={state.references} readOnly={!canEditIssue} onSave={saveReferenceEntry} onDelete={(item) => setState((current) => ({ ...current, deleteTarget: { kind: 'reference', item } }))} />}
-      {state.activeTab === 'Noting' && (
-        <NotingPanel
-          issueId={issueId}
-          issue={issue}
-          summary={state.latestSummary}
+      {state.activeTab === 'Casework' && (
+        <CaseworkWorkspace
+          view={state.caseworkView}
           notes={state.notes}
           communications={state.communications}
-          references={state.references}
-          author={{
-            userId: auth.user?.id || '',
-            name: auth.profile?.display_name || auth.user?.email || 'Local officer',
-          }}
-          readOnly={!canEditIssue}
-          onSave={saveNoteEntry}
-          onCreateDraft={createDraftFromNote}
-        />
-      )}
-      {state.draftingVisited && (
-        <div hidden={state.activeTab !== 'Drafting'}>
-          <DraftingWorkspace issue={issue} assignedOfficer={assignedOfficer} officers={officers} summary={state.latestSummary} communications={state.communications} references={state.references} notes={state.notes} initialNoteIds={state.draftSeedNoteIds} noteSelectionRevision={state.draftSeedRevision} readOnly={!canEditIssue} onSaveCommunication={saveCommunicationEntry} />
-        </div>
+          onChangeView={selectCaseworkView}
+        >
+          <div hidden={state.caseworkView !== 'notes'}>
+            <NotingPanel
+              issueId={issueId}
+              issue={issue}
+              summary={state.latestSummary}
+              notes={state.notes}
+              communications={state.communications}
+              references={state.references}
+              author={{
+                userId: auth.user?.id || '',
+                name: auth.profile?.display_name || auth.user?.email || 'Local officer',
+              }}
+              readOnly={!canEditIssue}
+              onSave={saveNoteEntry}
+              onCreateDraft={createDraftFromNote}
+            />
+          </div>
+          {state.draftingVisited && (
+            <div hidden={state.caseworkView !== 'drafting'}>
+              <DraftingWorkspace
+                issue={issue}
+                assignedOfficer={assignedOfficer}
+                officers={officers}
+                summary={state.latestSummary}
+                communications={state.communications}
+                references={state.references}
+                notes={state.notes}
+                initialNoteIds={state.draftSeedNoteIds}
+                initialCommunicationIds={state.draftSeedCommunicationIds}
+                initialReferenceIds={state.draftSeedReferenceIds}
+                sourceNoteId={state.draftSourceNoteId}
+                noteSelectionRevision={state.draftSeedRevision}
+                readOnly={!canEditIssue}
+                onSaveCommunication={saveCommunicationEntry}
+              />
+            </div>
+          )}
+        </CaseworkWorkspace>
       )}
       {state.activeTab === 'Share & Access' && <IssueAccessPanel auth={auth} issue={issue} canEdit={canEditIssue} onUpdateIssue={saveAccessPolicy} />}
 
@@ -469,6 +511,84 @@ export default function IssueWorkspacePage() {
         onConfirm={confirmDelete}
       />
     </>
+  );
+}
+
+function CaseworkWorkspace({
+  view,
+  notes,
+  communications,
+  onChangeView,
+  children,
+}) {
+  const issued = communications.some((item) => item.draftId);
+  return (
+    <div className="space-y-4">
+      <section className={`surface overflow-hidden rounded-md border-t-4 ${view === 'notes' ? 'border-t-indigo-600' : 'border-t-teal-600'}`}>
+        <div className="flex flex-col gap-4 border-b border-slate-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+          <div>
+            <h2 className="text-base font-semibold text-[#17333b]">Casework</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Examine the matter, record the internal view and prepare the
+              communication.
+            </p>
+          </div>
+          <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-400">
+            <span className={view === 'notes' ? 'text-indigo-700' : 'text-slate-500'}>
+              Examination
+            </span>
+            <span aria-hidden="true">→</span>
+            <span className={view === 'drafting' ? 'text-teal-700' : 'text-slate-500'}>
+              Communication
+            </span>
+            <span aria-hidden="true">→</span>
+            <span className={issued ? 'text-emerald-700' : 'text-slate-400'}>
+              Issued
+            </span>
+          </div>
+        </div>
+        <div
+          className={`grid grid-cols-2 gap-1 p-1.5 ${view === 'notes' ? 'bg-indigo-50/60' : 'bg-teal-50/60'}`}
+          role="tablist"
+          aria-label="Casework"
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === 'notes'}
+            onClick={() => onChangeView('notes')}
+            className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold sm:text-sm ${
+              view === 'notes'
+                ? 'bg-white text-indigo-800 shadow-sm ring-1 ring-indigo-200'
+                : 'text-slate-500 hover:bg-white/70 hover:text-indigo-800'
+            }`}
+          >
+            <MessageSquareText className="h-4 w-4" />
+            Examine and Note
+            {notes.length > 0 && (
+              <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[11px] tabular-nums text-indigo-700">
+                {notes.length}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === 'drafting'}
+            onClick={() => onChangeView('drafting')}
+            className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold sm:text-sm ${
+              view === 'drafting'
+                ? 'bg-white text-teal-800 shadow-sm ring-1 ring-teal-200'
+                : 'text-slate-500 hover:bg-white/70 hover:text-teal-800'
+            }`}
+          >
+            <FilePenLine className="h-4 w-4" />
+            Prepare Communication
+          </button>
+        </div>
+      </section>
+      {children}
+    </div>
   );
 }
 

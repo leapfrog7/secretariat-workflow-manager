@@ -51,3 +51,26 @@ test('note revision snapshots preserve the earlier wording and attribution', () 
   assert.equal(revision.editedByUserId, 'user-1');
   assert.equal(revision.editedByName, 'Section Officer');
 });
+
+test('notes retain bounded paragraph indentation and font size marks', () => {
+  const note = normalizeNote({
+    richText: {
+      type: 'doc',
+      content: [{
+        type: 'paragraph',
+        attrs: { indent: 3 },
+        content: [{
+          type: 'text',
+          text: 'Indented examination.',
+          marks: [{ type: 'fontSize', attrs: { size: 14 } }],
+        }],
+      }],
+    },
+  });
+
+  assert.equal(note.richText.content[0].attrs.indent, 3);
+  assert.deepEqual(note.richText.content[0].content[0].marks, [{
+    type: 'fontSize',
+    attrs: { size: 14 },
+  }]);
+});

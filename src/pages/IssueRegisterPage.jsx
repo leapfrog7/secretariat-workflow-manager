@@ -21,13 +21,17 @@ import ConfirmDialog from "../components/common/ConfirmDialog";
 import FilterBar from "../components/issues/FilterBar";
 import IssueTable from "../components/issues/IssueTable";
 import IssueCard from "../components/issues/IssueCard";
+import QuickPositionDialog from "../components/issues/QuickPositionDialog";
 import {
   archiveIssue,
   bringBackIssue,
+  correctCurrentIssuePosition,
   getAllIssues,
   permanentlyDeleteIssue,
   restoreIssue,
+  updateIssuePosition,
 } from "../db/issueRepository";
+import { getMilestonesByIssue } from "../db/milestoneRepository";
 import { getAllOfficers } from "../db/officerRepository";
 import { issueMatchesSearch } from "../utils/issueUtils";
 import { getDeadlineState } from "../utils/dateUtils";
@@ -37,6 +41,7 @@ import { getAllCommunications } from "../db/communicationRepository";
 import { getCommunicationSearchContext } from "../utils/communicationUtils";
 import { useAuth } from "../features/auth/AuthContext";
 import { listDivisions } from "../features/collaboration/accessApi";
+import { findCurrentPositionMilestone } from "../utils/positionUpdateUtils";
 
 const defaultFilters = {
   query: "",
@@ -63,6 +68,7 @@ export default function IssueRegisterPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [workingId, setWorkingId] = useState("");
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [quickPosition, setQuickPosition] = useState(null);
   const [archivedPage, setArchivedPage] = useState(1);
   const [archivedPageSize, setArchivedPageSize] = useState(
     ARCHIVED_PAGE_SIZES[0],
@@ -184,6 +190,98 @@ export default function IssueRegisterPage() {
       await load();
     } catch (error) {
       showToast(error.message || "Unable to delete Issue.", "error");
+    } finally {
+      setWorkingId("");
+    }
+  };
+
+  const openQuickPosition = async (issue) => {
+    setQuickPosition({
+      issue,
+      latestMilestone: null,
+      historyLoading: true,
+      saveStatus: "idle",
+      error: "",
+    });
+    try {
+      const milestones = await getMilestonesByIssue(issue.id);
+      const latestMilestone = findCurrentPositionMilestone(
+        milestones,
+        issue.currentPosition,
+      );
+      setQuickPosition((current) =>
+        current?.issue.id === issue.id
+          ? { ...current, latestMilestone, historyLoading: false }
+          : current,
+      );
+    } catch {
+      setQuickPosition((current) =>
+        current?.issue.id === issue.id
+          ? { ...current, historyLoading: false }
+          : current,
+      );
+    }
+  };
+
+  const saveQuickPosition = async ({
+    mode,
+    note,
+    status,
+    recordedDate,
+  }) => {
+    const target = quickPosition?.issue;
+    if (!target || !note) return;
+    setWorkingId(target.id);
+    setQuickPosition((current) => ({
+      ...current,
+      saveStatus: "saving",
+      error: "",
+    }));
+    try {
+      const saved =
+        mode === "correct"
+          ? await correctCurrentIssuePosition(target.id, note)
+          : await updateIssuePosition(target.id, {
+              positionNote: note,
+              status,
+              positionRecordedDate: recordedDate,
+            });
+      setData((current) => ({
+        ...current,
+        issues: current.issues.map((issue) =>
+          issue.id === saved.id ? { ...issue, ...saved } : issue,
+        ),
+      }));
+      setQuickPosition((current) =>
+        current?.issue.id === target.id
+          ? {
+              ...current,
+              issue: { ...current.issue, ...saved },
+              saveStatus: "saved",
+            }
+          : current,
+      );
+      showToast(
+        mode === "correct"
+          ? "Latest position corrected."
+          : "New position recorded.",
+      );
+      window.setTimeout(() => {
+        setQuickPosition((current) =>
+          current?.issue.id === target.id ? null : current,
+        );
+      }, 700);
+    } catch (error) {
+      setQuickPosition((current) =>
+        current?.issue.id === target.id
+          ? {
+              ...current,
+              saveStatus: "idle",
+              error: error.message || "Unable to save the position.",
+            }
+          : current,
+      );
+      showToast(error.message || "Unable to save the position.", "error");
     } finally {
       setWorkingId("");
     }
@@ -461,6 +559,7 @@ export default function IssueRegisterPage() {
               workingId={workingId}
               canEdit={auth.canEdit}
               showDivision={Boolean(auth.workspace?.id)}
+              onQuickPosition={openQuickPosition}
               onRestore={restore}
               onBringBack={bringBack}
               onArchive={archive}
@@ -476,6 +575,7 @@ export default function IssueRegisterPage() {
                   working={workingId === issue.id}
                   canEdit={auth.canEdit && issue.accessLevel !== "viewer"}
                   showDivision={Boolean(auth.workspace?.id)}
+                  onQuickPosition={openQuickPosition}
                   onRestore={restore}
                   onBringBack={bringBack}
                   onArchive={archive}
@@ -505,6 +605,18 @@ export default function IssueRegisterPage() {
         onCancel={() => setDeleteTarget(null)}
         onConfirm={deleteIssue}
       />
+      {quickPosition && (
+        <QuickPositionDialog
+          key={quickPosition.issue.id}
+          issue={quickPosition.issue}
+          latestMilestone={quickPosition.latestMilestone}
+          historyLoading={quickPosition.historyLoading}
+          saveStatus={quickPosition.saveStatus}
+          error={quickPosition.error}
+          onClose={() => setQuickPosition(null)}
+          onSave={saveQuickPosition}
+        />
+      )}
     </>
   );
 }

@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BookOpen, Check, CheckCheck, Clipboard, Download, FileOutput, FilePenLine, GitBranch, History, LoaderCircle, MessageSquareText, RefreshCw, RotateCcw, Save, ShieldCheck, Sparkles, Square, X } from 'lucide-react';
+import { BookOpen, Check, CheckCheck, Clipboard, Download, FileOutput, FilePenLine, GitBranch, History, Info, LoaderCircle, MessageSquareText, MoreHorizontal, RefreshCw, RotateCcw, Save, ShieldCheck, Sparkles, Square, X } from 'lucide-react';
 import { buildAIContext } from '../../utils/aiContextUtils';
 import { formatDisplayDate, todayISO } from '../../utils/dateUtils';
 import { getSettings } from '../../db/database';
@@ -21,6 +21,7 @@ import {
   renderDraftClipboardText,
   renderStructuredDraft,
   replaceDraftBodyRichText,
+  validateDraftDocument,
 } from './domain/draftDocument';
 import ParagraphBankPanel from './paragraphBank/ParagraphBankPanel';
 import { getParagraphBankEntries } from './paragraphBank/paragraphBankRepository';
@@ -36,7 +37,7 @@ import {
 
 const DraftDocumentEditor = lazy(() => import('./editor/DraftDocumentEditor'));
 
-export default function DraftingWorkspace({ issue, assignedOfficer, officers, summary, communications, references, notes = [], initialNoteIds = [], noteSelectionRevision = 0, readOnly = false, onSaveCommunication }) {
+export default function DraftingWorkspace({ issue, assignedOfficer, officers, summary, communications, references, notes = [], initialNoteIds = [], initialCommunicationIds = [], initialReferenceIds = [], sourceNoteId = '', noteSelectionRevision = 0, readOnly = false, onSaveCommunication }) {
   const auth = useAuth();
   const [sourceTab, setSourceTab] = useState('Communications');
   const [workspaceView, setWorkspaceView] = useState('compose');
@@ -55,7 +56,7 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
   const [signatoryId, setSignatoryId] = useState('');
   const [recipient, setRecipient] = useState({ name: '', designation: '', organization: '', address: '' });
   const [recipientRelationship, setRecipientRelationship] = useState(RECIPIENT_RELATIONSHIPS[0]);
-  const [documentDetails, setDocumentDetails] = useState({ subject: issue.shortTitle || '', fileNumber: issue.eFileNumber || '', issueDate: '', salutation: '', copyTo: '' });
+  const [documentDetails, setDocumentDetails] = useState({ subject: issue.shortTitle || '', fileNumber: issue.eFileNumber || '', issueDate: todayISO(), salutation: '', copyTo: '' });
   const [useDetailedContext, setUseDetailedContext] = useState(true);
   const [instruction, setInstruction] = useState('');
   const [generation, setGeneration] = useState({ status: 'idle', text: '', error: '', model: '', stats: {}, draftId: '' });
@@ -106,7 +107,7 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
     setPendingWorkingAction(null);
     setRecipient({ name: '', designation: '', organization: '', address: '' });
     setRecipientRelationship(RECIPIENT_RELATIONSHIPS[0]);
-    setDocumentDetails({ subject: issue.shortTitle || '', fileNumber: issue.eFileNumber || '', issueDate: '', salutation: '', copyTo: '' });
+    setDocumentDetails({ subject: issue.shortTitle || '', fileNumber: issue.eFileNumber || '', issueDate: todayISO(), salutation: '', copyTo: '' });
     setUseDetailedContext(true);
     setWorkspaceView('compose');
     setDraftDialogOpen(false);
@@ -160,9 +161,11 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
   useEffect(() => {
     if (!noteSelectionRevision) return;
     setSelectedNoteIds(initialNoteIds.filter((id) => notes.some((note) => note.id === id)));
+    setSelectedCommunicationIds(initialCommunicationIds.filter((id) => communications.some((item) => item.id === id)));
+    setSelectedReferenceIds(initialReferenceIds.filter((id) => references.some((item) => item.id === id)));
     setSourceTab('Notes');
     setWorkspaceView('compose');
-  }, [noteSelectionRevision, initialNoteIds, notes]);
+  }, [noteSelectionRevision, initialNoteIds, initialCommunicationIds, initialReferenceIds, notes, communications, references]);
 
   useEffect(() => {
     if (!hasUnsavedWorkingCopy(workingCopy)) return undefined;
@@ -222,6 +225,13 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
   const selectedCommunications = useMemo(() => communications.filter((item) => selectedCommunicationIds.includes(item.id)), [communications, selectedCommunicationIds]);
   const selectedReferences = useMemo(() => references.filter((item) => selectedReferenceIds.includes(item.id)), [references, selectedReferenceIds]);
   const selectedNotes = useMemo(() => notes.filter((item) => selectedNoteIds.includes(item.id)), [notes, selectedNoteIds]);
+  const sourceNote = useMemo(
+    () => notes.find((item) => item.id === sourceNoteId) || null,
+    [notes, sourceNoteId],
+  );
+  const sourceNoteLinkedCount = sourceNote
+    ? sourceNote.linkedCommunicationIds.length + sourceNote.linkedReferenceIds.length
+    : 0;
   const context = useMemo(() => buildAIContext({
     issue,
     assignedOfficer,
@@ -479,7 +489,7 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
 
   const saveDraftChanges = async ({ separateVersion = false } = {}) => {
     if (workingCopy.mode !== 'working' || workingCopy.configurationDirty) {
-      setGeneration((current) => ({ ...current, error: workingCopy.configurationDirty ? 'Generate the draft again after changing document setup.' : 'Open or create a draft before saving.' }));
+      setGeneration((current) => ({ ...current, error: workingCopy.configurationDirty ? 'Apply the changed communication details before saving.' : 'Open or create a draft before saving.' }));
       return;
     }
     try {
@@ -675,7 +685,7 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
   const regenerateSelection = async (cloudConfirmed = false) => {
     const activeSelection = pendingRegenerationSelection.current || selectionRef.current;
     if (!generation.text.slice(activeSelection.start, activeSelection.end).trim()) {
-      setParagraphStatus({ status: 'error', error: 'Select one paragraph in the draft before regenerating it.' });
+      setParagraphStatus({ status: 'error', error: 'Select the passage you want AI to improve.' });
       draftTextareaRef.current?.focus();
       return;
     }
@@ -691,7 +701,7 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
     pendingRegenerationSelection.current = null;
     const controller = new AbortController();
     generationController.current = controller;
-    setParagraphStatus({ status: 'regenerating', error: '' });
+      setParagraphStatus({ status: 'regenerating', error: '' });
     try {
       const provider = createDraftAIProvider(aiPreferences.mode === 'cloud'
         ? { mode: 'cloud', workspaceId: auth.workspace.id, issueId: issue.id, provider: aiPreferences.cloudProvider, taskLevel: aiPreferences.geminiTaskLevel }
@@ -727,7 +737,7 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
         );
       });
     } catch (error) {
-      setParagraphStatus(error.name === 'AbortError' ? { status: 'idle', error: '' } : { status: 'error', error: error.message || 'Unable to regenerate the selected paragraph.' });
+      setParagraphStatus(error.name === 'AbortError' ? { status: 'idle', error: '' } : { status: 'error', error: error.message || 'Unable to improve the selected passage.' });
     } finally {
       generationController.current = null;
     }
@@ -785,6 +795,14 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
   const geminiTask = getGeminiTaskLevel(aiPreferences.geminiTaskLevel);
   const selectedPassage = generation.text.slice(selection.start, selection.end).trim();
   const selectedWordCount = selectedPassage ? selectedPassage.split(/\s+/).filter(Boolean).length : 0;
+  const draftReview = useMemo(
+    () =>
+      generation.document
+        ? validateDraftDocument(generation.document)
+        : { errors: [], warnings: [] },
+    [generation.document],
+  );
+  const draftReviewCount = draftReview.errors.length + draftReview.warnings.length;
   const changeAIMode = (mode) => {
     generationController.current?.abort();
     setAIPreferences((current) => ({ ...current, mode }));
@@ -847,23 +865,18 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
 
   return (
     <>
-    <section className="surface rounded-md">
+    <section className="surface overflow-hidden rounded-md border-t-4 border-t-teal-600">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#dce6e4] px-4 py-4 sm:px-5">
         <div>
           <div className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-teal-700" /><h2 className="text-base font-semibold text-[#17333b]">Drafting workspace</h2></div>
-          <p className="mt-1 text-sm text-slate-600">Prepare, review and retain an official communication against this Issue.</p>
+          <p className="mt-1 text-sm text-slate-600">Write the communication, complete its details and record it when issued.</p>
         </div>
-        {!readOnly && (
-          <button type="button" onClick={() => openDraftSettings()} className="inline-flex h-10 items-center gap-2 rounded-md bg-teal-700 px-3 text-xs font-semibold text-white shadow-sm transition hover:bg-teal-800 active:scale-[0.98]">
-            <FilePenLine className="h-4 w-4" />Draft Settings
-          </button>
-        )}
       </div>
 
       <div className="grid grid-cols-2 gap-1 border-b border-[#dce6e4] bg-slate-50 p-1.5" role="tablist" aria-label="Drafting workspace">
         {[
           ['compose', 'Compose'],
-          ['versions', `Saved drafts${drafts.length ? ` (${drafts.length})` : ''}`],
+          ['versions', `Draft history${drafts.length ? ` (${drafts.length})` : ''}`],
         ].map(([value, label]) => (
           <button
             key={value}
@@ -881,6 +894,24 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
           </button>
         ))}
       </div>
+
+      {sourceNote && (
+        <div className="flex items-start gap-3 border-b border-indigo-200 bg-indigo-50 px-4 py-3 sm:px-5">
+          <FilePenLine className="mt-0.5 h-4 w-4 shrink-0 text-indigo-700" />
+          <div>
+            <p className="text-xs font-semibold text-indigo-950">
+              Preparing communication from Note {sourceNote.sequence}
+            </p>
+            <p className="mt-0.5 text-xs leading-5 text-indigo-800">
+              Includes the Issue subject, current position, running summary
+              {sourceNoteLinkedCount
+                ? ` and ${sourceNoteLinkedCount} linked record${sourceNoteLinkedCount === 1 ? '' : 's'}`
+                : ''}
+              .
+            </p>
+          </div>
+        </div>
+      )}
 
       {workspaceView === 'bank' && (
         <>
@@ -909,8 +940,8 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
       <div className={workspaceView === 'bank' ? 'hidden' : 'border-t border-[#dce6e4]'}>
         {workspaceView === 'versions' && drafts.length > 0 && (
           <div className="flex flex-wrap items-center gap-3 border-t border-[#e3ebe9] bg-white px-4 py-3 sm:px-5">
-            <div className="flex items-center gap-2 text-xs font-semibold text-slate-700"><History className="h-4 w-4 text-cyan-700" />Saved drafts <span className="font-normal text-slate-500">({drafts.length}/{MAX_DRAFTS_PER_ISSUE})</span></div>
-            <select aria-label="Saved drafts" value={selectedDraftId} onChange={(event) => requestSavedDraft(event.target.value)} className="h-9 min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-3 text-xs text-slate-700 sm:max-w-md">
+            <div className="flex items-center gap-2 text-xs font-semibold text-slate-700"><History className="h-4 w-4 text-cyan-700" />Draft history <span className="font-normal text-slate-500">({drafts.length}/{MAX_DRAFTS_PER_ISSUE})</span></div>
+            <select aria-label="Draft history" value={selectedDraftId} onChange={(event) => requestSavedDraft(event.target.value)} className="h-9 min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-3 text-xs text-slate-700 sm:max-w-md">
               <option value="" disabled>Select a draft</option>
               {drafts.map((draft) => <option key={draft.id} value={draft.id}>Version {draft.version} - {draft.communicationType || 'Communication'} - {new Date(draft.updatedAt || draft.createdAt).toLocaleString()}</option>)}
             </select>
@@ -925,35 +956,58 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
           </div>
         )}
         {workspaceView === 'compose' && generation.status === 'idle' && (
-          <div className="flex min-h-[420px] flex-col items-center justify-center px-4 py-12 text-center sm:px-5">
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-teal-50 text-teal-700"><FilePenLine className="h-5 w-5" /></div>
-            <p className="mt-3 text-sm font-semibold text-slate-700">No working draft</p>
-            <p className="mt-1 max-w-sm text-xs leading-5 text-slate-500">Prepare the communication details once, then write from scratch or generate a body with AI.</p>
-            <div className="mt-4 flex flex-wrap justify-center gap-2">
-              {!readOnly && <button type="button" onClick={() => openDraftSettings()} className="inline-flex h-10 items-center gap-2 rounded-md bg-teal-700 px-4 text-xs font-semibold text-white shadow-sm hover:bg-teal-800"><FilePenLine className="h-4 w-4" />Draft Settings</button>}
-              {drafts.length > 0 && <button type="button" onClick={() => setWorkspaceView('versions')} className="inline-flex h-9 items-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">Saved versions</button>}
+          <div className="mx-auto flex min-h-[420px] w-full max-w-xl flex-col justify-center px-4 py-10 sm:px-5">
+            <div className="text-center">
+              <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-teal-50 text-teal-700"><FilePenLine className="h-5 w-5" /></div>
+              <h3 className="mt-3 text-base font-semibold text-[#17333b]">What are you preparing?</h3>
+              <p className="mt-1 text-sm leading-6 text-slate-500">Choose the communication type. Other details can be completed while drafting.</p>
+            </div>
+            <div className="mt-5">
+              <AdaptiveSelect ariaLabel="Communication type to prepare" value={draftDialogType} onChange={setDraftDialogType} options={COMMUNICATION_TYPES} includeBlank={false} />
+            </div>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              {!readOnly && <button type="button" onClick={() => startBlankDraft(false, draftDialogType)} className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-teal-800"><FileOutput className="h-4 w-4" />Start writing</button>}
+              {!readOnly && <button type="button" onClick={() => generateDraft(false, false, draftDialogType)} className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-cyan-300 bg-cyan-50 px-4 text-sm font-semibold text-cyan-900 hover:bg-cyan-100"><Sparkles className="h-4 w-4" />Create first draft with AI</button>}
+            </div>
+            <div className="mt-3 flex flex-wrap items-center justify-center gap-3">
+              <button type="button" onClick={() => openDraftSettings('context')} className="inline-flex h-9 items-center gap-2 text-xs font-semibold text-slate-600 hover:text-teal-800"><Info className="h-4 w-4" />Information used</button>
+              {drafts.length > 0 && <button type="button" onClick={() => setWorkspaceView('versions')} className="inline-flex h-9 items-center text-xs font-semibold text-slate-600 hover:text-teal-800"><History className="mr-2 h-4 w-4" />Open saved draft</button>}
             </div>
           </div>
         )}
         {workspaceView === 'compose' && generation.status === 'generating' && <div className="flex min-h-36 items-center justify-center gap-3 border-t border-[#e3ebe9] px-4 py-8 text-center text-sm font-medium text-slate-600"><LoaderCircle className="h-5 w-5 shrink-0 animate-spin text-cyan-700" />{aiPreferences.mode === 'cloud' ? `Generating through ${providerLabel}${aiPreferences.cloudProvider === 'gemini' ? ` for a ${geminiTask.label.toLowerCase()} task` : ''}.` : 'Generating locally. The first request may include model loading time.'}</div>}
-        {workspaceView === 'compose' && generation.status === 'error' && <div className="border-t border-red-200 bg-red-50 px-4 py-4 text-sm text-red-800 sm:px-5">{generation.error}</div>}
+        {workspaceView === 'compose' && generation.status === 'error' && (
+          <div className="border-t border-red-200 bg-red-50 px-4 py-5 text-center sm:px-5">
+            <p className="text-sm font-medium text-red-800">{generation.error}</p>
+            <button type="button" onClick={() => setGeneration({ status: 'idle', text: '', error: '', model: '', stats: {}, draftId: '' })} className="mt-3 inline-flex h-9 items-center rounded-md border border-red-200 bg-white px-3 text-xs font-semibold text-red-800 hover:bg-red-100">Back to communication choices</button>
+          </div>
+        )}
         {generation.status === 'complete' && (
           <div className={`border-t border-[#e3ebe9] px-4 py-4 sm:px-5 ${workspaceView === 'compose' ? '' : 'hidden'}`}>
             {workingCopy.mode === 'working' && workingCopy.baseVersion > 0 && (
               <div className="mb-3 flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600"><GitBranch className="h-4 w-4 shrink-0 text-teal-700" />Editing saved draft {workingCopy.baseVersion}. Save updates this draft; preserve a separate copy only when needed.</div>
             )}
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
-              <div><h3 className="text-sm font-semibold text-[#17333b]">Working draft</h3><p className="mt-1 text-xs text-slate-500">{generation.model}{generation.stats.tokens_per_second ? ` - ${generation.stats.tokens_per_second.toFixed(1)} tokens/second` : ''}</p></div>
+              <div><h3 className="text-sm font-semibold text-[#17333b]">Communication draft</h3><p className="mt-1 text-xs text-slate-500">{workingCopy.dirty ? 'Unsaved changes' : 'Changes saved'}</p></div>
               <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
-                {!readOnly && workingCopy.mode === 'working' && <button type="button" onClick={() => saveDraftChanges()} disabled={!generation.text.trim() || !workingCopy.dirty || workingCopy.configurationDirty || ['saving', 'versioning'].includes(draftSaveStatus)} className={`col-span-2 inline-flex h-10 min-w-28 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold text-white disabled:bg-slate-300 sm:col-span-1 sm:h-9 ${draftSaveStatus === 'error' ? 'bg-red-700' : 'bg-cyan-700 hover:bg-cyan-800'}`}>{draftSaveStatus === 'saving' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : draftSaveStatus === 'saved' && !workingCopy.dirty ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}{draftSaveStatus === 'saving' ? 'Saving...' : draftSaveStatus === 'error' ? 'Save failed' : draftSaveStatus === 'saved' && !workingCopy.dirty ? 'Saved' : 'Save'}</button>}
-                {!readOnly && workingCopy.mode === 'working' && workingCopy.baseVersion > 0 && <button type="button" onClick={() => saveDraftChanges({ separateVersion: true })} disabled={!generation.text.trim() || workingCopy.configurationDirty || ['saving', 'versioning'].includes(draftSaveStatus)} className="inline-flex h-10 min-w-28 items-center justify-center gap-2 rounded-md border border-cyan-300 bg-white px-3 text-xs font-semibold text-cyan-800 hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-50 sm:h-9">{draftSaveStatus === 'versioning' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <GitBranch className="h-4 w-4" />}{draftSaveStatus === 'versioning' ? 'Preserving...' : 'Save as separate version'}</button>}
-                {!readOnly && workingCopy.mode === 'working' && <button type="button" onClick={() => hasUnsavedWorkingCopy(workingCopy) ? setPendingWorkingAction({ type: 'discard' }) : discardWorkingCopy()} className="inline-flex h-10 min-w-28 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 sm:h-9"><RotateCcw className="h-4 w-4" />Discard</button>}
-                <button type="button" onClick={exportDraft} disabled={draftExportStatus === 'exporting'} className="inline-flex h-9 min-w-28 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60">{draftExportStatus === 'exporting' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : draftExportStatus === 'complete' ? <Check className="h-4 w-4 text-emerald-700" /> : <Download className="h-4 w-4" />}{draftExportStatus === 'exporting' ? 'Preparing...' : draftExportStatus === 'complete' ? 'Downloaded' : 'Word (.docx)'}</button>
-                <button type="button" onClick={copyDraft} className={`inline-flex h-9 min-w-28 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold text-white ${draftCopyStatus === 'copied' ? 'bg-emerald-700' : draftCopyStatus === 'error' ? 'bg-red-700' : 'bg-teal-700 hover:bg-teal-800'}`}>{draftCopyStatus === 'copied' ? <Check className="h-4 w-4" /> : draftCopyStatus === 'error' ? <X className="h-4 w-4" /> : <Clipboard className="h-4 w-4" />}{draftCopyStatus === 'copied' ? 'Copied' : draftCopyStatus === 'error' ? 'Copy failed' : 'Copy draft'}</button>
+                {!readOnly && workingCopy.mode === 'working' && <button type="button" onClick={() => saveDraftChanges()} disabled={!generation.text.trim() || !workingCopy.dirty || workingCopy.configurationDirty || ['saving', 'versioning'].includes(draftSaveStatus)} className={`inline-flex h-10 min-w-24 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold text-white disabled:bg-slate-300 sm:h-9 ${draftSaveStatus === 'error' ? 'bg-red-700' : 'bg-teal-700 hover:bg-teal-800'}`}>{draftSaveStatus === 'saving' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : draftSaveStatus === 'saved' && !workingCopy.dirty ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}{draftSaveStatus === 'saving' ? 'Saving...' : draftSaveStatus === 'error' ? 'Save failed' : draftSaveStatus === 'saved' && !workingCopy.dirty ? 'Saved' : 'Save'}</button>}
+                {!readOnly && <button type="button" onPointerDown={() => { if (selectedWordCount) pendingRegenerationSelection.current = { ...selectionRef.current }; }} onMouseDown={(event) => { if (selectedWordCount) { pendingRegenerationSelection.current = { ...selectionRef.current }; event.preventDefault(); } }} onClick={() => selectedWordCount ? regenerateSelection() : openDraftSettings('context')} disabled={paragraphStatus.status === 'regenerating'} title={selectedWordCount ? 'Improve the selected passage with AI' : 'Open AI information and assistance'} className="inline-flex h-10 min-w-28 items-center justify-center gap-2 rounded-md border border-cyan-200 bg-cyan-50 px-3 text-xs font-semibold text-cyan-900 hover:bg-cyan-100 disabled:opacity-50 sm:h-9"><Sparkles className="h-4 w-4" />{paragraphStatus.status === 'regenerating' ? 'Working...' : 'Help me write'}</button>}
+                <button type="button" onClick={exportDraft} disabled={draftExportStatus === 'exporting'} className="inline-flex h-10 min-w-28 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-wait disabled:opacity-60 sm:h-9">{draftExportStatus === 'exporting' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : draftExportStatus === 'complete' ? <Check className="h-4 w-4 text-emerald-700" /> : <Download className="h-4 w-4" />}{draftExportStatus === 'exporting' ? 'Preparing...' : draftExportStatus === 'complete' ? 'Downloaded' : 'Download Word'}</button>
+                {!readOnly && workingCopy.mode === 'working' && (
+                  <details className="relative">
+                    <summary className="flex h-10 min-w-20 cursor-pointer list-none items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 sm:h-9"><MoreHorizontal className="h-4 w-4" />More</summary>
+                    <div className="absolute right-0 z-30 mt-1 w-60 overflow-hidden rounded-md border border-slate-200 bg-white py-1 shadow-xl">
+                      {workingCopy.baseVersion > 0 && <button type="button" onClick={() => saveDraftChanges({ separateVersion: true })} disabled={!generation.text.trim() || workingCopy.configurationDirty || ['saving', 'versioning'].includes(draftSaveStatus)} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"><GitBranch className="h-4 w-4" />Save as separate version</button>}
+                      <button type="button" onClick={copyDraft} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"><Clipboard className="h-4 w-4" />{draftCopyStatus === 'copied' ? 'Copied' : 'Copy text'}</button>
+                      <button type="button" onClick={() => openDraftSettings('details')} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"><RefreshCw className="h-4 w-4" />Change communication type</button>
+                      <button type="button" onClick={() => hasUnsavedWorkingCopy(workingCopy) ? setPendingWorkingAction({ type: 'discard' }) : discardWorkingCopy()} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs font-semibold text-red-700 hover:bg-red-50"><RotateCcw className="h-4 w-4" />Discard changes</button>
+                    </div>
+                  </details>
+                )}
               </div>
             </div>
             {generation.error && <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs leading-5 text-red-800">{generation.error}</div>}
-            {workingCopy.configurationDirty && <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">The document setup changed. Generate the draft again before saving so its heading, addressee and signature match the selected details.</div>}
+            {workingCopy.configurationDirty && <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">Communication details changed. Apply the selected communication type before saving.</div>}
             {isLegacyDocument ? (
               <>
                 <div className="mb-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">This older draft uses the plain-text editor. New blank and AI drafts use the structured editor with formatting tools.</div>
@@ -981,43 +1035,27 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
                 />
               </Suspense>
             )}
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
-              <div><p className="text-xs font-semibold text-slate-700">Draft tools</p><p className="mt-0.5 text-xs text-slate-500">Select text within the substantive body to regenerate it. The subject, addressee and signature are protected.</p></div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onPointerDown={() => {
-                    pendingRegenerationSelection.current = { ...selectionRef.current };
-                  }}
-                  onMouseDown={(event) => {
-                    pendingRegenerationSelection.current = { ...selectionRef.current };
-                    event.preventDefault();
-                  }}
-                  onClick={() => regenerateSelection()}
-                  disabled={paragraphStatus.status === 'regenerating' || !selectedWordCount}
-                  className="inline-flex h-9 items-center gap-2 rounded-md border border-cyan-200 bg-cyan-50 px-3 text-xs font-semibold text-cyan-900 transition active:scale-[0.98] hover:bg-cyan-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100"
-                >
-                  {paragraphStatus.status === 'regenerating' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                  {paragraphStatus.status === 'regenerating' ? 'Regenerating...' : selectedWordCount ? `Regenerate ${selectedWordCount} word${selectedWordCount === 1 ? '' : 's'}` : 'Regenerate selection'}
-                </button>
-                {paragraphStatus.status === 'regenerating' && (
-                  <button
-                    type="button"
-                    onClick={() => generationController.current?.abort()}
-                    className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-100 active:scale-[0.98]"
-                  >
-                    <X className="h-4 w-4" />Cancel
-                  </button>
-                )}
-                {!readOnly && <button type="button" onClick={recordOutgoingCommunication} disabled={!currentSavedDraft || draftSaveStatus === 'dirty' || recordStatus === 'saving' || Boolean(recordedCommunication) || recordStatus === 'recorded'} className="inline-flex h-9 items-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 text-xs font-semibold text-amber-900 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50">{recordStatus === 'saving' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <FileOutput className="h-4 w-4" />}{recordedCommunication || recordStatus === 'recorded' ? 'Recorded outgoing' : recordStatus === 'saving' ? 'Recording...' : 'Record outgoing'}</button>}
+            <section className={`mt-4 rounded-md border ${draftReviewCount ? 'border-amber-200 bg-amber-50' : 'border-emerald-200 bg-emerald-50'}`}>
+              <div className="flex flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className={`text-sm font-semibold ${draftReviewCount ? 'text-amber-950' : 'text-emerald-950'}`}>Finish communication</p>
+                  <p className={`mt-0.5 text-xs leading-5 ${draftReviewCount ? 'text-amber-800' : 'text-emerald-800'}`}>
+                    {draftReviewCount
+                      ? `${draftReviewCount} detail${draftReviewCount === 1 ? '' : 's'} should be reviewed before issue. Open Review in the side tools.`
+                      : 'Document details are complete. Review the wording before issue.'}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" onClick={exportDraft} disabled={draftExportStatus === 'exporting'} className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60">{draftExportStatus === 'exporting' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}Download Word</button>
+                  {!readOnly && <button type="button" onClick={recordOutgoingCommunication} disabled={!currentSavedDraft || draftSaveStatus === 'dirty' || recordStatus === 'saving' || Boolean(recordedCommunication) || recordStatus === 'recorded'} title={!currentSavedDraft || draftSaveStatus === 'dirty' ? 'Save the current draft before recording it as issued.' : 'Record this saved draft as an outgoing communication.'} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-amber-700 px-3 text-xs font-semibold text-white hover:bg-amber-800 disabled:cursor-not-allowed disabled:bg-slate-300">{recordStatus === 'saving' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <FileOutput className="h-4 w-4" />}{recordedCommunication || recordStatus === 'recorded' ? 'Recorded as issued' : recordStatus === 'saving' ? 'Recording...' : 'Record as issued'}</button>}
+                </div>
               </div>
-            </div>
+            </section>
             <div aria-live="polite">
               {paragraphStatus.error && <p className="mt-2 text-xs text-red-700">{paragraphStatus.error}</p>}
-              {paragraphStatus.status === 'complete' && <p className="mt-2 text-xs text-emerald-700">Selected passage regenerated. Review it and save the draft.</p>}
+              {paragraphStatus.status === 'complete' && <p className="mt-2 text-xs text-emerald-700">Selected passage improved. Review it and save the draft.</p>}
             </div>
             {recordStatus === 'error' && <p className="mt-2 text-xs text-red-700">Save the current draft version before recording the outgoing communication.</p>}
-            <p className="mt-2 text-xs text-slate-500">Saved drafts sync to the workspace. Use Save as separate version only when you intentionally want to preserve another copy; at most five are retained.</p>
           </div>
         )}
       </div>
@@ -1042,17 +1080,17 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
             <div>
               <div className="flex items-center gap-2">
                 <FilePenLine className="h-5 w-5 text-teal-700" />
-                <h3 id="draft-preparation-title" className="text-base font-semibold text-[#17333b]">Draft Settings</h3>
+                <h3 id="draft-preparation-title" className="text-base font-semibold text-[#17333b]">Draft assistance</h3>
               </div>
-              <p className="mt-1 text-xs leading-5 text-slate-500">Set the essentials, choose the Issue context, then start writing or generate with AI.</p>
+              <p className="mt-1 text-xs leading-5 text-slate-500">Review communication details or choose the information AI may use.</p>
             </div>
             <button type="button" data-autofocus title="Close" aria-label="Close draft preparation" disabled={generation.status === 'generating'} onClick={() => setDraftDialogOpen(false)} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 disabled:opacity-40"><X className="h-4 w-4" /></button>
           </header>
 
           <div className="grid shrink-0 grid-cols-2 gap-1 border-b border-slate-200 bg-slate-50 p-1.5" role="tablist" aria-label="Draft preparation">
             {[
-              ['details', 'Draft details'],
-              ['context', `AI context (${context.selectedSourceCount})`],
+              ['details', 'Communication details'],
+              ['context', `Information used (${context.selectedSourceCount})`],
             ].map(([value, label]) => (
               <button key={value} type="button" role="tab" aria-selected={draftDialogTab === value} onClick={() => setDraftDialogTab(value)} className={`min-h-10 rounded-md px-3 text-xs font-semibold sm:text-sm ${draftDialogTab === value ? 'bg-white text-teal-800 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-800'}`}>{label}</button>
             ))}
@@ -1081,7 +1119,7 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
                   <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Recipient relationship</span><select value={recipientRelationship} onChange={(event) => { setRecipientRelationship(event.target.value); markDraftDirty(); }} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900">{RECIPIENT_RELATIONSHIPS.map((relationship) => <option key={relationship} value={relationship}>{relationship}</option>)}</select></label>
                   <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Recipient organization <span className="font-normal text-slate-500">(optional)</span></span><input value={recipient.organization} onChange={(event) => updateRecipient('organization', event.target.value)} placeholder="Example: Department of Legal Affairs" className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900" /></label>
                   <label className="block sm:col-span-2"><span className="mb-1 block text-sm font-medium text-slate-700">Purpose / requested action <span className="font-normal text-slate-500">(optional)</span></span><textarea rows={2} value={instruction} onChange={(event) => setInstruction(event.target.value)} placeholder="Add a specific action or deadline when the running summary does not make it clear." className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm leading-5 text-slate-900" /></label>
-                  <label className="flex items-start gap-2 rounded-md border border-teal-200 bg-teal-50 px-3 py-3 text-sm text-slate-700 sm:col-span-2"><input type="checkbox" checked={useDetailedContext} onChange={(event) => setUseDetailedContext(event.target.checked)} className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-teal-700" /><span><span className="block font-medium">Use selected Issue context in the body</span><span className="mt-0.5 block text-xs leading-5 text-slate-500">Enabled by default. Review the selected material under AI context when needed.</span></span></label>
+                  <label className="flex items-start gap-2 rounded-md border border-teal-200 bg-teal-50 px-3 py-3 text-sm text-slate-700 sm:col-span-2"><input type="checkbox" checked={useDetailedContext} onChange={(event) => setUseDetailedContext(event.target.checked)} className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-teal-700" /><span><span className="block font-medium">Use Issue information in the body</span><span className="mt-0.5 block text-xs leading-5 text-slate-500">Enabled by default. Open Information used when you need to change the material supplied to AI.</span></span></label>
 
                   <details className="rounded-md border border-slate-200 bg-slate-50 sm:col-span-2">
                     <summary className="cursor-pointer px-3 py-3 text-sm font-semibold text-slate-700">More document details <span className="font-normal text-slate-500">(optional)</span></summary>
@@ -1106,7 +1144,7 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
               <div className="grid min-h-[420px] lg:grid-cols-[360px_minmax(0,1fr)]">
                 <aside className="border-b border-slate-200 lg:border-b-0 lg:border-r">
                   <div className="border-b border-slate-200 px-4 py-4">
-                    <h4 className="text-sm font-semibold text-slate-800">Core context</h4>
+                    <h4 className="text-sm font-semibold text-slate-800">Automatically included</h4>
                     <div className="mt-3 space-y-2">
                       <Option label="Issue details" checked={options.issueDetails} onChange={(checked) => setOptions((current) => ({ ...current, issueDetails: checked }))} />
                       <Option label="Current position" checked={options.currentPosition} disabled={!issue.currentPosition} onChange={(checked) => setOptions((current) => ({ ...current, currentPosition: checked }))} />
@@ -1138,7 +1176,7 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
           <footer className="shrink-0 border-t border-slate-200 bg-white px-4 py-3 sm:px-5">
             {generation.error && <p className="mb-2 text-xs text-red-700">{generation.error}</p>}
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs text-slate-500">{aiPreferences.mode === 'cloud' ? `Cloud API · ${providerLabel}` : 'Local LLM'}{useDetailedContext ? ` · ${context.selectedSourceCount} sources selected` : ' · Brief mode'}</p>
+              <p className="text-xs text-slate-500">{aiPreferences.mode === 'cloud' ? `Cloud AI · ${providerLabel}` : 'Local AI'}{useDetailedContext ? ` · ${context.selectedSourceCount} items selected` : ' · Issue subject only'}</p>
               {generation.status === 'generating' ? (
                 <div className="flex gap-2">
                   <button type="button" disabled className="inline-flex h-10 min-w-40 flex-1 items-center justify-center gap-2 rounded-md bg-cyan-700 px-4 text-sm font-semibold text-white"><LoaderCircle className="h-4 w-4 animate-spin" />Generating...</button>
@@ -1146,9 +1184,9 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
                 </div>
               ) : (
                 <div className={`grid gap-2 ${generation.status === 'complete' ? 'sm:grid-cols-3' : 'grid-cols-2'}`}>
-                  <button type="button" onClick={() => startBlankDraft(false, draftDialogType)} className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"><FileOutput className="h-4 w-4" />Start blank</button>
-                  {generation.status === 'complete' && <button type="button" onClick={applyDraftType} disabled={draftDialogType === communicationType || isLegacyDocument} title={isLegacyDocument ? 'Older plain-text drafts cannot be reformatted automatically.' : 'Preserve the body and apply the selected official format.'} className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-cyan-300 bg-cyan-50 px-3 text-xs font-semibold text-cyan-900 hover:bg-cyan-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"><RefreshCw className="h-4 w-4" />Change draft type</button>}
-                  <button type="button" onClick={() => generateDraft(false, false, draftDialogType)} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-teal-700 px-3 text-xs font-semibold text-white shadow-sm hover:bg-teal-800"><Sparkles className="h-4 w-4" />Generate with AI</button>
+                  <button type="button" onClick={() => startBlankDraft(false, draftDialogType)} className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"><FileOutput className="h-4 w-4" />Start writing</button>
+                  {generation.status === 'complete' && <button type="button" onClick={applyDraftType} disabled={draftDialogType === communicationType || isLegacyDocument} title={isLegacyDocument ? 'Older plain-text drafts cannot be reformatted automatically.' : 'Preserve the body and apply the selected official format.'} className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-cyan-300 bg-cyan-50 px-3 text-xs font-semibold text-cyan-900 hover:bg-cyan-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"><RefreshCw className="h-4 w-4" />Apply selected type</button>}
+                  <button type="button" onClick={() => generateDraft(false, false, draftDialogType)} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-teal-700 px-3 text-xs font-semibold text-white shadow-sm hover:bg-teal-800"><Sparkles className="h-4 w-4" />Create with AI</button>
                 </div>
               )}
             </div>
@@ -1176,10 +1214,10 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
     />
     <ConfirmDialog
       open={Boolean(pendingWorkingAction)}
-      title={pendingWorkingAction?.type === 'load' ? 'Open another saved version?' : ['generate', 'blank'].includes(pendingWorkingAction?.type) ? 'Replace this working draft?' : 'Discard working copy?'}
+      title={pendingWorkingAction?.type === 'load' ? 'Open another saved version?' : ['generate', 'blank'].includes(pendingWorkingAction?.type) ? 'Replace this draft?' : 'Discard changes?'}
       message={workingCopy.baseVersion
-        ? `Unsaved changes in the working copy based on version ${workingCopy.baseVersion} will be discarded. The saved version itself will remain unchanged.`
-        : 'Unsaved changes in this working draft will be discarded.'}
+        ? `Unsaved changes based on version ${workingCopy.baseVersion} will be discarded. The saved version itself will remain unchanged.`
+        : 'Unsaved changes in this draft will be discarded.'}
       confirmLabel={pendingWorkingAction?.type === 'load' ? 'Discard and open' : pendingWorkingAction?.type === 'generate' ? 'Discard and generate' : pendingWorkingAction?.type === 'blank' ? 'Discard and start blank' : 'Discard changes'}
       destructive
       onCancel={() => setPendingWorkingAction(null)}

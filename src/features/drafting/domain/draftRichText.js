@@ -1,10 +1,17 @@
 const INLINE_MARKS = new Set(['bold', 'italic', 'underline']);
 const PARAGRAPH_ALIGNMENTS = new Set(['left', 'center', 'right', 'justify']);
+const FONT_SIZES = new Set([10, 11, 12, 13, 14, 16, 18]);
+const MAX_INDENT_LEVEL = 6;
 
 function normalizeMarks(marks) {
   if (!Array.isArray(marks)) return [];
-  return [...new Set(marks.map((mark) => mark?.type).filter((type) => INLINE_MARKS.has(type)))]
+  const normalized = [...new Set(marks.map((mark) => mark?.type).filter((type) => INLINE_MARKS.has(type)))]
     .map((type) => ({ type }));
+  const fontSize = marks.find((mark) => mark?.type === 'fontSize');
+  if (FONT_SIZES.has(Number(fontSize?.attrs?.size))) {
+    normalized.push({ type: 'fontSize', attrs: { size: Number(fontSize.attrs.size) } });
+  }
+  return normalized;
 }
 
 function normalizeInlineNode(node) {
@@ -20,10 +27,11 @@ function normalizeInlineNode(node) {
 
 function normalizeParagraph(node = {}) {
   const textAlign = PARAGRAPH_ALIGNMENTS.has(node.attrs?.textAlign) ? node.attrs.textAlign : null;
+  const indent = Math.min(MAX_INDENT_LEVEL, Math.max(0, Number(node.attrs?.indent) || 0));
   const content = (Array.isArray(node.content) ? node.content : []).map(normalizeInlineNode).filter(Boolean);
   return {
     type: 'paragraph',
-    ...(textAlign ? { attrs: { textAlign } } : {}),
+    ...(textAlign || indent ? { attrs: { ...(textAlign ? { textAlign } : {}), ...(indent ? { indent } : {}) } } : {}),
     ...(content.length ? { content } : {}),
   };
 }
@@ -92,10 +100,14 @@ export function bodyBlocksToRichText(blocks = []) {
 }
 
 function plainParagraph(block) {
+  const indent = Math.min(MAX_INDENT_LEVEL, Math.max(0, Number(block.indentLevel) || 0));
   return {
     type: 'paragraph',
-    ...(block.alignment && PARAGRAPH_ALIGNMENTS.has(block.alignment)
-      ? { attrs: { textAlign: block.alignment } }
+    ...((block.alignment && PARAGRAPH_ALIGNMENTS.has(block.alignment)) || indent
+      ? { attrs: {
+        ...(block.alignment && PARAGRAPH_ALIGNMENTS.has(block.alignment) ? { textAlign: block.alignment } : {}),
+        ...(indent ? { indent } : {}),
+      } }
       : {}),
     ...(block.content ? { content: [textNode(block.content)] } : {}),
   };
@@ -177,6 +189,7 @@ export function richTextToBodyBlocks(input, previousBlocks = [], source = 'user'
       source: previous?.content === content ? previous.source : source,
       locked: false,
       alignment: PARAGRAPH_ALIGNMENTS.has(paragraph.attrs?.textAlign) ? paragraph.attrs.textAlign : '',
+      indentLevel: Math.min(MAX_INDENT_LEVEL, Math.max(0, Number(paragraph.attrs?.indent) || 0)),
       listType,
     });
   };
@@ -214,11 +227,13 @@ function paragraphRuns(paragraph) {
   return (paragraph.content || []).map((node) => {
     if (node.type === 'hardBreak') return { text: '\n' };
     const marks = new Set((node.marks || []).map((mark) => mark.type));
+    const fontSize = (node.marks || []).find((mark) => mark.type === 'fontSize');
     return {
       text: String(node.text || ''),
       bold: marks.has('bold'),
       italic: marks.has('italic'),
       underline: marks.has('underline'),
+      fontSize: FONT_SIZES.has(Number(fontSize?.attrs?.size)) ? Number(fontSize.attrs.size) : null,
     };
   }).filter((run) => run.text);
 }
@@ -229,6 +244,7 @@ export function richTextParagraphs(input, fallbackBlocks = []) {
   const push = (paragraph, listType = '') => {
     paragraphs.push({
       alignment: PARAGRAPH_ALIGNMENTS.has(paragraph.attrs?.textAlign) ? paragraph.attrs.textAlign : '',
+      indentLevel: Math.min(MAX_INDENT_LEVEL, Math.max(0, Number(paragraph.attrs?.indent) || 0)),
       listType,
       runs: paragraphRuns(paragraph),
     });
@@ -252,6 +268,7 @@ export function richTextDocumentNodes(input, fallbackBlocks = []) {
       return [{
         type: 'paragraph',
         alignment: PARAGRAPH_ALIGNMENTS.has(node.attrs?.textAlign) ? node.attrs.textAlign : '',
+        indentLevel: Math.min(MAX_INDENT_LEVEL, Math.max(0, Number(node.attrs?.indent) || 0)),
         listType: '',
         runs: paragraphRuns(node),
       }];
@@ -260,6 +277,7 @@ export function richTextDocumentNodes(input, fallbackBlocks = []) {
       return node.content.flatMap((item) => item.content.map((paragraph) => ({
         type: 'paragraph',
         alignment: PARAGRAPH_ALIGNMENTS.has(paragraph.attrs?.textAlign) ? paragraph.attrs.textAlign : '',
+        indentLevel: Math.min(MAX_INDENT_LEVEL, Math.max(0, Number(paragraph.attrs?.indent) || 0)),
         listType: node.type === 'bulletList' ? 'bullet' : 'ordered',
         runs: paragraphRuns(paragraph),
       })));
@@ -273,6 +291,7 @@ export function richTextDocumentNodes(input, fallbackBlocks = []) {
           rowspan: cell.attrs?.rowspan || 1,
           paragraphs: cell.content.map((paragraph) => ({
             alignment: PARAGRAPH_ALIGNMENTS.has(paragraph.attrs?.textAlign) ? paragraph.attrs.textAlign : '',
+            indentLevel: Math.min(MAX_INDENT_LEVEL, Math.max(0, Number(paragraph.attrs?.indent) || 0)),
             runs: paragraphRuns(paragraph),
           })),
         }))),

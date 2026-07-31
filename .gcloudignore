@@ -1,0 +1,13 @@
+.gcloudignore
+.git
+.github
+.agents
+.codex
+.tmp
+.vercel
+dist
+node_modules
+.env
+.env.*
+!.env.example
+*.log

@@ -16,6 +16,8 @@ import {
   CornerDownLeft,
   Eraser,
   FilePenLine,
+  IndentDecrease,
+  IndentIncrease,
   Italic,
   List,
   ListOrdered,
@@ -35,6 +37,7 @@ import { buildGovernmentCommunicationBlocks } from '../../../utils/governmentDra
 import { normalizeDraftDocument, validateDraftDocument } from '../domain/draftDocument';
 import { normalizeDraftRichText } from '../domain/draftRichText';
 import { COMMUNICATION_TYPES, getDraftTemplate } from '../templates/templateRegistry';
+import { ParagraphIndent } from '../../../components/editor/RichTextFormatting';
 import {
   PARAGRAPH_BANK_CATEGORIES,
   searchParagraphBank,
@@ -51,8 +54,8 @@ const RECIPIENT_INDENTS = [
   { value: 'wide', label: 'Wide recipient indent' },
 ];
 const MARGIN_OPTIONS = [
-  { value: 'standard', label: 'Standard margins' },
-  { value: 'narrow', label: 'Narrow margins' },
+  { value: 'standard', label: 'Normal (2.54 cm)' },
+  { value: 'narrow', label: 'Narrow (1.27 cm)' },
 ];
 
 const recipientIndentCss = {
@@ -402,6 +405,7 @@ const DraftDocumentEditor = forwardRef(function DraftDocumentEditor({
         },
       }),
       TextAlign.configure({ types: ['paragraph'], alignments: ['left', 'center', 'right', 'justify'] }),
+      ParagraphIndent,
     ],
     content: richText,
     onUpdate: ({ editor: current }) => {
@@ -509,6 +513,8 @@ const DraftDocumentEditor = forwardRef(function DraftDocumentEditor({
               <div className="flex items-center gap-0.5 border-r border-slate-200 px-1.5">
                 <ToolbarButton label="Bulleted list" active={editor.isActive('bulletList')} onClick={() => editor.chain().focus().toggleBulletList().run()}><List className="h-4 w-4" /></ToolbarButton>
                 <ToolbarButton label="Numbered list" active={editor.isActive('orderedList')} onClick={() => editor.chain().focus().toggleOrderedList().run()}><ListOrdered className="h-4 w-4" /></ToolbarButton>
+                <ToolbarButton label="Decrease paragraph indent (Shift+Tab)" disabled={!Number(editor.getAttributes('paragraph').indent)} onClick={() => editor.chain().focus().decreaseParagraphIndent().run()}><IndentDecrease className="h-4 w-4" /></ToolbarButton>
+                <ToolbarButton label="Increase paragraph indent (Tab)" onClick={() => editor.chain().focus().increaseParagraphIndent().run()}><IndentIncrease className="h-4 w-4" /></ToolbarButton>
               </div>
               <div className="flex items-center gap-0.5 border-r border-slate-200 px-1.5">
                 <ToolbarButton label="Insert 3 by 3 table" onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}><Table2 className="h-4 w-4" /></ToolbarButton>
@@ -538,10 +544,10 @@ const DraftDocumentEditor = forwardRef(function DraftDocumentEditor({
 
       <div className={`p-0 sm:p-4 ${!readOnly ? 'lg:grid lg:grid-cols-[minmax(0,794px)_288px] lg:items-start lg:justify-center lg:gap-4' : ''}`}>
       <div
-        className={`mx-auto min-h-[620px] w-full max-w-[794px] bg-white text-slate-950 sm:shadow-sm ${
+        className={`mx-auto min-h-[620px] w-full max-w-[794px] bg-white text-slate-950 sm:min-h-[1123px] sm:shadow-sm ${
           style.margins === 'narrow'
-            ? 'px-4 py-6 sm:px-8 sm:py-8'
-            : 'px-5 py-8 sm:px-12 sm:py-12'
+            ? 'px-4 py-6 sm:px-12 sm:py-12'
+            : 'px-5 py-8 sm:px-24 sm:py-24'
         }`}
         style={{
           fontFamily: style.fontFamily,
@@ -557,7 +563,7 @@ const DraftDocumentEditor = forwardRef(function DraftDocumentEditor({
               <EditorContent
                 key="editable-body"
                 editor={editor}
-                className={`draft-rich-editor my-4 ${readOnly ? 'pointer-events-none' : ''} [&_.ProseMirror]:min-h-32 [&_.ProseMirror]:outline-none [&_.ProseMirror_p]:my-0 [&_.ProseMirror_p]:min-h-5 [&_.ProseMirror_ul]:my-2 [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-7 [&_.ProseMirror_ol]:my-2 [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-7 [&_.ProseMirror_li>p]:my-0 [&_.ProseMirror_table]:my-3 [&_.ProseMirror_table]:w-full [&_.ProseMirror_table]:table-fixed [&_.ProseMirror_table]:border-collapse [&_.ProseMirror_td]:border [&_.ProseMirror_td]:border-slate-400 [&_.ProseMirror_td]:p-1.5 [&_.ProseMirror_th]:border [&_.ProseMirror_th]:border-slate-500 [&_.ProseMirror_th]:bg-slate-100 [&_.ProseMirror_th]:p-1.5 [&_.ProseMirror_th]:font-semibold`}
+                className={`draft-rich-editor my-4 rounded-sm transition-shadow focus-within:ring-1 focus-within:ring-slate-200 ${readOnly ? 'pointer-events-none' : ''} [&_.ProseMirror]:min-h-32 [&_.ProseMirror]:outline-none [&_.ProseMirror_p]:my-0 [&_.ProseMirror_p]:min-h-5 [&_.ProseMirror_ul]:my-2 [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-7 [&_.ProseMirror_ol]:my-2 [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-7 [&_.ProseMirror_li>p]:my-0 [&_.ProseMirror_table]:my-3 [&_.ProseMirror_table]:w-full [&_.ProseMirror_table]:table-fixed [&_.ProseMirror_table]:border-collapse [&_.ProseMirror_td]:border [&_.ProseMirror_td]:border-slate-400 [&_.ProseMirror_td]:p-1.5 [&_.ProseMirror_th]:border [&_.ProseMirror_th]:border-slate-500 [&_.ProseMirror_th]:bg-slate-100 [&_.ProseMirror_th]:p-1.5 [&_.ProseMirror_th]:font-semibold`}
                 style={{ marginBottom: `${style.paragraphSpacing || 0}pt` }}
               />
             );

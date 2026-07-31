@@ -59,7 +59,7 @@ function richTextRuns(runs, styleProfile) {
       italics: run.italic,
       underline: run.underline ? {} : undefined,
       font: styleProfile.fontFamily,
-      size: Number(styleProfile.fontSize || 12) * 2,
+      size: Number(run.fontSize || styleProfile.fontSize || 12) * 2,
     }),
   ]));
 }
@@ -146,6 +146,7 @@ function structuredChildren(document) {
             role: item.role,
             alignment: node.alignment,
             listType: node.listType,
+            indentLeft: Number(node.indentLevel || 0) * 720,
             runs: node.runs,
           })
       ));
@@ -213,7 +214,7 @@ export function buildDraftDocxDocument(input, { fallbackContent = '' } = {}) {
           size: { width: 11906, height: 16838 },
           margin: document.styleProfileSnapshot.margins === 'narrow'
             ? { top: 720, right: 720, bottom: 720, left: 720 }
-            : { top: 1080, right: 1080, bottom: 1080, left: 1080 },
+            : { top: 1440, right: 1440, bottom: 1440, left: 1440 },
         },
       },
       children,

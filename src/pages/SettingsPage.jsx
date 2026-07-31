@@ -565,7 +565,7 @@ export default function SettingsPage() {
                 label="Margins"
                 value={state.officeProfile.documentStyle.margins}
                 onChange={(value) => updateDocumentStyle('margins', value)}
-                options={[{ value: 'standard', label: 'Standard' }, { value: 'narrow', label: 'Narrow' }]}
+                options={[{ value: 'standard', label: 'Normal (2.54 cm)' }, { value: 'narrow', label: 'Narrow (1.27 cm)' }]}
                 includeBlank={false}
                 disabled={!canMutateWorkspace}
               />

@@ -38,6 +38,7 @@ function normalizeBlock(input = {}, index = 0) {
     locked: Boolean(input.locked),
     alignment: String(input.alignment || ''),
     listType: String(input.listType || ''),
+    indentLevel: Math.min(6, Math.max(0, Number(input.indentLevel) || 0)),
   };
 }
 
@@ -127,6 +128,7 @@ export function replaceDraftBodyBlocks(document, body, source = 'user') {
       source: previous?.source || source,
       alignment: previous?.alignment || '',
       listType: previous?.listType || '',
+      indentLevel: previous?.indentLevel || 0,
     }, index);
   });
   return {
