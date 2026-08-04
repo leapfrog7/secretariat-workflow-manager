@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { BookOpen, CheckCircle2, LoaderCircle, Pencil, Plus, Save, Trash2, X } from 'lucide-react';
 import { formatDisplayDate } from '../../utils/dateUtils';
 import { normalizeReference, validateReference } from '../../utils/referenceUtils';
 
-export default function ReferenceTab({ issueId, references, readOnly = false, onSave, onDelete }) {
+export default function ReferenceTab({ issueId, references, readOnly = false, onSave, onDelete, onDirtyChange }) {
   const [form, setForm] = useState(null);
   return (
     <div className="space-y-4">
@@ -15,7 +15,7 @@ export default function ReferenceTab({ issueId, references, readOnly = false, on
         {!readOnly && !form && <button type="button" onClick={() => setForm({ id: null })} className="inline-flex h-10 items-center gap-2 rounded-md bg-teal-700 px-3 text-sm font-semibold text-white shadow-sm hover:bg-teal-800"><Plus className="h-4 w-4" />Add reference</button>}
       </div>
 
-      {form && <ReferenceForm issueId={issueId} initialReference={form.id ? references.find((item) => item.id === form.id) : null} onSave={onSave} onComplete={() => setForm(null)} onCancel={() => setForm(null)} />}
+      {form && <ReferenceForm issueId={issueId} initialReference={form.id ? references.find((item) => item.id === form.id) : null} onSave={onSave} onComplete={() => setForm(null)} onCancel={() => setForm(null)} onDirtyChange={onDirtyChange} />}
 
       <div className="grid gap-3 lg:grid-cols-2">
         {references.map((reference) => (
@@ -39,11 +39,19 @@ export default function ReferenceTab({ issueId, references, readOnly = false, on
   );
 }
 
-function ReferenceForm({ issueId, initialReference, onSave, onComplete, onCancel }) {
+function ReferenceForm({ issueId, initialReference, onSave, onComplete, onCancel, onDirtyChange }) {
   const [reference, setReference] = useState(normalizeReference({ ...initialReference, issueId }));
   const [errors, setErrors] = useState({});
   const [saveStatus, setSaveStatus] = useState('idle');
-  const update = (field, value) => setReference((current) => ({ ...current, [field]: value }));
+  const [dirty, setDirty] = useState(false);
+  const update = (field, value) => {
+    setReference((current) => ({ ...current, [field]: value }));
+    setDirty(true);
+  };
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+    return () => onDirtyChange?.(false);
+  }, [dirty, onDirtyChange]);
   const submit = async (event) => {
     event.preventDefault();
     const nextErrors = validateReference(reference);
@@ -52,6 +60,7 @@ function ReferenceForm({ issueId, initialReference, onSave, onComplete, onCancel
     setSaveStatus('saving');
     try {
       await onSave(reference);
+      setDirty(false);
       setSaveStatus('saved');
       await new Promise((resolve) => window.setTimeout(resolve, 500));
       onComplete();

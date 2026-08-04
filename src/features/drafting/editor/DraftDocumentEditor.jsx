@@ -613,7 +613,7 @@ const DraftDocumentEditor = forwardRef(function DraftDocumentEditor({
       </div>
     </div>
     {!readOnly && (
-      <button type="button" onClick={() => setMobileToolsOpen(true)} className="fixed bottom-20 right-4 z-20 inline-flex h-11 items-center gap-2 rounded-full bg-[#17333b] px-4 text-xs font-semibold text-white shadow-lg transition active:scale-95 lg:hidden"><PanelRightOpen className="h-4 w-4" />Draft tools</button>
+      <button type="button" onClick={() => setMobileToolsOpen(true)} className="above-mobile-navigation fixed right-4 z-20 inline-flex h-11 items-center gap-2 rounded-full bg-[#17333b] px-4 text-xs font-semibold text-white shadow-lg transition active:scale-95 lg:hidden"><PanelRightOpen className="h-4 w-4" />Draft tools</button>
     )}
     {!readOnly && mobileToolsOpen && (
       <>

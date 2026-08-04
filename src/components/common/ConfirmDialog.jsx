@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { AlertTriangle, LoaderCircle, X } from 'lucide-react';
+import ModalFrame from './ModalFrame';
 
 export default function ConfirmDialog({
   open,
@@ -30,14 +31,8 @@ export default function ConfirmDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 p-0 backdrop-blur-[2px] sm:items-center sm:p-4" role="presentation">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="confirm-title"
-        aria-busy={busy}
-        className="dialog-enter w-full max-w-md rounded-t-md border border-slate-200 bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl sm:rounded-md"
-      >
+    <ModalFrame open labelledBy="confirm-title" busy={busy} onClose={onCancel} maxWidth="max-w-md" className="dialog-enter border border-slate-200">
+      <div className="p-4">
         <div className="flex items-start gap-3">
           <div className={`rounded-full p-2 ${destructive ? 'bg-red-50 text-red-700' : 'bg-teal-50 text-teal-700'}`}>
             <AlertTriangle className="h-5 w-5" aria-hidden="true" />
@@ -54,7 +49,7 @@ export default function ConfirmDialog({
           </button>
         </div>
         <div className="mt-5 grid grid-cols-2 gap-2 sm:flex sm:justify-end">
-          <button type="button" onClick={onCancel} disabled={busy} className="h-11 rounded-md border border-slate-300 px-3 text-sm font-medium disabled:opacity-50 sm:h-10">
+          <button type="button" data-autofocus onClick={onCancel} disabled={busy} className="h-11 rounded-md border border-slate-300 px-3 text-sm font-medium disabled:opacity-50 sm:h-10">
             {cancelLabel}
           </button>
           <button
@@ -70,6 +65,6 @@ export default function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </ModalFrame>
   );
 }

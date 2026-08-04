@@ -6,6 +6,7 @@ import { acceptCloudVersion, retryLocalVersion } from '../../features/cloud/sync
 import { useAuth } from '../../features/auth/AuthContext';
 import { useToast } from '../common/ToastProvider';
 import { formatDateTime } from '../../utils/dateUtils';
+import { OPEN_SYNC_CONFLICTS_EVENT } from './SyncStatusPanel';
 
 function preview(payload) {
   if (!payload) return 'No content available.';
@@ -36,6 +37,12 @@ export default function SyncConflictCenter() {
     return () => window.removeEventListener(SYNC_CONFLICT_EVENT, load);
   }, [auth.workspace?.id]);
 
+  useEffect(() => {
+    const reveal = () => document.getElementById('sync-conflict-center')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    window.addEventListener(OPEN_SYNC_CONFLICTS_EVENT, reveal);
+    return () => window.removeEventListener(OPEN_SYNC_CONFLICTS_EVENT, reveal);
+  }, []);
+
   const resolve = async (conflict, choice) => {
     setBusyId(conflict.id);
     try {
@@ -57,7 +64,7 @@ export default function SyncConflictCenter() {
   if (auth.mode !== 'cloud' || !conflicts.length) return null;
 
   return (
-    <section className="mb-5 overflow-hidden rounded-md border border-amber-300 bg-amber-50" aria-labelledby="sync-conflict-title">
+    <section id="sync-conflict-center" className="mb-5 scroll-mt-20 overflow-hidden rounded-md border border-amber-300 bg-amber-50" aria-labelledby="sync-conflict-title">
       <div className="flex items-start gap-3 border-b border-amber-200 px-4 py-3">
         <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
         <div>

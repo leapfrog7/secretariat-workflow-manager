@@ -5,6 +5,7 @@ import AccessGate from '../components/auth/AccessGate';
 import RequireAdmin from '../components/auth/RequireAdmin';
 import RequireEditor from '../components/auth/RequireEditor';
 import { getRouteImport } from './routePreload';
+import RouteErrorPage from '../components/common/RouteErrorPage';
 
 const IssueRegisterPage = lazy(getRouteImport('/issues'));
 const IssueFormPage = lazy(getRouteImport('/issues/new'));
@@ -19,6 +20,7 @@ const router = createHashRouter([
   {
     path: '/',
     element: <AccessGate><AppShell /></AccessGate>,
+    errorElement: <RouteErrorPage />,
     children: [
       { index: true, element: <Navigate to="/issues" replace /> },
       { path: 'issues', element: <IssueRegisterPage /> },

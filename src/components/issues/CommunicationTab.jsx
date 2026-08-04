@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { CheckCircle2, FileText, LoaderCircle, MessageSquarePlus, Pencil, Save, Trash2, X } from 'lucide-react';
 import { COMMUNICATION_TYPES, normalizeCommunication, validateCommunication } from '../../utils/communicationUtils';
 import { formatDisplayDate } from '../../utils/dateUtils';
 import AdaptiveSelect from '../common/AdaptiveSelect';
 
-export default function CommunicationTab({ issueId, communications, readOnly = false, onSave, onDelete }) {
+export default function CommunicationTab({ issueId, communications, readOnly = false, onSave, onDelete, onDirtyChange }) {
   const [form, setForm] = useState(null);
 
   return (
@@ -29,6 +29,7 @@ export default function CommunicationTab({ issueId, communications, readOnly = f
           onSave={onSave}
           onComplete={() => setForm(null)}
           onCancel={() => setForm(null)}
+          onDirtyChange={onDirtyChange}
         />
       )}
 
@@ -66,11 +67,20 @@ export default function CommunicationTab({ issueId, communications, readOnly = f
   );
 }
 
-function CommunicationForm({ issueId, initialCommunication, onSave, onComplete, onCancel }) {
+function CommunicationForm({ issueId, initialCommunication, onSave, onComplete, onCancel, onDirtyChange }) {
   const [communication, setCommunication] = useState(normalizeCommunication({ ...initialCommunication, issueId }));
   const [errors, setErrors] = useState({});
   const [saveStatus, setSaveStatus] = useState('idle');
-  const update = (field, value) => setCommunication((current) => ({ ...current, [field]: value }));
+  const [dirty, setDirty] = useState(false);
+  const update = (field, value) => {
+    setCommunication((current) => ({ ...current, [field]: value }));
+    setDirty(true);
+  };
+
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+    return () => onDirtyChange?.(false);
+  }, [dirty, onDirtyChange]);
 
   const submit = async (event) => {
     event.preventDefault();
@@ -80,6 +90,7 @@ function CommunicationForm({ issueId, initialCommunication, onSave, onComplete, 
     setSaveStatus('saving');
     try {
       await onSave(communication);
+      setDirty(false);
       setSaveStatus('saved');
       await new Promise((resolve) => window.setTimeout(resolve, 500));
       onComplete();

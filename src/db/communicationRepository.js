@@ -42,6 +42,10 @@ export async function saveCommunication(input) {
   return communication;
 }
 
+export function countCommunicationsByIssue(issueId) {
+  return db.communications.where('issueId').equals(issueId).count();
+}
+
 export async function deleteCommunication(id) {
   const communication = await db.communications.get(id);
   if (!communication) return;

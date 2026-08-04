@@ -14,6 +14,8 @@ import GeminiTaskLevelControl from '../../components/ai/GeminiTaskLevelControl';
 import { getGeminiTaskLevel } from '../../../shared/cloudAIModels';
 import AIModeControl from '../../components/ai/AIModeControl';
 import AdaptiveSelect from '../../components/common/AdaptiveSelect';
+import ModalFrame from '../../components/common/ModalFrame';
+import { handleTabListKeyDown } from '../../utils/tabKeyboardUtils';
 import {
   changeDraftDocumentTemplate,
   createDraftDocument,
@@ -37,7 +39,7 @@ import {
 
 const DraftDocumentEditor = lazy(() => import('./editor/DraftDocumentEditor'));
 
-export default function DraftingWorkspace({ issue, assignedOfficer, officers, summary, communications, references, notes = [], initialNoteIds = [], initialCommunicationIds = [], initialReferenceIds = [], sourceNoteId = '', noteSelectionRevision = 0, readOnly = false, onSaveCommunication }) {
+export default function DraftingWorkspace({ issue, assignedOfficer, officers, summary, communications, references, notes = [], initialNoteIds = [], initialCommunicationIds = [], initialReferenceIds = [], sourceNoteId = '', noteSelectionRevision = 0, readOnly = false, onSaveCommunication, onDirtyChange }) {
   const auth = useAuth();
   const [sourceTab, setSourceTab] = useState('Communications');
   const [workspaceView, setWorkspaceView] = useState('compose');
@@ -76,7 +78,6 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
   const [pendingWorkingAction, setPendingWorkingAction] = useState(null);
   const generationController = useRef(null);
   const draftTextareaRef = useRef(null);
-  const draftDialogRef = useRef(null);
   const selectionRef = useRef({ start: 0, end: 0 });
   const pendingRegenerationSelection = useRef(null);
 
@@ -121,36 +122,6 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
   }, [issue.id]);
 
   useEffect(() => {
-    if (!draftDialogOpen) return undefined;
-    const previousOverflow = document.body.style.overflow;
-    const dialog = draftDialogRef.current;
-    const focusableSelector = 'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
-    const initialFocus = window.requestAnimationFrame(() => dialog?.querySelector('[data-autofocus]')?.focus());
-    const handleDialogKey = (event) => {
-      if (event.key === 'Escape' && generation.status !== 'generating') setDraftDialogOpen(false);
-      if (event.key !== 'Tab' || !dialog) return;
-      const focusable = [...dialog.querySelectorAll(focusableSelector)];
-      if (!focusable.length) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    document.body.style.overflow = 'hidden';
-    window.addEventListener('keydown', handleDialogKey);
-    return () => {
-      window.cancelAnimationFrame(initialFocus);
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener('keydown', handleDialogKey);
-    };
-  }, [draftDialogOpen, generation.status]);
-
-  useEffect(() => {
     let active = true;
     const loadDrafts = () => getDraftsByIssue(issue.id).then((items) => {
       if (active) setDrafts(items);
@@ -181,6 +152,12 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
     window.addEventListener('beforeunload', warnBeforeUnload);
     return () => window.removeEventListener('beforeunload', warnBeforeUnload);
   }, [workingCopy]);
+
+  useEffect(() => {
+    const dirty = hasUnsavedWorkingCopy(workingCopy);
+    onDirtyChange?.(dirty);
+    return () => onDirtyChange?.(false);
+  }, [onDirtyChange, workingCopy]);
 
   useEffect(() => {
     let active = true;
@@ -931,7 +908,7 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-1 border-b border-[#dce6e4] bg-slate-50 p-1.5" role="tablist" aria-label="Drafting workspace">
+      <div className="grid grid-cols-2 gap-1 border-b border-[#dce6e4] bg-slate-50 p-1.5" role="tablist" aria-label="Drafting workspace" onKeyDown={handleTabListKeyDown}>
         {[
           ['compose', 'Compose'],
           ['versions', `Draft history${drafts.length ? ` (${drafts.length})` : ''}`],
@@ -941,6 +918,7 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
             type="button"
             role="tab"
             aria-selected={workspaceView === value}
+            tabIndex={workspaceView === value ? 0 : -1}
             onClick={() => setWorkspaceView(value)}
             className={`min-h-10 min-w-[104px] shrink-0 rounded px-2 py-2 text-xs font-semibold transition-colors sm:min-w-0 sm:text-sm ${
               workspaceView === value
@@ -1118,21 +1096,7 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
       </div>
     </section>
     {draftDialogOpen && (
-      <div className="fixed inset-0 z-40 flex items-end justify-center bg-slate-950/45 backdrop-blur-[2px] sm:items-center sm:p-4" role="presentation">
-        <button
-          type="button"
-          aria-label="Close draft preparation"
-          disabled={generation.status === 'generating'}
-          onClick={() => setDraftDialogOpen(false)}
-          className="absolute inset-0 cursor-default disabled:cursor-wait"
-        />
-        <section
-          ref={draftDialogRef}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="draft-preparation-title"
-          className="relative z-10 flex max-h-[92dvh] w-full max-w-5xl flex-col overflow-hidden rounded-t-lg border border-slate-200 bg-white shadow-2xl sm:max-h-[88dvh] sm:rounded-lg"
-        >
+      <ModalFrame open labelledBy="draft-preparation-title" busy={generation.status === 'generating'} onClose={() => setDraftDialogOpen(false)} maxWidth="max-w-5xl" className="flex flex-col overflow-hidden border border-slate-200">
           <header className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 px-4 py-4 sm:px-5">
             <div>
               <div className="flex items-center gap-2">
@@ -1144,12 +1108,12 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
             <button type="button" data-autofocus title="Close" aria-label="Close draft preparation" disabled={generation.status === 'generating'} onClick={() => setDraftDialogOpen(false)} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 disabled:opacity-40"><X className="h-4 w-4" /></button>
           </header>
 
-          <div className="grid shrink-0 grid-cols-2 gap-1 border-b border-slate-200 bg-slate-50 p-1.5" role="tablist" aria-label="Draft preparation">
+          <div className="grid shrink-0 grid-cols-2 gap-1 border-b border-slate-200 bg-slate-50 p-1.5" role="tablist" aria-label="Draft preparation" onKeyDown={handleTabListKeyDown}>
             {[
               ['details', 'Brief & format'],
               ['context', `Information used (${context.selectedSourceCount})`],
             ].map(([value, label]) => (
-              <button key={value} type="button" role="tab" aria-selected={draftDialogTab === value} onClick={() => setDraftDialogTab(value)} className={`min-h-10 rounded-md px-3 text-xs font-semibold sm:text-sm ${draftDialogTab === value ? 'bg-white text-teal-800 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-800'}`}>{label}</button>
+              <button key={value} type="button" role="tab" aria-selected={draftDialogTab === value} tabIndex={draftDialogTab === value ? 0 : -1} onClick={() => setDraftDialogTab(value)} className={`min-h-10 rounded-md px-3 text-xs font-semibold sm:text-sm ${draftDialogTab === value ? 'bg-white text-teal-800 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-800'}`}>{label}</button>
             ))}
           </div>
 
@@ -1248,8 +1212,8 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
                       <Option label="Latest running summary" checked={options.summary} disabled={!summary} onChange={(checked) => setOptions((current) => ({ ...current, summary: checked }))} />
                     </div>
                   </div>
-                  <div className="flex border-b border-slate-200 bg-slate-50 p-1" role="tablist" aria-label="Context sources">
-                    {['Communications', 'References', 'Notes'].map((tab) => <button key={tab} type="button" role="tab" aria-selected={sourceTab === tab} onClick={() => setSourceTab(tab)} className={`flex-1 rounded px-2 py-2 text-xs font-semibold ${sourceTab === tab ? 'bg-white text-teal-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>{tab} <span className="tabular-nums">({tab === 'Communications' ? communications.length : tab === 'References' ? references.length : notes.length})</span></button>)}
+                  <div className="flex border-b border-slate-200 bg-slate-50 p-1" role="tablist" aria-label="Context sources" onKeyDown={handleTabListKeyDown}>
+                    {['Communications', 'References', 'Notes'].map((tab) => <button key={tab} type="button" role="tab" aria-selected={sourceTab === tab} tabIndex={sourceTab === tab ? 0 : -1} onClick={() => setSourceTab(tab)} className={`flex-1 rounded px-2 py-2 text-xs font-semibold ${sourceTab === tab ? 'bg-white text-teal-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>{tab} <span className="tabular-nums">({tab === 'Communications' ? communications.length : tab === 'References' ? references.length : notes.length})</span></button>)}
                   </div>
                   {sourceTab === 'Communications' ? (
                     <SourceSelector items={communications} selectedIds={selectedCommunicationIds} onToggle={(id) => toggleId(setSelectedCommunicationIds, id)} onSelectAll={() => setSelectedCommunicationIds(communications.map((item) => item.id))} onClear={() => setSelectedCommunicationIds([])} emptyText="No communications recorded." renderItem={(item) => <CommunicationLabel communication={item} />} />
@@ -1287,8 +1251,7 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
               )}
             </div>
           </footer>
-        </section>
-      </div>
+      </ModalFrame>
     )}
     <ConfirmDialog
       open={Boolean(cloudConsent)}

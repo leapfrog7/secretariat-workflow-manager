@@ -21,6 +21,15 @@ Writing discipline:
 
 Do not create a letter, Office Memorandum, addressee block, salutation, signature block or submission routing. Do not use capital-letter section headings, Markdown headings, hash symbols, emphasis markers, code fences, tables or decorative separators. Return only the note text.`;
 
+export const NOTE_SELECTION_REWRITE_SYSTEM_PROMPT = [
+  'Rewrite only the selected passage from an internal Government file note.',
+  'Improve clarity, concision and Government noting style while preserving every fact, date, name, rule citation, uncertainty, reasoning and proposal in the passage.',
+  'Keep the passage objective and decision-enabling. Do not make a tentative proposal final, or imply that discussion, consultation, approval or a decision occurred unless the supplied note says so.',
+  'Use the surrounding note and Issue context only to understand terminology. Do not add facts or conclusions from outside the selected passage.',
+  'Do not add a subject, heading, salutation, signature, Markdown, commentary or explanation.',
+  'Return only the replacement passage.',
+].join(' ');
+
 export function buildNoteAIInput({
   operation = 'generate',
   issueContext = '',
@@ -39,6 +48,14 @@ export function buildNoteAIInput({
     instruction?.trim() ? `OFFICER'S ADDITIONAL INSTRUCTION\n${instruction.trim()}` : '',
     issueContext?.trim() ? `RECORDED ISSUE CONTEXT\n${issueContext.trim()}` : '',
     currentNote?.trim() ? `EXISTING NOTE\n${currentNote.trim()}` : '',
+  ].filter(Boolean).join('\n\n');
+}
+
+export function buildNoteSelectionRewriteInput({ selectedText = '', currentNote = '', issueContext = '' } = {}) {
+  return [
+    `SELECTED PASSAGE TO REWRITE\n${String(selectedText).trim()}`,
+    `SURROUNDING NOTE FOR CONTEXT\n${String(currentNote).trim()}`,
+    issueContext?.trim() ? `RECORDED ISSUE CONTEXT\n${issueContext.trim()}` : '',
   ].filter(Boolean).join('\n\n');
 }
 
@@ -87,6 +104,28 @@ export async function generateOrRefineNote({
   });
   return {
     text: normalizeNoteAIText(result.text),
+    model: result.model || provider.id,
+    stats: result.stats || {},
+  };
+}
+
+export async function rewriteNoteSelection({
+  provider,
+  selectedText,
+  currentNote,
+  issueContext,
+  signal,
+}) {
+  if (!provider?.generateText) throw new Error('Configure an AI provider before rewriting note text.');
+  if (!String(selectedText || '').trim()) throw new Error('Select the passage you want AI to rewrite.');
+  const result = await provider.generateText({
+    operation: 'paragraph',
+    instructions: NOTE_SELECTION_REWRITE_SYSTEM_PROMPT,
+    input: buildNoteSelectionRewriteInput({ selectedText, currentNote, issueContext }),
+    signal,
+  });
+  return {
+    text: normalizeNoteAIText(result.text).replace(/^subject\s*:\s*/i, '').trim(),
     model: result.model || provider.id,
     stats: result.stats || {},
   };

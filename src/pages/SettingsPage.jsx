@@ -3,6 +3,7 @@ import { AlertTriangle, BellRing, Bot, Building2, CheckCircle2, Database, Downlo
 import PageHeader from '../components/common/PageHeader';
 import LoadingState from '../components/common/LoadingState';
 import ErrorState from '../components/common/ErrorState';
+import { handleTabListKeyDown } from '../utils/tabKeyboardUtils';
 import ConfirmDialog from '../components/common/ConfirmDialog';
 import DisclosureSection from '../components/common/DisclosureSection';
 import OfficerForm from '../components/officers/OfficerForm';
@@ -40,7 +41,7 @@ export default function SettingsPage() {
   const { showToast } = useToast();
   const auth = useAuth();
   const canMutateWorkspace = auth.mode !== 'cloud' || auth.canEdit;
-  const [activeTab, setActiveTab] = useState('display');
+  const [activeTab, setActiveTab] = useState('officers');
   const [state, setState] = useState({
     loading: true,
     busy: '',
@@ -388,25 +389,30 @@ export default function SettingsPage() {
   const backup = state.backupStatus;
   const canDeleteOfficers = auth.mode !== 'cloud' || auth.isWorkspaceAdmin;
   const tabs = [
-    { id: 'display', label: 'Display', icon: Type },
+
     { id: 'officers', label: 'Officers', icon: Users },
     { id: 'profile', label: 'Office profile', icon: Building2 },
     { id: 'ai', label: 'AI settings', icon: Bot },
     { id: 'reminders', label: 'Reminders', icon: BellRing },
     { id: 'data', label: 'Data & backup', icon: Database },
+     { id: 'display', label: 'Display', icon: Type },
   ];
 
   return (
     <>
       <PageHeader title="Settings" description="Manage each part of your workspace in one clearly separated place." />
       <nav className="mb-4 overflow-x-auto border-b border-slate-200" aria-label="Settings sections">
-        <div className="flex min-w-max gap-1">
+        <div className="flex min-w-max gap-1" role="tablist" onKeyDown={handleTabListKeyDown}>
           {tabs.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
+              id={`settings-tab-${id}`}
               type="button"
+              role="tab"
               onClick={() => setActiveTab(id)}
-              aria-current={activeTab === id ? 'page' : undefined}
+              aria-selected={activeTab === id}
+              aria-controls="settings-tab-panel"
+              tabIndex={activeTab === id ? 0 : -1}
               className={`inline-flex h-11 items-center gap-2 border-b-2 px-3 text-sm font-semibold transition-colors ${activeTab === id ? 'border-teal-700 text-teal-800' : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-800'}`}
             >
               <Icon className="h-4 w-4" />
@@ -415,7 +421,7 @@ export default function SettingsPage() {
           ))}
         </div>
       </nav>
-      <div>
+      <div id="settings-tab-panel" role="tabpanel" aria-labelledby={`settings-tab-${activeTab}`} tabIndex={0}>
         {activeTab === 'display' && <section className="surface rounded-md border-t-4 border-t-teal-600 p-4 sm:p-5">
           <div className="flex items-start gap-3 border-b border-slate-200 pb-4">
             <Type className="mt-0.5 h-5 w-5 shrink-0 text-teal-700" aria-hidden="true" />

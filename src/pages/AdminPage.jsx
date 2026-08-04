@@ -35,6 +35,8 @@ import {
   setAIUserPermission,
 } from "../features/ai/cloudAIAdminApi";
 import DivisionAdminPanel from "../components/collaboration/DivisionAdminPanel";
+import ModalFrame from "../components/common/ModalFrame";
+import { handleTabListKeyDown } from "../utils/tabKeyboardUtils";
 
 export default function AdminPage() {
   const auth = useAuth();
@@ -453,7 +455,7 @@ export default function AdminPage() {
         className="mb-5 overflow-x-auto border-b border-slate-200"
         aria-label="Administration sections"
       >
-        <div className="flex min-w-max gap-1">
+        <div className="flex min-w-max gap-1" role="tablist" onKeyDown={handleTabListKeyDown}>
           {[
             { id: "people", label: "People & Roles", icon: Users },
             { id: "divisions", label: "Divisions & Sharing", icon: Building2 },
@@ -461,9 +463,13 @@ export default function AdminPage() {
           ].map(({ id, label, icon: Icon }) => (
             <button
               key={id}
+              id={`admin-tab-${id}`}
               type="button"
+              role="tab"
               onClick={() => setActiveTab(id)}
-              aria-current={activeTab === id ? "page" : undefined}
+              aria-selected={activeTab === id}
+              aria-controls="admin-tab-panel"
+              tabIndex={activeTab === id ? 0 : -1}
               className={`inline-flex h-11 items-center gap-2 border-b-2 px-3 text-sm font-semibold transition-colors ${activeTab === id ? "border-teal-700 text-teal-800" : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-800"}`}
             >
               <Icon className="h-4 w-4" />
@@ -472,6 +478,7 @@ export default function AdminPage() {
           ))}
         </div>
       </nav>
+      <div id="admin-tab-panel" role="tabpanel" aria-labelledby={`admin-tab-${activeTab}`}>
       {state.error && (
         <p className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
           {state.error}
@@ -800,6 +807,7 @@ export default function AdminPage() {
           onOwnWorkspace={openWorkspaceSetup}
         />
       )}
+      </div>
       {workspaceSetup && (
         <WorkspaceSetupDialog
           value={workspaceSetup}
@@ -1237,16 +1245,10 @@ function WorkspaceAssignmentDialog({
     (workspace) => workspace.id === value.workspaceId,
   );
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 p-0 sm:items-center sm:p-4"
-      role="presentation"
-    >
+    <ModalFrame open labelledBy="workspace-assignment-title" busy={saving} onClose={onClose} maxWidth="max-w-lg">
       <form
         onSubmit={onSubmit}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="workspace-assignment-title"
-        className="w-full max-w-lg rounded-t-lg bg-white shadow-2xl sm:rounded-lg"
+        className="w-full"
       >
         <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-5">
           <div>
@@ -1369,7 +1371,7 @@ function WorkspaceAssignmentDialog({
           </button>
         </div>
       </form>
-    </div>
+    </ModalFrame>
   );
 }
 
@@ -1394,16 +1396,10 @@ function WorkspaceSetupDialog({
   const person =
     value.profile.display_name || value.profile.email || "This person";
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 p-0 sm:items-center sm:p-4"
-      role="presentation"
-    >
+    <ModalFrame open labelledBy="workspace-setup-title" busy={saving} onClose={onClose} maxWidth="max-w-lg">
       <form
         onSubmit={onSubmit}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="workspace-setup-title"
-        className="w-full max-w-lg rounded-t-lg bg-white shadow-2xl sm:rounded-lg"
+        className="w-full"
       >
         <div className="flex items-start justify-between gap-4 border-b border-slate-200 px-4 py-4 sm:px-5">
           <div>
@@ -1495,7 +1491,7 @@ function WorkspaceSetupDialog({
           </button>
         </div>
       </form>
-    </div>
+    </ModalFrame>
   );
 }
 

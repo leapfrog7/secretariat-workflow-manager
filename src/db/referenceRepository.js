@@ -35,6 +35,10 @@ export async function saveReference(input) {
   return reference;
 }
 
+export function countReferencesByIssue(issueId) {
+  return db.references.where('issueId').equals(issueId).count();
+}
+
 export async function deleteReference(id) {
   const reference = await db.references.get(id);
   if (!reference) return;

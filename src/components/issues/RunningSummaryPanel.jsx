@@ -14,7 +14,7 @@ import AIModeControl from '../ai/AIModeControl';
 
 const TABLE_TEMPLATE = '\n| Item | Details | Status |\n| --- | --- | --- |\n|  |  |  |\n';
 
-export default function RunningSummaryPanel({ issueId, issueTitle, latestSummary, versionCount, versions, expanded, loading, currentPosition, readOnly = false, onSave, onDelete, onLoadAll, onCollapse }) {
+export default function RunningSummaryPanel({ issueId, issueTitle, latestSummary, versionCount, versions, expanded, loading, currentPosition, readOnly = false, onSave, onDelete, onLoadAll, onCollapse, onDirtyChange }) {
   const auth = useAuth();
   const [editing, setEditing] = useState(!readOnly && !latestSummary);
   const [mode, setMode] = useState('write');
@@ -31,6 +31,16 @@ export default function RunningSummaryPanel({ issueId, issueTitle, latestSummary
   useEffect(() => {
     if (!editing) setDraft(normalizeIssueSummary(latestSummary || { content: currentPosition }));
   }, [latestSummary, currentPosition, editing]);
+
+  const dirty = editing && !summariesMatch(
+    normalizeIssueSummary(latestSummary || { content: currentPosition }),
+    draft,
+  );
+
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+    return () => onDirtyChange?.(false);
+  }, [dirty, onDirtyChange]);
 
   useEffect(() => {
     let active = true;

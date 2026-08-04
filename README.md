@@ -27,12 +27,17 @@ The project is currently a working multi-user proof of concept. Neon provides au
 - Preserve every Current Position update as a dated milestone instead of overwriting history.
 - Maintain versioned running summaries.
 - Record incoming, outgoing and internal communications chronologically.
-- Register multiple eReceipts and source documents without uploading PDF files.
+- Register multiple eReceipts and source-document metadata without storing the original files.
 - Capture references such as Office Memoranda, rules, instructions and court directions.
 - Use Casework to move freely between internal examination and preparation of
   an official communication.
 - Notes support lists, tables, linked sources, retained revision history,
-  plain-language AI assistance and optional request-only Markdown context.
+  plain-language AI assistance and optional request-only Word or text context.
+  Word (.docx), text (.txt or .md), and text PDFs are read in the browser. The
+  PDF importer removes repeated headers and footers and conservatively
+  reconstructs common headings, numbered paragraphs and simple tables. Scanned
+  pages can be recognized locally using packaged English, Hindi or bilingual OCR
+  before the user reviews the extracted text.
 - Reuse approved wording from the searchable Paragraph Bank. Personal entries remain private; workspace administrators can publish shared entries for all active members.
 
 ### Official drafting
@@ -128,10 +133,15 @@ There is no always-running Express server. The browser communicates with Neon Au
 | Office profile and authorised-signatory selection | Neon workspace settings plus local cache |
 | Local AI and reminder settings | Neon user settings plus local cache |
 | Notification inbox and automation run history | Neon |
-| Uploaded PDFs | Not stored |
+| PDFs selected for AI context | Processed in browser memory; neither the PDF nor the transient converted Markdown is stored |
 | Generated drafts | Versioned Issue records in Neon plus local cache |
 
 The cloud control in the application header reconciles the complete Issue workspace. IndexedDB remains the responsive local working copy, and JSON export remains available for recovery and portability.
+
+When the browser reports that the network is offline, the application clearly
+retains work in the local cache. It attempts a normal authenticated workspace
+synchronization after connectivity returns; the cloud status panel shows queued
+changes, conflicts, the last successful sync and any failure requiring action.
 
 ## Technology
 

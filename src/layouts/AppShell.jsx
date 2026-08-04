@@ -1,18 +1,22 @@
-import { Suspense, useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Suspense, useEffect, useRef, useState } from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
 import { APP_NAME } from '../constants/issueConstants';
 import Sidebar from '../components/layout/Sidebar';
 import MobileNavigation from '../components/layout/MobileNavigation';
-import { ClipboardCheck, Cloud, CloudOff, LogOut, RefreshCw, ShieldCheck } from 'lucide-react';
+import { ClipboardCheck, LogOut, RefreshCw, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../features/auth/AuthContext';
 import NotificationCenter from '../components/notifications/NotificationCenter';
 import LoadingState from '../components/common/LoadingState';
 import SyncConflictCenter from '../components/cloud/SyncConflictCenter';
 import WelcomeBanner from '../components/common/WelcomeBanner';
 import { NavigationFeedbackProvider } from '../components/common/NavigationFeedback';
+import SyncStatusPanel from '../components/cloud/SyncStatusPanel';
+import ConnectivityBanner from '../components/cloud/ConnectivityBanner';
 
 export default function AppShell() {
   const auth = useAuth();
+  const { pathname } = useLocation();
+  const firstRoute = useRef(true);
   const [signingOut, setSigningOut] = useState(false);
 
   const signOut = async () => {
@@ -25,17 +29,19 @@ export default function AppShell() {
     }
   };
 
-  const syncWorkspace = async () => {
-    try {
-      await auth.syncNow?.();
-    } catch {
-      // ConfiguredAuthProvider already exposes the failure through syncState.
+  useEffect(() => {
+    if (firstRoute.current) {
+      firstRoute.current = false;
+      return;
     }
-  };
+    const frame = window.requestAnimationFrame(() => document.getElementById('main-content')?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [pathname]);
 
   return (
     <NavigationFeedbackProvider>
     <div className="min-h-screen bg-[#f2f6f5] text-slate-900">
+      <a href="#main-content" className="fixed left-3 top-3 z-[80] -translate-y-20 rounded-md bg-[#17333b] px-3 py-2 text-sm font-semibold text-white shadow-lg transition-transform focus:translate-y-0">Skip to main content</a>
       <div className="flex min-h-screen">
         <Sidebar />
         <div className="min-w-0 flex-1">
@@ -55,7 +61,7 @@ export default function AppShell() {
               ) : (
                 <>
                   <NotificationCenter />
-                  <button type="button" title={auth.syncState?.status === 'error' ? auth.syncState.error : auth.syncState?.status === 'syncing' ? 'Synchronizing workspace' : 'Workspace synchronized'} aria-label="Synchronize workspace" onClick={syncWorkspace} disabled={auth.syncState?.status === 'syncing'} className={`flex h-8 w-8 items-center justify-center rounded-md border bg-white ${auth.syncState?.status === 'error' ? 'border-red-200 text-red-700' : 'border-slate-200 text-slate-600 hover:text-slate-900'}`}>{auth.syncState?.status === 'error' ? <CloudOff className="h-4 w-4" /> : auth.syncState?.status === 'syncing' ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Cloud className="h-4 w-4" />}</button>
+                  <SyncStatusPanel />
                   {auth.isAdmin && <span title="System administrator" className="hidden rounded-full bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800 sm:inline-flex sm:items-center sm:gap-1"><ShieldCheck className="h-3.5 w-3.5" />System admin</span>}
                   <span className="hidden max-w-44 truncate text-xs font-medium text-slate-600 sm:block">{auth.profile?.display_name || auth.user?.email}</span>
                   <button type="button" title={signingOut ? 'Signing out' : 'Sign out'} aria-label={signingOut ? 'Signing out' : 'Sign out'} onClick={signOut} disabled={signingOut} className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 hover:text-slate-900 disabled:cursor-wait disabled:opacity-60">{signingOut ? <RefreshCw className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}</button>
@@ -64,7 +70,8 @@ export default function AppShell() {
             </div>
             {auth.syncState?.status === 'syncing' && <div className="absolute inset-x-0 bottom-0 h-0.5 overflow-hidden bg-cyan-100" role="status" aria-label="Synchronizing workspace"><span className="sync-progress block h-full w-1/3 bg-cyan-600" /></div>}
           </header>
-          <main className="app-main mx-auto w-full max-w-[1600px] px-3 py-4 pb-20 sm:px-4 sm:py-5">
+          <ConnectivityBanner />
+          <main id="main-content" tabIndex={-1} className="app-main mx-auto w-full max-w-[1600px] px-3 py-4 focus:outline-none sm:px-4 sm:py-5">
             {auth.mode === 'cloud' && auth.user?.id && auth.workspace?.id && <WelcomeBanner userId={auth.user.id} canEdit={auth.canEdit} />}
             <SyncConflictCenter />
             <Suspense fallback={<LoadingState message="Opening page..." />}>

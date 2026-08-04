@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { Archive, ArrowLeft, CalendarClock, CheckCircle2, FilePenLine, LoaderCircle, MessageSquareText, Pencil, RotateCcw, Save } from 'lucide-react';
 import PageHeader from '../components/common/PageHeader';
@@ -15,18 +15,21 @@ import DraftingWorkspace from '../features/drafting/DraftingWorkspace';
 import NotingPanel from '../features/noting/NotingPanel';
 import IssueAccessPanel from '../components/collaboration/IssueAccessPanel';
 import { archiveIssue, bringBackIssue, getIssueById, restoreIssue, updateIssue, updateIssuePosition } from '../db/issueRepository';
-import { deleteCommunication, getCommunicationsByIssue, saveCommunication } from '../db/communicationRepository';
-import { deleteReference, getReferencesByIssue, saveReference } from '../db/referenceRepository';
+import { countCommunicationsByIssue, deleteCommunication, getCommunicationsByIssue, saveCommunication } from '../db/communicationRepository';
+import { countReferencesByIssue, deleteReference, getReferencesByIssue, saveReference } from '../db/referenceRepository';
 import { getAllOfficers } from '../db/officerRepository';
 import { countMilestonesByIssue, getMilestonesByIssue } from '../db/milestoneRepository';
 import { countSummaryVersions, deleteSummaryVersion, getLatestSummary, getSummaryVersions, saveSummaryVersion } from '../db/summaryRepository';
-import { deleteNote, getNotesByIssue, saveNote } from '../db/noteRepository';
+import { countNotesByIssue, deleteNote, getNotesByIssue, saveNote } from '../db/noteRepository';
 import { useToast } from '../components/common/ToastProvider';
 import { formatDateTime, formatDisplayDate, todayISO, tomorrowISO } from '../utils/dateUtils';
 import { ISSUE_RECURRENCE_TYPES, ISSUE_STATUSES } from '../constants/issueConstants';
 import { useAuth } from '../features/auth/AuthContext';
 import AdaptiveSelect from '../components/common/AdaptiveSelect';
 import { getIssueAccessLevel } from '../features/collaboration/accessApi';
+import UnsavedChangesGuard from '../components/common/UnsavedChangesGuard';
+import { dataSectionForIssueTab, loadedSectionsToRefresh, recordCountForIssueTab } from '../utils/issueWorkspaceLoading';
+import { handleTabListKeyDown } from '../utils/tabKeyboardUtils';
 
 const tabs = [
   { label: 'Current Position', mobileLabel: 'Position' },
@@ -41,6 +44,7 @@ export default function IssueWorkspacePage() {
   const { issueId } = useParams();
   const auth = useAuth();
   const { showToast } = useToast();
+  const loadedSectionsRef = useRef(new Set());
   const [state, setState] = useState({
     loading: true,
     saveStatus: 'idle',
@@ -50,6 +54,9 @@ export default function IssueWorkspacePage() {
     communications: [],
     references: [],
     notes: [],
+    recordCounts: { communications: 0, references: 0, notes: 0 },
+    sectionStatus: { casework: 'idle', references: 'idle', communications: 'idle' },
+    sectionErrors: {},
     milestones: [],
     milestoneCount: 0,
     milestonesExpanded: false,
@@ -61,6 +68,8 @@ export default function IssueWorkspacePage() {
     loadingSummaries: false,
     draft: null,
     dirty: false,
+    dirtySections: {},
+    pendingTab: '',
     activeTab: 'Current Position',
     caseworkView: 'notes',
     draftingVisited: false,
@@ -75,14 +84,29 @@ export default function IssueWorkspacePage() {
     accessLevel: 'editor',
   });
 
-  const load = async () => {
+  const setSectionDirty = useCallback((section, dirty) => {
+    setState((current) => {
+      if (Boolean(current.dirtySections[section]) === Boolean(dirty)) return current;
+      const dirtySections = { ...current.dirtySections };
+      if (dirty) dirtySections[section] = true;
+      else delete dirtySections[section];
+      return { ...current, dirtySections };
+    });
+  }, []);
+  const setSummaryDirty = useCallback((dirty) => setSectionDirty('summary', dirty), [setSectionDirty]);
+  const setNotesDirty = useCallback((dirty) => setSectionDirty('notes', dirty), [setSectionDirty]);
+  const setDraftingDirty = useCallback((dirty) => setSectionDirty('drafting', dirty), [setSectionDirty]);
+  const setReferencesDirty = useCallback((dirty) => setSectionDirty('references', dirty), [setSectionDirty]);
+  const setCommunicationsDirty = useCallback((dirty) => setSectionDirty('communications', dirty), [setSectionDirty]);
+
+  const loadCore = useCallback(async () => {
     try {
-      const [issue, officers, communications, references, notes, milestones, milestoneCount, latestSummary, summaryVersionCount, accessLevel] = await Promise.all([
+      const [issue, officers, communicationCount, referenceCount, noteCount, milestones, milestoneCount, latestSummary, summaryVersionCount, accessLevel] = await Promise.all([
         getIssueById(issueId),
         getAllOfficers(),
-        getCommunicationsByIssue(issueId),
-        getReferencesByIssue(issueId),
-        getNotesByIssue(issueId),
+        countCommunicationsByIssue(issueId),
+        countReferencesByIssue(issueId),
+        countNotesByIssue(issueId),
         getMilestonesByIssue(issueId, { limit: 5 }),
         countMilestonesByIssue(issueId),
         getLatestSummary(issueId),
@@ -98,9 +122,7 @@ export default function IssueWorkspacePage() {
         error: '',
         issue,
         officers,
-        communications,
-        references,
-        notes,
+        recordCounts: { communications: communicationCount, references: referenceCount, notes: noteCount },
         milestones,
         milestoneCount,
         milestonesExpanded: false,
@@ -116,7 +138,7 @@ export default function IssueWorkspacePage() {
           nextAppearanceDate: issue.nextAppearanceDate || '',
           recurrenceAnchorDay: issue.recurrenceAnchorDay || null,
         },
-        dirty: false,
+        dirty: current.dirty,
         draftingVisited:
           current.draftingVisited ||
           (current.activeTab === 'Casework' &&
@@ -126,19 +148,109 @@ export default function IssueWorkspacePage() {
     } catch (error) {
       setState((current) => ({ ...current, loading: false, error: error.message }));
     }
-  };
+  }, [auth.canEdit, auth.workspace?.division_access_enabled, auth.workspace?.id, issueId]);
+
+  const loadSection = useCallback(async (section, { force = false } = {}) => {
+    if (!force && loadedSectionsRef.current.has(section)) return;
+    setState((current) => ({
+      ...current,
+      sectionStatus: { ...current.sectionStatus, [section]: 'loading' },
+      sectionErrors: { ...current.sectionErrors, [section]: '' },
+    }));
+    try {
+      if (section === 'casework') {
+        const [notes, communications, references] = await Promise.all([
+          getNotesByIssue(issueId),
+          getCommunicationsByIssue(issueId),
+          getReferencesByIssue(issueId),
+        ]);
+        loadedSectionsRef.current.add('casework');
+        loadedSectionsRef.current.add('communications');
+        loadedSectionsRef.current.add('references');
+        setState((current) => ({
+          ...current,
+          notes,
+          communications,
+          references,
+          recordCounts: { communications: communications.length, references: references.length, notes: notes.length },
+          sectionStatus: { ...current.sectionStatus, casework: 'loaded', communications: 'loaded', references: 'loaded' },
+        }));
+      } else if (section === 'communications') {
+        const communications = await getCommunicationsByIssue(issueId);
+        loadedSectionsRef.current.add(section);
+        setState((current) => ({
+          ...current,
+          communications,
+          recordCounts: { ...current.recordCounts, communications: communications.length },
+          sectionStatus: { ...current.sectionStatus, communications: 'loaded' },
+        }));
+      } else {
+        const references = await getReferencesByIssue(issueId);
+        loadedSectionsRef.current.add(section);
+        setState((current) => ({
+          ...current,
+          references,
+          recordCounts: { ...current.recordCounts, references: references.length },
+          sectionStatus: { ...current.sectionStatus, references: 'loaded' },
+        }));
+      }
+    } catch (error) {
+      setState((current) => ({
+        ...current,
+        sectionStatus: { ...current.sectionStatus, [section]: 'error' },
+        sectionErrors: { ...current.sectionErrors, [section]: error.message || 'Unable to load this section.' },
+      }));
+    }
+  }, [issueId]);
 
   useEffect(() => {
-    load();
-    window.addEventListener('swm:workspace-synced', load);
-    return () => window.removeEventListener('swm:workspace-synced', load);
-  }, [auth.workspace?.id, issueId]);
+    loadedSectionsRef.current = new Set();
+    setState((current) => ({
+      ...current,
+      loading: true,
+      communications: [],
+      references: [],
+      notes: [],
+      sectionStatus: { casework: 'idle', references: 'idle', communications: 'idle' },
+      sectionErrors: {},
+      dirty: false,
+      dirtySections: {},
+    }));
+    loadCore();
+  }, [loadCore]);
+
+  useEffect(() => {
+    const section = dataSectionForIssueTab(state.activeTab);
+    if (section) loadSection(section);
+  }, [loadSection, state.activeTab]);
+
+  useEffect(() => {
+    const handleSync = async () => {
+      await loadCore();
+      await Promise.all(loadedSectionsToRefresh(loadedSectionsRef.current).map((section) => loadSection(section, { force: true })));
+    };
+    window.addEventListener('swm:workspace-synced', handleSync);
+    return () => window.removeEventListener('swm:workspace-synced', handleSync);
+  }, [loadCore, loadSection]);
 
   const selectTab = (tab) => {
+    if (tab !== state.activeTab && Object.keys(state.dirtySections).length) {
+      setState((current) => ({ ...current, pendingTab: tab }));
+      return;
+    }
     setState((current) => ({
       ...current,
       activeTab: tab,
       draftingVisited: current.draftingVisited,
+    }));
+  };
+
+  const discardSectionChangesAndSwitch = () => {
+    setState((current) => ({
+      ...current,
+      activeTab: current.pendingTab || current.activeTab,
+      pendingTab: '',
+      dirtySections: {},
     }));
   };
 
@@ -209,11 +321,16 @@ export default function IssueWorkspacePage() {
     }
   };
 
+  const refreshRecordSection = async (section) => {
+    const target = loadedSectionsRef.current.has('casework') ? 'casework' : section;
+    await loadSection(target, { force: true });
+  };
+
   const saveCommunicationEntry = async (communication) => {
     try {
       await saveCommunication({ ...communication, issueId });
       showToast(communication.id ? 'Communication updated.' : 'Communication added.');
-      await load();
+      await refreshRecordSection('communications');
     } catch (error) {
       showToast(error.message || 'Unable to save communication.', 'error');
       throw error;
@@ -254,7 +371,7 @@ export default function IssueWorkspacePage() {
     try {
       await saveReference({ ...reference, issueId });
       showToast(reference.id ? 'Reference updated.' : 'Reference added.');
-      await load();
+      await refreshRecordSection('references');
     } catch (error) {
       showToast(error.message || 'Unable to save reference.', 'error');
       throw error;
@@ -265,7 +382,11 @@ export default function IssueWorkspacePage() {
     try {
       await saveNote(note);
       const notes = await getNotesByIssue(issueId);
-      setState((current) => ({ ...current, notes }));
+      setState((current) => ({
+        ...current,
+        notes,
+        recordCounts: { ...current.recordCounts, notes: notes.length },
+      }));
       showToast(note.id ? 'Note updated; the earlier version remains in history.' : 'Note added.');
     } catch (error) {
       showToast(error.message || 'Unable to save note.', 'error');
@@ -298,7 +419,11 @@ export default function IssueWorkspacePage() {
       else await deleteSummaryVersion(target.item.id);
       showToast(target.kind === 'communication' ? 'Communication deleted.' : target.kind === 'reference' ? 'Reference deleted.' : target.kind === 'note' ? `Note ${target.item.sequence} deleted.` : `Summary version ${target.item.version} deleted.`);
       setState((current) => ({ ...current, deleteTarget: null }));
-      await load();
+      if (target.kind === 'summary') {
+        await loadCore();
+      } else {
+        await refreshRecordSection(target.kind === 'communication' ? 'communications' : target.kind === 'reference' ? 'references' : 'casework');
+      }
     } catch (error) {
       showToast(error.message || 'Unable to delete entry.', 'error');
     }
@@ -314,7 +439,7 @@ export default function IssueWorkspacePage() {
         showToast('Issue archived.');
       }
       setState((current) => ({ ...current, confirmArchive: false }));
-      await load();
+      await loadCore();
     } catch (error) {
       showToast(error.message || `Unable to ${state.issue.isArchived ? 'restore' : 'archive'} Issue.`, 'error');
     }
@@ -325,7 +450,7 @@ export default function IssueWorkspacePage() {
       setState((current) => ({ ...current, operation: 'bring-back' }));
       await bringBackIssue(issueId);
       showToast('Issue returned to the current register.');
-      await load();
+      await loadCore();
     } catch (error) {
       showToast(error.message || 'Unable to return Issue.', 'error');
     } finally {
@@ -361,17 +486,9 @@ export default function IssueWorkspacePage() {
       {!canEditIssue && <div className="mb-4 rounded-md border border-cyan-200 bg-cyan-50 px-3 py-3 text-sm text-cyan-950">Viewing access only. You can inspect the complete Issue record, but changes are disabled.</div>}
 
       <div className="mb-4 border-b border-[#d7e3e1] pb-3">
-        <div className="issue-tabs-mobile grid grid-cols-3 gap-1.5" role="tablist" aria-label="Issue workspace">
+        <div className="issue-tabs-mobile grid grid-cols-3 gap-1.5" role="tablist" aria-label="Issue workspace" onKeyDown={handleTabListKeyDown}>
           {tabs.map((tab) => {
-            const count = tab.label === 'Running Summary'
-              ? state.summaryVersionCount
-              : tab.label === 'Record of Communication'
-                ? state.communications.length
-                : tab.label === 'References'
-                  ? state.references.length
-                  : tab.label === 'Casework'
-                    ? state.notes.length
-                  : null;
+            const count = recordCountForIssueTab(tab.label, state.recordCounts, state.summaryVersionCount);
             const active = state.activeTab === tab.label;
             return (
               <button
@@ -379,6 +496,7 @@ export default function IssueWorkspacePage() {
                 type="button"
                 role="tab"
                 aria-selected={active}
+                tabIndex={active ? 0 : -1}
                 onClick={() => selectTab(tab.label)}
                 className={`flex min-h-11 min-w-0 items-center justify-center gap-1 rounded-md border px-1.5 py-2 text-xs font-semibold leading-4 transition-colors ${
                   active
@@ -392,19 +510,11 @@ export default function IssueWorkspacePage() {
             );
           })}
         </div>
-        <div className="issue-tabs-desktop min-w-max gap-1" role="tablist" aria-label="Issue workspace">
+        <div className="issue-tabs-desktop min-w-max gap-1" role="tablist" aria-label="Issue workspace" onKeyDown={handleTabListKeyDown}>
           {tabs.map((tab) => {
-            const count = tab.label === 'Running Summary'
-              ? state.summaryVersionCount
-              : tab.label === 'Record of Communication'
-                ? state.communications.length
-                : tab.label === 'References'
-                  ? state.references.length
-                  : tab.label === 'Casework'
-                    ? state.notes.length
-                  : null;
+            const count = recordCountForIssueTab(tab.label, state.recordCounts, state.summaryVersionCount);
             return (
-              <button key={tab.label} type="button" role="tab" aria-selected={state.activeTab === tab.label} onClick={() => selectTab(tab.label)} className={`border-b-2 px-3 py-3 text-xs font-semibold transition-colors sm:px-4 sm:text-sm ${state.activeTab === tab.label ? 'border-teal-700 text-teal-800' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
+              <button key={tab.label} type="button" role="tab" aria-selected={state.activeTab === tab.label} tabIndex={state.activeTab === tab.label ? 0 : -1} onClick={() => selectTab(tab.label)} className={`border-b-2 px-3 py-3 text-xs font-semibold transition-colors sm:px-4 sm:text-sm ${state.activeTab === tab.label ? 'border-teal-700 text-teal-800' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
                 {tab.label}{count !== null && <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs tabular-nums text-slate-600">{count}</span>}
               </button>
             );
@@ -449,17 +559,22 @@ export default function IssueWorkspacePage() {
           onDelete={(item) => setState((current) => ({ ...current, deleteTarget: { kind: 'summary', item } }))}
           onLoadAll={loadAllSummaries}
           onCollapse={() => setState((current) => ({ ...current, summaryVersions: current.latestSummary ? [current.latestSummary] : [], summariesExpanded: false }))}
+          onDirtyChange={setSummaryDirty}
         />
       )}
-      {state.activeTab === 'Record of Communication' && <CommunicationTab issueId={issueId} communications={state.communications} readOnly={!canEditIssue} onSave={saveCommunicationEntry} onDelete={(item) => setState((current) => ({ ...current, deleteTarget: { kind: 'communication', item } }))} />}
-      {state.activeTab === 'References' && <ReferenceTab issueId={issueId} references={state.references} readOnly={!canEditIssue} onSave={saveReferenceEntry} onDelete={(item) => setState((current) => ({ ...current, deleteTarget: { kind: 'reference', item } }))} />}
+      {state.activeTab === 'Record of Communication' && (
+        <SectionGate status={state.sectionStatus.communications} error={state.sectionErrors.communications} label="communications" onRetry={() => loadSection('communications', { force: true })}>
+          <CommunicationTab issueId={issueId} communications={state.communications} readOnly={!canEditIssue} onSave={saveCommunicationEntry} onDelete={(item) => setState((current) => ({ ...current, deleteTarget: { kind: 'communication', item } }))} onDirtyChange={setCommunicationsDirty} />
+        </SectionGate>
+      )}
+      {state.activeTab === 'References' && (
+        <SectionGate status={state.sectionStatus.references} error={state.sectionErrors.references} label="references" onRetry={() => loadSection('references', { force: true })}>
+          <ReferenceTab issueId={issueId} references={state.references} readOnly={!canEditIssue} onSave={saveReferenceEntry} onDelete={(item) => setState((current) => ({ ...current, deleteTarget: { kind: 'reference', item } }))} onDirtyChange={setReferencesDirty} />
+        </SectionGate>
+      )}
       {state.activeTab === 'Casework' && (
-        <CaseworkWorkspace
-          view={state.caseworkView}
-          notes={state.notes}
-          communications={state.communications}
-          onChangeView={selectCaseworkView}
-        >
+        <SectionGate status={state.sectionStatus.casework} error={state.sectionErrors.casework} label="casework records" onRetry={() => loadSection('casework', { force: true })}>
+          <CaseworkWorkspace view={state.caseworkView} notes={state.notes} communications={state.communications} onChangeView={selectCaseworkView}>
           <div hidden={state.caseworkView !== 'notes'}>
             <NotingPanel
               issueId={issueId}
@@ -476,6 +591,7 @@ export default function IssueWorkspacePage() {
               onSave={saveNoteEntry}
               onDelete={(item) => setState((current) => ({ ...current, deleteTarget: { kind: 'note', item } }))}
               onCreateDraft={createDraftFromNote}
+              onDirtyChange={setNotesDirty}
             />
           </div>
           {state.draftingVisited && (
@@ -495,12 +611,29 @@ export default function IssueWorkspacePage() {
                 noteSelectionRevision={state.draftSeedRevision}
                 readOnly={!canEditIssue}
                 onSaveCommunication={saveCommunicationEntry}
+                onDirtyChange={setDraftingDirty}
               />
             </div>
           )}
-        </CaseworkWorkspace>
+          </CaseworkWorkspace>
+        </SectionGate>
       )}
       {state.activeTab === 'Share & Access' && <IssueAccessPanel auth={auth} issue={issue} canEdit={canEditIssue} onUpdateIssue={saveAccessPolicy} />}
+
+      <UnsavedChangesGuard
+        when={state.dirty || Object.keys(state.dirtySections).length > 0}
+        message="The current Issue contains changes that have not been saved. Leaving now will discard them."
+      />
+
+      <ConfirmDialog
+        open={Boolean(state.pendingTab)}
+        title="Switch sections without saving?"
+        message="Changes in the current section have not been saved. Switching sections will discard them."
+        confirmLabel="Discard and switch"
+        destructive
+        onCancel={() => setState((current) => ({ ...current, pendingTab: '' }))}
+        onConfirm={discardSectionChangesAndSwitch}
+      />
 
       <ConfirmDialog open={state.confirmArchive} title={issue.isArchived ? 'Restore Issue?' : 'Archive Issue?'} message={issue.isArchived ? 'The Issue will return to the current register.' : 'The Issue will be hidden from the current register but retained in the database.'} confirmLabel={issue.isArchived ? 'Restore' : 'Archive'} onCancel={() => setState((current) => ({ ...current, confirmArchive: false }))} onConfirm={toggleArchiveIssue} />
       <ConfirmDialog
@@ -514,6 +647,26 @@ export default function IssueWorkspacePage() {
       />
     </>
   );
+}
+
+function SectionGate({ status, error, label, onRetry, children }) {
+  if (status === 'error') {
+    return (
+      <div className="surface flex min-h-44 flex-col items-center justify-center px-4 py-8 text-center" role="alert">
+        <p className="text-sm font-semibold text-red-800">Could not load {label}.</p>
+        <p className="mt-1 max-w-lg text-xs leading-5 text-slate-600">{error}</p>
+        <button type="button" onClick={onRetry} className="mt-4 inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50">Try again</button>
+      </div>
+    );
+  }
+  if (status !== 'loaded') {
+    return (
+      <div className="surface flex min-h-44 items-center justify-center px-4 py-8" role="status" aria-live="polite">
+        <div className="flex items-center gap-2 text-sm font-medium text-slate-600"><LoaderCircle className="h-4 w-4 animate-spin text-teal-700" />Loading {label}...</div>
+      </div>
+    );
+  }
+  return children;
 }
 
 function CaseworkWorkspace({
@@ -553,11 +706,13 @@ function CaseworkWorkspace({
           className={`grid grid-cols-2 gap-1 p-1.5 ${view === 'notes' ? 'bg-indigo-50/60' : 'bg-teal-50/60'}`}
           role="tablist"
           aria-label="Casework"
+          onKeyDown={handleTabListKeyDown}
         >
           <button
             type="button"
             role="tab"
             aria-selected={view === 'notes'}
+            tabIndex={view === 'notes' ? 0 : -1}
             onClick={() => onChangeView('notes')}
             className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold sm:text-sm ${
               view === 'notes'
@@ -577,6 +732,7 @@ function CaseworkWorkspace({
             type="button"
             role="tab"
             aria-selected={view === 'drafting'}
+            tabIndex={view === 'drafting' ? 0 : -1}
             onClick={() => onChangeView('drafting')}
             className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold sm:text-sm ${
               view === 'drafting'

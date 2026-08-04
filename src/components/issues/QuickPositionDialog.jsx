@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { ISSUE_STATUSES } from "../../constants/issueConstants";
 import { todayISO } from "../../utils/dateUtils";
+import ModalFrame from "../common/ModalFrame";
 
 export default function QuickPositionDialog({
   issue,
@@ -46,16 +47,10 @@ export default function QuickPositionDialog({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 sm:items-center sm:p-4"
-      role="presentation"
-    >
+    <ModalFrame open labelledBy="quick-position-title" busy={saving || saved} onClose={onClose} maxWidth="max-w-xl">
       <form
         onSubmit={submit}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="quick-position-title"
-        className="max-h-[92dvh] w-full overflow-y-auto rounded-t-lg bg-white shadow-2xl sm:max-w-xl sm:rounded-lg"
+        className="w-full"
       >
         <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-4 py-4 sm:px-5">
           <div className="min-w-0">
@@ -218,7 +213,7 @@ export default function QuickPositionDialog({
           </button>
         </div>
       </form>
-    </div>
+    </ModalFrame>
   );
 }
 

@@ -13,6 +13,10 @@ export async function getNotesByIssue(issueId) {
   ));
 }
 
+export function countNotesByIssue(issueId) {
+  return db.notes.where('issueId').equals(issueId).count();
+}
+
 export async function saveNote(input) {
   const now = new Date().toISOString();
   const existing = input.id ? await db.notes.get(input.id) : null;

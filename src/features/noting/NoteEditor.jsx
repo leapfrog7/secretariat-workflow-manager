@@ -1,5 +1,6 @@
-import { useEffect } from 'react';
+import { forwardRef, useEffect, useImperativeHandle } from 'react';
 import { EditorContent, useEditor } from '@tiptap/react';
+import { Fragment, Slice } from '@tiptap/pm/model';
 import StarterKit from '@tiptap/starter-kit';
 import { TableKit } from '@tiptap/extension-table';
 import {
@@ -18,6 +19,7 @@ import {
   Undo2,
 } from 'lucide-react';
 import { normalizeDraftRichText } from '../drafting/domain/draftRichText';
+import { plainTextToNoteRichText } from './noteUtils';
 import {
   FontSizeMark,
   NOTE_FONT_SIZES,
@@ -43,7 +45,7 @@ function Tool({ label, active = false, disabled = false, onClick, children }) {
   );
 }
 
-export default function NoteEditor({ value, onChange, readOnly = false }) {
+const NoteEditor = forwardRef(function NoteEditor({ value, onChange, onSelectionChange, readOnly = false }, ref) {
   const normalized = normalizeDraftRichText(value);
   const key = JSON.stringify(normalized);
   const editor = useEditor({
@@ -64,7 +66,33 @@ export default function NoteEditor({ value, onChange, readOnly = false }) {
     ],
     content: normalized,
     onUpdate: ({ editor: current }) => onChange?.(current.getJSON()),
+    onSelectionUpdate: ({ editor: current }) => {
+      const { from, to } = current.state.selection;
+      onSelectionChange?.({
+        from,
+        to,
+        text: current.state.doc.textBetween(from, to, '\n\n'),
+      });
+    },
   });
+
+  useImperativeHandle(ref, () => ({
+    focus: () => editor?.commands.focus(),
+    getSelection: () => {
+      if (!editor) return { from: 0, to: 0, text: '' };
+      const { from, to } = editor.state.selection;
+      return { from, to, text: editor.state.doc.textBetween(from, to, '\n\n') };
+    },
+    replaceSelection: ({ from, to }, replacement) => {
+      if (!editor || from >= to || from < 0 || to > editor.state.doc.content.size) return false;
+      const richText = plainTextToNoteRichText(replacement);
+      const nodes = richText.content.map((node) => editor.schema.nodeFromJSON(node));
+      const slice = Slice.maxOpen(Fragment.fromArray(nodes));
+      editor.view.dispatch(editor.state.tr.replaceRange(from, to, slice));
+      editor.commands.focus();
+      return true;
+    },
+  }), [editor]);
 
   useEffect(() => {
     editor?.setEditable(!readOnly);
@@ -122,4 +150,6 @@ export default function NoteEditor({ value, onChange, readOnly = false }) {
       />
     </div>
   );
-}
+});
+
+export default NoteEditor;
