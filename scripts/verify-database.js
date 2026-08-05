@@ -1,19 +1,29 @@
 import { neon } from '@neondatabase/serverless';
+import pg from 'pg';
 
 if (!process.env.DATABASE_URL) {
   throw new Error('DATABASE_URL is required.');
 }
 
-const sql = neon(process.env.DATABASE_URL);
+const databaseUrl = process.env.DATABASE_URL;
+const databaseHost = new URL(databaseUrl).hostname.toLowerCase();
+const useLocalPostgres = ['localhost', '127.0.0.1', '::1'].includes(databaseHost);
+const localClient = useLocalPostgres ? new pg.Client({ connectionString: databaseUrl }) : null;
+const sql = useLocalPostgres ? null : neon(databaseUrl);
+if (localClient) await localClient.connect();
+const query = async (statement) => localClient
+  ? (await localClient.query(statement)).rows
+  : sql.query(statement);
+
 const [tables, policies, functions, migrations, triggers, workspaces, memberships] = await Promise.all([
-  sql`
+  query(`
     SELECT count(*)::int AS count
     FROM information_schema.tables
     WHERE table_schema = 'public'
       AND table_name IN ('profiles', 'workspaces', 'workspace_members', 'workspace_divisions', 'division_members', 'issue_access_grants', 'audit_events', 'cloud_issues', 'cloud_officers', 'cloud_issue_items', 'cloud_workspace_settings', 'cloud_user_settings', 'cloud_notifications', 'automation_runs', 'cloud_ai_provider_settings', 'cloud_ai_user_permissions', 'cloud_ai_generation_logs', 'paragraph_bank_entries', 'casework_operational_events')
-  `,
-  sql`SELECT count(*)::int AS count FROM pg_policies WHERE schemaname = 'public'`,
-  sql`
+  `),
+  query("SELECT count(*)::int AS count FROM pg_policies WHERE schemaname = 'public'"),
+  query(`
     SELECT count(*)::int AS count
     FROM pg_proc p
     JOIN pg_namespace n ON n.oid = p.pronamespace
@@ -52,8 +62,8 @@ const [tables, policies, functions, migrations, triggers, workspaces, membership
         'record_casework_operational_event',
         'save_cloud_workspace_settings_revision'
       )
-  `,
-  sql`
+  `),
+  query(`
     SELECT count(*)::int AS count
     FROM public.swm_migrations
     WHERE name IN (
@@ -84,8 +94,8 @@ const [tables, policies, functions, migrations, triggers, workspaces, membership
       '025_casework_scale_and_telemetry.sql',
       '026_workspace_configuration_hardening.sql'
     )
-  `,
-  sql`
+  `),
+  query(`
     SELECT count(*)::int AS count
     FROM pg_trigger
     WHERE NOT tgisinternal
@@ -96,9 +106,9 @@ const [tables, policies, functions, migrations, triggers, workspaces, membership
         'enforce_issue_access_management_trigger',
         'enforce_draft_snapshot_retention_trigger'
       )
-  `,
-  sql`SELECT count(*)::int AS count FROM public.workspaces WHERE is_active = true`,
-  sql`SELECT count(*)::int AS count FROM public.workspace_members WHERE status = 'active'`,
+  `),
+  query('SELECT count(*)::int AS count FROM public.workspaces WHERE is_active = true'),
+  query("SELECT count(*)::int AS count FROM public.workspace_members WHERE status = 'active'"),
 ]);
 
 const result = {
@@ -121,4 +131,5 @@ const expected = {
 const valid = Object.entries(expected).every(([key, value]) => result[key] === value);
 
 console.log(JSON.stringify(result, null, 2));
+if (localClient) await localClient.end();
 if (!valid) throw new Error('Database verification did not match the expected identity schema.');
