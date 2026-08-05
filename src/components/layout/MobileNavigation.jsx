@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { BookOpenCheck, ClipboardList, Ellipsis, FilePlus2, FileText, LoaderCircle, Settings, UserRoundCog } from 'lucide-react';
+import { BookOpenCheck, ClipboardList, Ellipsis, FilePenLine, FilePlus2, FileText, LoaderCircle, Settings, UserRoundCog } from 'lucide-react';
 import { useAuth } from '../../features/auth/AuthContext';
 import { useNavigationFeedback } from '../common/NavigationFeedback';
 
 const primaryItems = [
   { label: 'Issues', to: '/issues', icon: ClipboardList },
-  { label: 'Create Issue', to: '/issues/new', icon: FilePlus2 },
+  { label: 'Casework', to: '/casework', icon: FilePenLine },
+  { label: 'Create Issue', mobileLabel: 'Create', to: '/issues/new', icon: FilePlus2 },
   { label: 'Reports', to: '/reports', icon: FileText },
 ];
 
@@ -79,7 +80,7 @@ export default function MobileNavigation() {
           const Icon = item.icon;
           const isActive = item.to === '/issues'
             ? pathname === '/issues' || (pathname.startsWith('/issues/') && pathname !== '/issues/new')
-            : pathname === item.to;
+            : item.to === '/casework' ? pathname.startsWith('/casework') : pathname === item.to;
           const isPending = pendingPath === item.to;
           return (
             <Link
@@ -87,7 +88,7 @@ export default function MobileNavigation() {
               to={item.to}
               aria-current={isActive ? 'page' : undefined}
               aria-busy={isPending || undefined}
-              className={`flex min-h-[52px] min-w-0 flex-col items-center justify-center gap-0.5 border-t-2 px-1 py-1 text-xs font-medium transition-colors ${
+              className={`flex min-h-[52px] min-w-0 flex-col items-center justify-center gap-0.5 border-t-2 px-1 py-1 text-[11px] font-medium transition-colors ${
                   isActive ? 'border-teal-600 bg-teal-50/70 text-teal-800' : 'border-transparent text-slate-500 hover:bg-slate-50'
                 }`}
             >
@@ -103,7 +104,7 @@ export default function MobileNavigation() {
           aria-expanded={menuOpen}
           aria-haspopup="menu"
           onClick={() => setMenuOpen((current) => !current)}
-          className={`flex min-h-[52px] min-w-0 flex-col items-center justify-center gap-0.5 border-t-2 px-1 py-1 text-xs font-medium transition-colors ${
+          className={`flex min-h-[52px] min-w-0 flex-col items-center justify-center gap-0.5 border-t-2 px-1 py-1 text-[11px] font-medium transition-colors ${
             menuOpen || moreActive ? 'border-teal-600 bg-teal-50/70 text-teal-800' : 'border-transparent text-slate-500 hover:bg-slate-50'
           }`}
         >

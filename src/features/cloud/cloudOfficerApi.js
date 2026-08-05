@@ -1,4 +1,5 @@
 import { cloudClient } from '../auth/cloudClient';
+import { fetchCompleteCloudCollection } from './cloudPagination';
 
 function requireClient() {
   if (!cloudClient) throw new Error('Cloud access is not configured for this build.');
@@ -7,14 +8,13 @@ function requireClient() {
 
 export async function listCloudOfficerRows(workspaceId) {
   const client = requireClient();
-  const { data, error } = await client
+  return fetchCompleteCloudCollection(({ from, to, includeCount }) => client
     .from('cloud_officers')
-    .select('workspace_id, id, payload, updated_at')
+    .select('workspace_id, id, payload, updated_at', includeCount ? { count: 'exact' } : undefined)
     .eq('workspace_id', workspaceId)
-    .order('updated_at', { ascending: false });
-
-  if (error) throw error;
-  return data || [];
+    .order('updated_at', { ascending: false })
+    .order('id', { ascending: true })
+    .range(from, to));
 }
 
 export async function upsertCloudOfficer({ workspaceId, userId, officer }) {

@@ -10,6 +10,7 @@ import RouteErrorPage from '../components/common/RouteErrorPage';
 const IssueRegisterPage = lazy(getRouteImport('/issues'));
 const IssueFormPage = lazy(getRouteImport('/issues/new'));
 const IssueWorkspacePage = lazy(getRouteImport('/issues/example'));
+const CaseworkPage = lazy(getRouteImport('/casework'));
 const ReportsPage = lazy(getRouteImport('/reports'));
 const SettingsPage = lazy(getRouteImport('/settings'));
 const HelpPage = lazy(getRouteImport('/help'));
@@ -27,6 +28,8 @@ const router = createHashRouter([
       { path: 'issues/new', element: <RequireEditor><IssueFormPage mode="create" /></RequireEditor> },
       { path: 'issues/:issueId', element: <IssueWorkspacePage /> },
       { path: 'issues/:issueId/edit', element: <RequireEditor><IssueFormPage mode="edit" /></RequireEditor> },
+      { path: 'casework', element: <CaseworkPage /> },
+      { path: 'casework/:issueId', element: <CaseworkPage /> },
       { path: 'reports', element: <ReportsPage /> },
       { path: 'review', element: <Navigate to="/issues" replace /> },
       { path: 'tasks', element: <Navigate to="/issues" replace /> },

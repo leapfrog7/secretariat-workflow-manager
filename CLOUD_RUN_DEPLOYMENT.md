@@ -94,6 +94,13 @@ Only after Phase 4 succeeds:
 3. Confirm drafting, note refinement and report refinement.
 4. Keep the Vercel deployment unchanged during the rollback period.
 
+Before publishing a frontend release, run `npm run release:verify` with
+`API_BASE_URL` set to the Cloud Run origin. GitHub Pages performs this check
+automatically. The readiness endpoint verifies that the protected API can reach
+the database and that the migration required by the frontend has been applied.
+Deploy Cloud Run and migrate Neon before merging a frontend release that changes
+the release contract.
+
 ### Phase 6: Scheduled Work
 
 Migrate `/api/cron/daily` separately after AI traffic is stable. Cloud Scheduler

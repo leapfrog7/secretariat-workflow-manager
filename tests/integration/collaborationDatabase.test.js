@@ -94,6 +94,9 @@ before(async () => {
       IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
         CREATE ROLE authenticated NOLOGIN;
       END IF;
+      IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+        CREATE ROLE anon NOLOGIN;
+      END IF;
     END
     $$
   `);
@@ -225,6 +228,51 @@ test('collaboration access is enforced by PostgreSQL policies and revision funct
       saveIssue({ userId: 'viewer', revision: 2, title: 'Viewer update attempt' }),
       /Issue editing access required/,
     );
+  });
+
+  await context.test('ordinary Issue editors cannot change the officer directory or office profile', async () => {
+    await useIdentity('editor');
+    await assert.rejects(
+      client.query(
+        `INSERT INTO public.cloud_officers (
+          workspace_id, id, payload, created_by, updated_by
+        ) VALUES ($1, '90000000-0000-4000-8000-000000000001', $2::jsonb, 'editor', 'editor')`,
+        [ids.workspace, JSON.stringify({ id: '90000000-0000-4000-8000-000000000001', name: 'Unauthorised Officer' })],
+      ),
+      (error) => error.code === '42501',
+    );
+    await assert.rejects(
+      client.query(
+        'SELECT * FROM public.save_cloud_workspace_settings_revision($1::uuid, $2::jsonb, 0)',
+        [ids.workspace, JSON.stringify({ officeProfile: { ministry: 'Changed by editor' } })],
+      ),
+      /Workspace administrator access required/,
+    );
+  });
+
+  await context.test('office profile saves reject stale administrator revisions', async () => {
+    await useIdentity('admin');
+    const first = await client.query(
+      'SELECT * FROM public.save_cloud_workspace_settings_revision($1::uuid, $2::jsonb, 0)',
+      [ids.workspace, JSON.stringify({ officeProfile: { ministry: 'Test Ministry' } })],
+    );
+    assert.equal(first.rows[0].saved, true);
+    assert.equal(first.rows[0].revision, 1);
+
+    const second = await client.query(
+      'SELECT * FROM public.save_cloud_workspace_settings_revision($1::uuid, $2::jsonb, 1)',
+      [ids.workspace, JSON.stringify({ officeProfile: { ministry: 'Updated Ministry' } })],
+    );
+    assert.equal(second.rows[0].saved, true);
+    assert.equal(second.rows[0].revision, 2);
+
+    const stale = await client.query(
+      'SELECT * FROM public.save_cloud_workspace_settings_revision($1::uuid, $2::jsonb, 1)',
+      [ids.workspace, JSON.stringify({ officeProfile: { ministry: 'Stale Ministry' } })],
+    );
+    assert.equal(stale.rows[0].saved, false);
+    assert.equal(stale.rows[0].revision, 2);
+    assert.equal(stale.rows[0].payload.officeProfile.ministry, 'Updated Ministry');
   });
 
   await context.test('notes inherit Issue editing and viewing permissions', async () => {

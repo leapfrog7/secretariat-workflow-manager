@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { BookOpenCheck, ClipboardCheck, ClipboardList, FilePlus2, FileText, LoaderCircle, PanelLeftClose, PanelLeftOpen, Settings, UserRoundCog } from 'lucide-react';
+import { BookOpenCheck, ClipboardCheck, ClipboardList, FilePenLine, FilePlus2, FileText, LoaderCircle, PanelLeftClose, PanelLeftOpen, Settings, UserRoundCog } from 'lucide-react';
 import { APP_NAME } from '../../constants/issueConstants';
 import { useAuth } from '../../features/auth/AuthContext';
 import { useNavigationFeedback } from '../common/NavigationFeedback';
 
 const navItems = [
   { label: 'Issues', to: '/issues', icon: ClipboardList },
+  { label: 'Casework', to: '/casework', icon: FilePenLine },
   { label: 'Create Issue', to: '/issues/new', icon: FilePlus2 },
   { label: 'Reports', to: '/reports', icon: FileText },
   { label: 'How to use', to: '/help', icon: BookOpenCheck },
@@ -51,7 +52,7 @@ export default function Sidebar() {
           const Icon = item.icon;
           const isActive = item.to === '/issues'
             ? pathname === '/issues' || (pathname.startsWith('/issues/') && pathname !== '/issues/new')
-            : pathname === item.to;
+            : item.to === '/casework' ? pathname.startsWith('/casework') : pathname === item.to;
           const isPending = pendingPath === item.to;
           return (
             <Link

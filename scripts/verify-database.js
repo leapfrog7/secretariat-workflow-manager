@@ -10,7 +10,7 @@ const [tables, policies, functions, migrations, triggers, workspaces, membership
     SELECT count(*)::int AS count
     FROM information_schema.tables
     WHERE table_schema = 'public'
-      AND table_name IN ('profiles', 'workspaces', 'workspace_members', 'workspace_divisions', 'division_members', 'issue_access_grants', 'audit_events', 'cloud_issues', 'cloud_officers', 'cloud_issue_items', 'cloud_workspace_settings', 'cloud_user_settings', 'cloud_notifications', 'automation_runs', 'cloud_ai_provider_settings', 'cloud_ai_user_permissions', 'cloud_ai_generation_logs', 'paragraph_bank_entries')
+      AND table_name IN ('profiles', 'workspaces', 'workspace_members', 'workspace_divisions', 'division_members', 'issue_access_grants', 'audit_events', 'cloud_issues', 'cloud_officers', 'cloud_issue_items', 'cloud_workspace_settings', 'cloud_user_settings', 'cloud_notifications', 'automation_runs', 'cloud_ai_provider_settings', 'cloud_ai_user_permissions', 'cloud_ai_generation_logs', 'paragraph_bank_entries', 'casework_operational_events')
   `,
   sql`SELECT count(*)::int AS count FROM pg_policies WHERE schemaname = 'public'`,
   sql`
@@ -47,7 +47,10 @@ const [tables, policies, functions, migrations, triggers, workspaces, membership
         'enforce_draft_snapshot_retention',
         'preserve_last_profile_administrator',
         'preserve_last_workspace_administrator',
-        'require_issue_division_when_enforced'
+        'require_issue_division_when_enforced',
+        'search_casework_issues',
+        'record_casework_operational_event',
+        'save_cloud_workspace_settings_revision'
       )
   `,
   sql`
@@ -77,7 +80,9 @@ const [tables, policies, functions, migrations, triggers, workspaces, membership
       '021_issue_notes.sql',
       '022_workspace_provisioning_and_isolation.sql',
       '023_administration_workspace_directory.sql',
-      '024_admin_approve_and_assign_workspace.sql'
+      '024_admin_approve_and_assign_workspace.sql',
+      '025_casework_scale_and_telemetry.sql',
+      '026_workspace_configuration_hardening.sql'
     )
   `,
   sql`
@@ -107,10 +112,10 @@ const result = {
 };
 
 const expected = {
-  tables: 18,
-  policies: 47,
-  functions: 29,
-  migrationRecords: 24,
+  tables: 19,
+  policies: 48,
+  functions: 32,
+  migrationRecords: 26,
   securityGuardTriggers: 5,
 };
 const valid = Object.entries(expected).every(([key, value]) => result[key] === value);

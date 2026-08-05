@@ -29,6 +29,24 @@ test('portable API server exposes Cloud Run health information', async () => {
   });
 });
 
+test('portable API readiness fails closed when its database is not configured', async () => {
+  const previous = process.env.DATABASE_URL;
+  delete process.env.DATABASE_URL;
+  try {
+    await withApiServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/readiness`);
+      assert.equal(response.status, 503);
+      assert.deepEqual(await response.json(), {
+        status: 'not_ready',
+        code: 'database_not_configured',
+      });
+    });
+  } finally {
+    if (previous === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = previous;
+  }
+});
+
 test('portable API server retains local CORS and protected AI status', async () => {
   await withApiServer(async (baseUrl) => {
     const response = await fetch(`${baseUrl}/api/ai/status?workspaceId=workspace-1`, {

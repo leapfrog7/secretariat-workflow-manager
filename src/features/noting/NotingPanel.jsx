@@ -35,6 +35,7 @@ import { buildAIContext } from '../../utils/aiContextUtils';
 import { generateOrRefineNote, rewriteNoteSelection } from './noteAI';
 import { MAX_PDF_BYTES } from './pdf/pdfExtractionService';
 import { extractSourceDocument } from './document/documentTextExtraction';
+import { recordCaseworkOperationalEvent } from '../casework/caseworkApi';
 
 const NoteEditor = lazy(() => import('./NoteEditor'));
 const PdfContextDialog = lazy(() => import('./pdf/PdfContextDialog'));
@@ -308,6 +309,14 @@ function NoteForm({ issueId, issue, summary, note, communications, references, a
     } catch (aiError) {
       if (aiError.name === 'AbortError') setAIStatus({ status: 'idle', model: '' });
       else {
+        recordCaseworkOperationalEvent({
+          workspaceId: auth.workspace?.id,
+          issueId,
+          eventType: 'casework.ai_handoff_failed',
+          operation: operation === 'generate' ? 'note_generate' : 'note_refine',
+          provider: aiConfig.preferences.mode === 'cloud' ? aiConfig.preferences.cloudProvider : 'local',
+          error: aiError,
+        });
         setError(aiError.message || 'AI could not prepare the note.');
         setAIStatus({ status: 'idle', model: '' });
       }
@@ -365,6 +374,14 @@ function NoteForm({ issueId, issue, summary, note, communications, references, a
     } catch (aiError) {
       if (aiError.name === 'AbortError') setAIStatus({ status: 'idle', model: '' });
       else {
+        recordCaseworkOperationalEvent({
+          workspaceId: auth.workspace?.id,
+          issueId,
+          eventType: 'casework.ai_handoff_failed',
+          operation: 'note_rewrite_selection',
+          provider: aiConfig.preferences.mode === 'cloud' ? aiConfig.preferences.cloudProvider : 'local',
+          error: aiError,
+        });
         setError(aiError.message || 'AI could not rewrite the selected passage.');
         setAIStatus({ status: 'idle', model: '' });
       }
@@ -806,11 +823,15 @@ export default function NotingPanel({
   onDelete,
   onCreateDraft,
   onDirtyChange,
+  initialEditNoteId = '',
 }) {
   const [editingId, setEditingId] = useState('');
   const editingNote = useMemo(() => notes.find((note) => note.id === editingId), [editingId, notes]);
   const latestNote = notes.at(-1);
   const earlierNotes = notes.slice(0, -1);
+  useEffect(() => {
+    setEditingId(!readOnly && initialEditNoteId && notes.some((note) => note.id === initialEditNoteId) ? initialEditNoteId : '');
+  }, [initialEditNoteId, issueId, readOnly]);
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3 border-l-4 border-indigo-500 pl-3">

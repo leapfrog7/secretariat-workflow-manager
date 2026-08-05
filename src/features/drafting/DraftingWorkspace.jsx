@@ -36,10 +36,11 @@ import {
   hasUnsavedWorkingCopy,
   markWorkingCopyChanged,
 } from './domain/draftWorkingCopy';
+import { recordCaseworkOperationalEvent } from '../casework/caseworkApi';
 
 const DraftDocumentEditor = lazy(() => import('./editor/DraftDocumentEditor'));
 
-export default function DraftingWorkspace({ issue, assignedOfficer, officers, summary, communications, references, notes = [], initialNoteIds = [], initialCommunicationIds = [], initialReferenceIds = [], sourceNoteId = '', noteSelectionRevision = 0, readOnly = false, onSaveCommunication, onDirtyChange }) {
+export default function DraftingWorkspace({ issue, assignedOfficer, officers, summary, communications, references, notes = [], initialNoteIds = [], initialCommunicationIds = [], initialReferenceIds = [], sourceNoteId = '', noteSelectionRevision = 0, initialDraftId = '', readOnly = false, onSaveCommunication, onDirtyChange }) {
   const auth = useAuth();
   const [sourceTab, setSourceTab] = useState('Communications');
   const [workspaceView, setWorkspaceView] = useState('compose');
@@ -80,6 +81,7 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
   const draftTextareaRef = useRef(null);
   const selectionRef = useRef({ start: 0, end: 0 });
   const pendingRegenerationSelection = useRef(null);
+  const resumedDraftRef = useRef('');
 
   const rememberSelection = (nextSelection) => {
     selectionRef.current = nextSelection;
@@ -119,6 +121,7 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
     setDraftDialogOpen(false);
     setDraftDialogTab('details');
     setDraftDialogType(COMMUNICATION_TYPES[0]);
+    resumedDraftRef.current = '';
   }, [issue.id]);
 
   useEffect(() => {
@@ -443,8 +446,10 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
     } catch (error) {
       if (error.name === 'AbortError') setGeneration(previousGeneration);
       else if (previousGeneration.status === 'complete') {
+        recordCaseworkOperationalEvent({ workspaceId: auth.workspace?.id, issueId: issue.id, eventType: 'casework.ai_handoff_failed', operation: 'draft_generate', provider: aiPreferences.mode === 'cloud' ? aiPreferences.cloudProvider : 'local', error });
         setGeneration({ ...previousGeneration, error: error.message || 'Unable to generate the draft.' });
       } else {
+        recordCaseworkOperationalEvent({ workspaceId: auth.workspace?.id, issueId: issue.id, eventType: 'casework.ai_handoff_failed', operation: 'draft_generate', provider: aiPreferences.mode === 'cloud' ? aiPreferences.cloudProvider : 'local', error });
         setGeneration({ status: 'error', text: '', error: error.message || 'Unable to generate the draft.', model: '', stats: {}, draftId: '' });
       }
     } finally {
@@ -588,6 +593,13 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
     }
     loadSavedDraft(draftId);
   };
+
+  useEffect(() => {
+    if (!initialDraftId || resumedDraftRef.current === initialDraftId) return;
+    if (!drafts.some((draft) => draft.id === initialDraftId)) return;
+    resumedDraftRef.current = initialDraftId;
+    loadSavedDraft(initialDraftId);
+  }, [drafts, initialDraftId]);
 
   const discardWorkingCopy = () => {
     const base = workingCopy.baseDraftId
@@ -769,6 +781,7 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
         );
       });
     } catch (error) {
+      if (error.name !== 'AbortError') recordCaseworkOperationalEvent({ workspaceId: auth.workspace?.id, issueId: issue.id, eventType: 'casework.ai_handoff_failed', operation: 'draft_rewrite_selection', provider: aiPreferences.mode === 'cloud' ? aiPreferences.cloudProvider : 'local', error });
       setParagraphStatus(error.name === 'AbortError' ? { status: 'idle', error: '' } : { status: 'error', error: error.message || 'Unable to improve the selected passage.' });
     } finally {
       generationController.current = null;

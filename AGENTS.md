@@ -67,6 +67,9 @@ delegate their access onward.
 - Viewer mode disables mutating controls locally as well as relying on RLS.
 - Access checks happen again when Cloud AI is called so a stale browser cannot
   send context from an Issue the user may no longer read.
+- Cloud collections are read in counted pages. A partial or uncounted response
+  must fail synchronization before authoritative Issue IDs are used to purge
+  the local cache.
 
 ### Concurrency
 
@@ -102,6 +105,13 @@ Current implementation status:
 - Migration `024_admin_approve_and_assign_workspace.sql` atomically activates a
   pending account and its selected primary workspace role. Previous active
   memberships are suspended when a user is transferred.
+- Migration `025_casework_scale_and_telemetry.sql` adds access-checked paged
+  Casework search and content-free operational failure events. The client must
+  retain local search as its offline and pre-migration fallback.
+- Migration `026_workspace_configuration_hardening.sql` restricts the officer
+  directory and shared office profile to workspace administrators and adds
+  revision-checked workspace-setting saves. Apply it before deploying clients
+  that use the hardened settings synchronization contract.
 - Division enforcement remains off until a workspace administrator creates
   divisions, assigns active members and Issues, passes the readiness report, and
   explicitly enables it.
@@ -215,6 +225,15 @@ invent file facts, approvals or decisions, and its result remains an editable
 preview until the user saves it. Attribution, chronology and revision storage
 remain deterministic application responsibilities. Selected notes may also be
 supplied to Drafting context when preparing a communication.
+
+## Casework Navigation Architecture
+
+Follow `CASEWORK_ARCHITECTURE.md`. Casework is a top-level work surface, while
+Notes and Drafts remain Issue children. `/casework/:issueId` may change how a
+user reaches the work, but it must not introduce free-floating records, bypass
+Issue RLS, or duplicate the Noting and Drafting orchestration. The top-level
+page renders the shared Casework module; the Issue workspace provides a clear
+deep link instead of embedding a second copy of the workflow.
 
 ## Cloud Run Migration
 

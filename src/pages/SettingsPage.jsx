@@ -40,7 +40,7 @@ export default function SettingsPage() {
   const fileRef = useRef(null);
   const { showToast } = useToast();
   const auth = useAuth();
-  const canMutateWorkspace = auth.mode !== 'cloud' || auth.canEdit;
+  const canMutateWorkspace = auth.mode !== 'cloud' || auth.isWorkspaceAdmin;
   const [activeTab, setActiveTab] = useState('officers');
   const [state, setState] = useState({
     loading: true,
@@ -256,7 +256,7 @@ export default function SettingsPage() {
       setState((current) => ({ ...current, busy: 'officer-delete' }));
       await deleteOfficer(officer.id);
       const settings = await getSettings();
-      queueCloudSettingsUpsert(settings, 'workspace');
+      await queueCloudSettingsUpsert(settings, 'workspace');
       showToast(`${officer.name} deleted from the officer directory.`);
       setState((current) => ({ ...current, busy: '', officerToDelete: null, officerForm: current.officerForm?.officer?.id === officer.id ? null : current.officerForm }));
       await load();
@@ -292,7 +292,7 @@ export default function SettingsPage() {
         localAI: normalizeLocalAISettings(state.aiSettings),
         aiPreferences: { ...DEFAULT_AI_PREFERENCES, ...state.aiPreferences },
       });
-      queueCloudSettingsUpsert(saved, 'user');
+      queueCloudSettingsUpsert(saved, 'user').catch(() => {});
       setState((current) => ({ ...current, busy: '', aiSettings: saved.localAI, aiPreferences: saved.aiPreferences }));
       showToast('AI preferences saved.');
     } catch (error) {
@@ -311,7 +311,7 @@ export default function SettingsPage() {
         upcomingDays: Math.min(30, Math.max(1, Number(state.reminderSettings.upcomingDays) || 7)),
       };
       const saved = await saveSettings({ ...settings, reminders });
-      queueCloudSettingsUpsert(saved, 'user');
+      queueCloudSettingsUpsert(saved, 'user').catch(() => {});
       setState((current) => ({ ...current, busy: '', reminderSettings: saved.reminders }));
       showToast('Reminder preferences saved.');
     } catch (error) {
@@ -328,7 +328,7 @@ export default function SettingsPage() {
     try {
       const settings = await getSettings();
       const saved = await saveSettings({ ...settings, appearance });
-      queueCloudSettingsUpsert(saved, 'user');
+      queueCloudSettingsUpsert(saved, 'user').catch(() => {});
       setState((current) => ({ ...current, appearance: saved.appearance, busy: '' }));
     } catch (error) {
       applyTextSize(previous);
@@ -373,7 +373,7 @@ export default function SettingsPage() {
       setState((current) => ({ ...current, busy: 'profile-save' }));
       const settings = await getSettings();
       const saved = await saveSettings({ ...settings, officeProfile: normalizeOfficeProfile(state.officeProfile) });
-      queueCloudSettingsUpsert(saved, 'workspace');
+      await queueCloudSettingsUpsert(saved, 'workspace');
       setState((current) => ({ ...current, busy: '', officeProfile: saved.officeProfile }));
       showToast('Official drafting profile saved.');
     } catch (error) {
@@ -464,7 +464,7 @@ export default function SettingsPage() {
               <h2 className="text-sm font-semibold text-slate-950">Officers</h2>
               <p className="mt-1 text-sm text-slate-600">These names appear when an Issue is allocated.</p>
             </div>
-            {!state.officerForm && auth.canEdit && (
+            {!state.officerForm && canMutateWorkspace && (
               <button type="button" onClick={() => setState((current) => ({ ...current, officerForm: { mode: 'new', officer: null } }))} className="inline-flex h-10 items-center gap-2 rounded-md bg-teal-700 px-3 text-sm font-semibold text-white shadow-sm hover:bg-teal-800">
                 <Plus className="h-4 w-4" aria-hidden="true" />
                 Add officer
@@ -483,7 +483,7 @@ export default function SettingsPage() {
                   <div className="truncate text-sm font-medium text-slate-900">{officer.name}</div>
                   {(officer.designation || !officer.isActive) && <div className="mt-0.5 text-xs text-slate-500">{officer.designation}{officer.designation && !officer.isActive ? ' - ' : ''}{!officer.isActive ? 'Inactive' : ''}</div>}
                 </div>
-                {auth.canEdit && <div className="flex shrink-0 items-center gap-1">
+                {canMutateWorkspace && <div className="flex shrink-0 items-center gap-1">
                   <button type="button" title="Edit officer" onClick={() => setState((current) => ({ ...current, officerForm: { mode: 'edit', officer } }))} className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-300 text-slate-600 transition-colors hover:border-teal-300 hover:bg-teal-50 hover:text-teal-800">
                     <span className="sr-only">Edit {officer.name}</span>
                     <Pencil className="h-4 w-4" aria-hidden="true" />
@@ -505,7 +505,7 @@ export default function SettingsPage() {
             <Building2 className="mt-0.5 h-5 w-5 text-amber-700" aria-hidden="true" />
             <div><h2 className="text-sm font-semibold text-slate-950">Official drafting profile</h2><p className="mt-1 text-sm text-slate-600">Office identity and officers authorized to sign generated communications.</p></div>
           </div>
-          {!canMutateWorkspace && <p className="mt-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">You can view this shared profile. A user with editing access or a Workspace manager can change it.</p>}
+          {!canMutateWorkspace && <p className="mt-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">You can view this shared profile. Only a Workspace manager can change official identity, signatories and document defaults.</p>}
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <ProfileInput disabled={!canMutateWorkspace} label="Government heading" value={state.officeProfile.governmentName} onChange={(value) => updateOfficeProfile('governmentName', value)} />
             <ProfileInput disabled={!canMutateWorkspace} label="Government heading (Hindi transliteration)" value={state.officeProfile.governmentHindiName} onChange={(value) => updateOfficeProfile('governmentHindiName', value)} />

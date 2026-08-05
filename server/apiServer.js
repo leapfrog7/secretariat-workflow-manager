@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import generateHandler from '../api/ai/generate.js';
 import statusHandler from '../api/ai/status.js';
 import dailyHandler from '../api/cron/daily.js';
+import readinessHandler from '../api/readiness.js';
 
 const DEFAULT_MAX_BODY_BYTES = 2 * 1024 * 1024;
 
@@ -9,6 +10,7 @@ const handlers = new Map([
   ['/api/ai/generate', generateHandler],
   ['/api/ai/status', statusHandler],
   ['/api/cron/daily', dailyHandler],
+  ['/api/readiness', readinessHandler],
 ]);
 
 function responseAdapter(response) {

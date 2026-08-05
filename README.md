@@ -131,12 +131,13 @@ There is no always-running Express server. The browser communicates with Neon Au
 | Milestones and running-summary versions | Neon plus local IndexedDB cache |
 | Communications, eReceipt metadata and references | Neon plus local IndexedDB cache |
 | Office profile and authorised-signatory selection | Neon workspace settings plus local cache |
-| Local AI and reminder settings | Neon user settings plus local cache |
+| LM Studio URL and local model | Device-local IndexedDB only |
+| Cloud AI preference, reminders and appearance | Neon user settings plus local cache |
 | Notification inbox and automation run history | Neon |
 | PDFs selected for AI context | Processed in browser memory; neither the PDF nor the transient converted Markdown is stored |
 | Generated drafts | Versioned Issue records in Neon plus local cache |
 
-The cloud control in the application header reconciles the complete Issue workspace. IndexedDB remains the responsive local working copy, and JSON export remains available for recovery and portability.
+The cloud control in the application header reconciles the complete Issue workspace in counted pages. A partial cloud response is rejected before the application treats it as authoritative. IndexedDB remains the responsive local working copy, and JSON export remains available for recovery and portability.
 
 When the browser reports that the network is offline, the application clearly
 retains work in the local cache. It attempts a normal authenticated workspace
@@ -177,7 +178,7 @@ Set these values in `.env.local`:
 ```dotenv
 VITE_NEON_AUTH_URL=https://your-project.neonauth.example/neondb/auth
 VITE_NEON_DATA_API_URL=https://your-project.apirest.example/neondb/rest/v1
-VITE_API_BASE_URL=https://your-vercel-project.vercel.app
+VITE_API_BASE_URL=https://your-cloud-run-service.run.app
 DATABASE_URL=postgresql://user:password@host/database
 NEON_DATA_API_URL=https://your-project.apirest.example/neondb/rest/v1
 CRON_SECRET=replace-with-a-long-random-secret
@@ -189,7 +190,7 @@ REMINDER_FROM_EMAIL=
 ```
 
 - `VITE_NEON_AUTH_URL` and `VITE_NEON_DATA_API_URL` are public browser configuration values.
-- `VITE_API_BASE_URL` is the public Vercel origin when the React site is hosted elsewhere.
+- `VITE_API_BASE_URL` is the public protected-API origin, currently Google Cloud Run.
 - `DATABASE_URL` is privileged server-side configuration. Never commit it or expose it through a `VITE_` variable.
 - `OPENAI_API_KEY`, `GEMINI_API_KEY`, `CRON_SECRET` and `RESEND_API_KEY` remain server-side. Never prefix provider keys with `VITE_`.
 - If the two `VITE_NEON_*` URLs are absent or invalid, the application starts in local mode without account or workspace controls.
@@ -227,14 +228,14 @@ npm run api:dev
 
 `VITE_API_BASE_URL` decides where the browser sends Cloud AI requests:
 
-- Use `https://secretariat-workflow-manager.vercel.app` to run the React frontend locally while using the deployed protected API. In this mode, `npm run dev` starts only Vite.
+- Use the configured Cloud Run `VITE_API_BASE_URL` to run the React frontend locally against the deployed protected API. In this mode, `npm run dev` starts only Vite.
 - Use `http://127.0.0.1:3000` only when intentionally testing the API functions locally with real server-side `GEMINI_API_KEY`, `NEON_DATA_API_URL` and `DATABASE_URL` values. Start both processes with `npm run dev`.
 
 Values shown as `[SENSITIVE]` in a downloaded Vercel environment file are redacted placeholders and cannot be used by the local API process.
 
 ## Database Setup
 
-The ordered SQL migrations live in `db/migrations`. The migration runner records applied files in `public.swm_migrations` and skips them on later runs.
+The ordered SQL migrations live in `db/migrations`. The migration runner records applied files in `public.swm_migrations`, serializes concurrent runners with an advisory lock, and applies each migration transactionally.
 
 ```powershell
 npm run db:migrate
@@ -369,9 +370,9 @@ npm run build
 
 The production output is written to `dist`.
 
-The protected API now has a portable Cloud Run entry point in
-`server/cloudRun.js`. Vercel remains the active hosted API while the phased
-Cloud Run migration is verified. See
+The protected API has a portable Cloud Run entry point in
+`server/cloudRun.js`. Vercel may be retained temporarily as a rollback while
+Cloud Run is verified. See
 [`CLOUD_RUN_DEPLOYMENT.md`](CLOUD_RUN_DEPLOYMENT.md) for the account setup,
 secrets, testing and rollback sequence.
 
@@ -379,6 +380,11 @@ Pushes to `main` run `.github/workflows/deploy-pages.yml`. The workflow installs
 
 - `VITE_NEON_AUTH_URL`
 - `VITE_NEON_DATA_API_URL`
+- `VITE_API_BASE_URL`
+
+Before publishing, the workflow calls the protected API readiness endpoint and
+checks that its required Neon migration is present. Apply migrations and deploy
+Cloud Run before publishing a frontend that advances this release contract.
 
 Do not add `DATABASE_URL` to the frontend build environment. Database migrations and bootstrap commands are administrative operations and should run only from a trusted local or protected CI environment.
 

@@ -43,3 +43,14 @@ test('changing text size advances the personal settings scope', () => {
     userChanged: true,
   });
 });
+
+test('changing the device-specific Local AI connection does not advance cloud user settings', () => {
+  const next = {
+    ...settings,
+    localAI: { baseUrl: 'http://127.0.0.1:1234', model: 'another-local-model' },
+  };
+  assert.deepEqual(settingsScopeChanges(settings, next), {
+    workspaceChanged: false,
+    userChanged: false,
+  });
+});

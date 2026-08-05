@@ -25,3 +25,13 @@ test('high-use workflow dialogs use the shared mobile-safe modal', () => {
   assert.match(source('src/components/common/ModalFrame.jsx'), /mobile-sheet-safe/);
   assert.match(source('src/components/common/ModalFrame.jsx'), /max-h-\[96dvh\]/);
 });
+
+test('mobile navigation keeps the five primary destinations in the intended order', () => {
+  const navigation = source('src/components/layout/MobileNavigation.jsx');
+  const issues = navigation.indexOf("label: 'Issues'");
+  const casework = navigation.indexOf("label: 'Casework'");
+  const create = navigation.indexOf("label: 'Create Issue'");
+  const reports = navigation.indexOf("label: 'Reports'");
+  assert.ok(issues >= 0 && issues < casework && casework < create && create < reports);
+  assert.match(navigation, /<span>More<\/span>/);
+});

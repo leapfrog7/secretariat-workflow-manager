@@ -1,6 +1,7 @@
 import { cloudClient } from '../auth/cloudClient';
 
 import { CloudRevisionConflict } from './cloudRevisionConflict';
+import { fetchCompleteCloudCollection } from './cloudPagination';
 
 const CLOUD_ISSUE_FIELDS = 'workspace_id, id, payload, owning_division_id, visibility, created_by, updated_by, updated_at, deleted_at, revision';
 
@@ -11,14 +12,13 @@ function requireClient() {
 
 export async function listCloudIssueRows(workspaceId) {
   const client = requireClient();
-  const { data, error } = await client
+  return fetchCompleteCloudCollection(({ from, to, includeCount }) => client
     .from('cloud_issues')
-    .select(CLOUD_ISSUE_FIELDS)
+    .select(CLOUD_ISSUE_FIELDS, includeCount ? { count: 'exact' } : undefined)
     .eq('workspace_id', workspaceId)
-    .order('updated_at', { ascending: false });
-
-  if (error) throw error;
-  return data || [];
+    .order('updated_at', { ascending: false })
+    .order('id', { ascending: true })
+    .range(from, to));
 }
 
 export async function upsertCloudIssue({ workspaceId, issue }) {

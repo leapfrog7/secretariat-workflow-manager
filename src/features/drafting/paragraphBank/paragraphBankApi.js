@@ -1,4 +1,5 @@
 import { cloudClient } from '../../auth/cloudClient';
+import { fetchCompleteCloudCollection } from '../../cloud/cloudPagination';
 
 const FIELDS = 'workspace_id, id, scope, owner_user_id, payload, status, revision, updated_by, updated_at, deleted_at';
 
@@ -8,13 +9,14 @@ function requireClient() {
 }
 
 export async function listCloudParagraphBankEntries(workspaceId) {
-  const { data, error } = await requireClient()
+  const client = requireClient();
+  return fetchCompleteCloudCollection(({ from, to, includeCount }) => client
     .from('paragraph_bank_entries')
-    .select(FIELDS)
+    .select(FIELDS, includeCount ? { count: 'exact' } : undefined)
     .eq('workspace_id', workspaceId)
-    .order('updated_at', { ascending: false });
-  if (error) throw error;
-  return data || [];
+    .order('updated_at', { ascending: false })
+    .order('id', { ascending: true })
+    .range(from, to));
 }
 
 export async function saveCloudParagraphBankEntry({ workspaceId, entry }) {

@@ -14,20 +14,19 @@ function workspacePayload(settings) {
 }
 
 function userPayload(settings) {
-  return { localAI: settings.localAI, aiPreferences: settings.aiPreferences, reminders: settings.reminders, appearance: settings.appearance };
+  return { aiPreferences: settings.aiPreferences, reminders: settings.reminders, appearance: settings.appearance };
 }
 
 export function queueCloudSettingsUpsert(settings, scope = 'all') {
   const current = runtime;
-  if (!current || !settings) return;
+  if (!current || !settings) return Promise.resolve(null);
   current.onStatus?.({ status: 'syncing' });
   const requests = [];
-  if (scope !== 'user' && current.canEdit !== false) {
+  if (scope !== 'user' && current.canManageWorkspaceSettings) {
     requests.push(upsertCloudWorkspaceSettings({
       workspaceId: current.workspaceId,
-      userId: current.userId,
       payload: workspacePayload(settings),
-      updatedAt: settings.workspaceSettingsUpdatedAt || settings.updatedAt || new Date().toISOString(),
+      expectedRevision: settings.workspaceSettingsRevision,
     }));
   }
   if (scope !== 'workspace') {
@@ -38,13 +37,26 @@ export function queueCloudSettingsUpsert(settings, scope = 'all') {
       updatedAt: settings.userSettingsUpdatedAt || settings.updatedAt || new Date().toISOString(),
     }));
   }
-  Promise.all(requests)
-    .then(() => current.onStatus?.({ status: 'synced', syncedAt: new Date().toISOString() }))
-    .catch((error) => current.onStatus?.({ status: 'error', error: error.message || 'Unable to sync settings.' }));
+  return Promise.all(requests)
+    .then(async (results) => {
+      const workspaceResult = scope !== 'user' && current.canManageWorkspaceSettings ? results[0] : null;
+      if (workspaceResult?.revision) {
+        await db.settings.update(SETTINGS_ID, {
+          workspaceSettingsRevision: Number(workspaceResult.revision),
+          workspaceSettingsUpdatedAt: workspaceResult.updated_at,
+        });
+      }
+      current.onStatus?.({ status: 'synced', syncedAt: new Date().toISOString() });
+      return results;
+    })
+    .catch((error) => {
+      current.onStatus?.({ status: 'error', error: error.message || 'Unable to sync settings.' });
+      throw error;
+    });
 }
 
-export async function syncWorkspaceSettings({ workspaceId, userId, canEdit = true, officerIdMap = {}, onStatus }) {
-  configureCloudSettingsSync({ workspaceId, userId, canEdit, onStatus });
+export async function syncWorkspaceSettings({ workspaceId, userId, canManageWorkspaceSettings = false, officerIdMap = {}, onStatus }) {
+  configureCloudSettingsSync({ workspaceId, userId, canManageWorkspaceSettings, onStatus });
   onStatus?.({ status: 'syncing' });
   try {
     const stored = await db.settings.get(SETTINGS_ID);
@@ -59,7 +71,8 @@ export async function syncWorkspaceSettings({ workspaceId, userId, canEdit = tru
     const cloudWorkspaceAt = new Date(cloudWorkspace?.updated_at || 0).getTime();
     const cloudUserAt = new Date(cloudUser?.updated_at || 0).getTime();
 
-    if (cloudWorkspace && (!stored || !canEdit || cloudWorkspaceAt > localWorkspaceAt)) {
+    const localWorkspaceRevision = Number(local.workspaceSettingsRevision || 0);
+    if (cloudWorkspace && (!stored || !canManageWorkspaceSettings || !localWorkspaceRevision || cloudWorkspaceAt > localWorkspaceAt)) {
       merged = {
         ...merged,
         categories: Array.isArray(cloudWorkspace.payload?.categories) ? cloudWorkspace.payload.categories : merged.categories,
@@ -72,17 +85,17 @@ export async function syncWorkspaceSettings({ workspaceId, userId, canEdit = tru
           },
         },
         workspaceSettingsUpdatedAt: cloudWorkspace.updated_at,
+        workspaceSettingsRevision: Number(cloudWorkspace.revision || 1),
       };
-    } else if (canEdit && (!cloudWorkspace || localWorkspaceAt > cloudWorkspaceAt)) {
-      const updatedAt = local.workspaceSettingsUpdatedAt || local.updatedAt || new Date().toISOString();
-      await upsertCloudWorkspaceSettings({ workspaceId, userId, payload: workspacePayload(local), updatedAt });
-      merged.workspaceSettingsUpdatedAt = updatedAt;
+    } else if (canManageWorkspaceSettings && (!cloudWorkspace || localWorkspaceAt > cloudWorkspaceAt)) {
+      const result = await upsertCloudWorkspaceSettings({ workspaceId, payload: workspacePayload(local), expectedRevision: localWorkspaceRevision });
+      merged.workspaceSettingsUpdatedAt = result.updated_at;
+      merged.workspaceSettingsRevision = Number(result.revision || 1);
     }
 
     if (cloudUser && (!stored || cloudUserAt > localUserAt)) {
       merged = {
         ...merged,
-        localAI: { ...DEFAULT_LOCAL_AI_SETTINGS, ...(cloudUser.payload?.localAI || {}) },
         aiPreferences: { ...DEFAULT_AI_PREFERENCES, ...(cloudUser.payload?.aiPreferences || {}) },
         reminders: { ...DEFAULT_REMINDER_SETTINGS, ...(cloudUser.payload?.reminders || {}) },
         appearance: { ...DEFAULT_APPEARANCE_SETTINGS, ...(cloudUser.payload?.appearance || {}) },
@@ -100,13 +113,14 @@ export async function syncWorkspaceSettings({ workspaceId, userId, canEdit = tru
     if (signatoriesChanged) {
       merged.officeProfile = { ...merged.officeProfile, authorizedSignatoryIds: remappedSignatories };
       merged.workspaceSettingsUpdatedAt = new Date().toISOString();
-      if (canEdit) {
-        await upsertCloudWorkspaceSettings({
+      if (canManageWorkspaceSettings) {
+        const result = await upsertCloudWorkspaceSettings({
           workspaceId,
-          userId,
           payload: workspacePayload(merged),
-          updatedAt: merged.workspaceSettingsUpdatedAt,
+          expectedRevision: merged.workspaceSettingsRevision,
         });
+        merged.workspaceSettingsRevision = Number(result.revision || merged.workspaceSettingsRevision || 1);
+        merged.workspaceSettingsUpdatedAt = result.updated_at;
       }
     }
     merged = { ...merged, id: SETTINGS_ID, updatedAt: new Date().toISOString() };

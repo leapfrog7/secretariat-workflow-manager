@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Archive, ArrowLeft, CalendarClock, CheckCircle2, FilePenLine, LoaderCircle, MessageSquareText, Pencil, RotateCcw, Save } from 'lucide-react';
+import { Archive, ArrowLeft, CalendarClock, CheckCircle2, FilePenLine, LoaderCircle, Pencil, RotateCcw, Save } from 'lucide-react';
 import PageHeader from '../components/common/PageHeader';
 import LoadingState from '../components/common/LoadingState';
 import ErrorState from '../components/common/ErrorState';
@@ -11,8 +11,6 @@ import CommunicationTab from '../components/issues/CommunicationTab';
 import ReferenceTab from '../components/issues/ReferenceTab';
 import MilestoneStack from '../components/issues/MilestoneStack';
 import RunningSummaryPanel from '../components/issues/RunningSummaryPanel';
-import DraftingWorkspace from '../features/drafting/DraftingWorkspace';
-import NotingPanel from '../features/noting/NotingPanel';
 import IssueAccessPanel from '../components/collaboration/IssueAccessPanel';
 import { archiveIssue, bringBackIssue, getIssueById, restoreIssue, updateIssue, updateIssuePosition } from '../db/issueRepository';
 import { countCommunicationsByIssue, deleteCommunication, getCommunicationsByIssue, saveCommunication } from '../db/communicationRepository';
@@ -20,7 +18,6 @@ import { countReferencesByIssue, deleteReference, getReferencesByIssue, saveRefe
 import { getAllOfficers } from '../db/officerRepository';
 import { countMilestonesByIssue, getMilestonesByIssue } from '../db/milestoneRepository';
 import { countSummaryVersions, deleteSummaryVersion, getLatestSummary, getSummaryVersions, saveSummaryVersion } from '../db/summaryRepository';
-import { countNotesByIssue, deleteNote, getNotesByIssue, saveNote } from '../db/noteRepository';
 import { useToast } from '../components/common/ToastProvider';
 import { formatDateTime, formatDisplayDate, todayISO, tomorrowISO } from '../utils/dateUtils';
 import { ISSUE_RECURRENCE_TYPES, ISSUE_STATUSES } from '../constants/issueConstants';
@@ -34,7 +31,6 @@ import { handleTabListKeyDown } from '../utils/tabKeyboardUtils';
 const tabs = [
   { label: 'Current Position', mobileLabel: 'Position' },
   { label: 'Running Summary', mobileLabel: 'Summary' },
-  { label: 'Casework', mobileLabel: 'Casework' },
   { label: 'References', mobileLabel: 'References' },
   { label: 'Record of Communication', mobileLabel: 'Comms' },
   { label: 'Share & Access', mobileLabel: 'Access' },
@@ -53,9 +49,8 @@ export default function IssueWorkspacePage() {
     officers: [],
     communications: [],
     references: [],
-    notes: [],
-    recordCounts: { communications: 0, references: 0, notes: 0 },
-    sectionStatus: { casework: 'idle', references: 'idle', communications: 'idle' },
+    recordCounts: { communications: 0, references: 0 },
+    sectionStatus: { references: 'idle', communications: 'idle' },
     sectionErrors: {},
     milestones: [],
     milestoneCount: 0,
@@ -71,13 +66,6 @@ export default function IssueWorkspacePage() {
     dirtySections: {},
     pendingTab: '',
     activeTab: 'Current Position',
-    caseworkView: 'notes',
-    draftingVisited: false,
-    draftSeedNoteIds: [],
-    draftSeedCommunicationIds: [],
-    draftSeedReferenceIds: [],
-    draftSeedRevision: 0,
-    draftSourceNoteId: '',
     operation: '',
     confirmArchive: false,
     deleteTarget: null,
@@ -94,19 +82,16 @@ export default function IssueWorkspacePage() {
     });
   }, []);
   const setSummaryDirty = useCallback((dirty) => setSectionDirty('summary', dirty), [setSectionDirty]);
-  const setNotesDirty = useCallback((dirty) => setSectionDirty('notes', dirty), [setSectionDirty]);
-  const setDraftingDirty = useCallback((dirty) => setSectionDirty('drafting', dirty), [setSectionDirty]);
   const setReferencesDirty = useCallback((dirty) => setSectionDirty('references', dirty), [setSectionDirty]);
   const setCommunicationsDirty = useCallback((dirty) => setSectionDirty('communications', dirty), [setSectionDirty]);
 
   const loadCore = useCallback(async () => {
     try {
-      const [issue, officers, communicationCount, referenceCount, noteCount, milestones, milestoneCount, latestSummary, summaryVersionCount, accessLevel] = await Promise.all([
+      const [issue, officers, communicationCount, referenceCount, milestones, milestoneCount, latestSummary, summaryVersionCount, accessLevel] = await Promise.all([
         getIssueById(issueId),
         getAllOfficers(),
         countCommunicationsByIssue(issueId),
         countReferencesByIssue(issueId),
-        countNotesByIssue(issueId),
         getMilestonesByIssue(issueId, { limit: 5 }),
         countMilestonesByIssue(issueId),
         getLatestSummary(issueId),
@@ -122,7 +107,7 @@ export default function IssueWorkspacePage() {
         error: '',
         issue,
         officers,
-        recordCounts: { communications: communicationCount, references: referenceCount, notes: noteCount },
+        recordCounts: { communications: communicationCount, references: referenceCount },
         milestones,
         milestoneCount,
         milestonesExpanded: false,
@@ -139,10 +124,6 @@ export default function IssueWorkspacePage() {
           recurrenceAnchorDay: issue.recurrenceAnchorDay || null,
         },
         dirty: current.dirty,
-        draftingVisited:
-          current.draftingVisited ||
-          (current.activeTab === 'Casework' &&
-            current.caseworkView === 'drafting'),
         accessLevel,
       }));
     } catch (error) {
@@ -158,24 +139,7 @@ export default function IssueWorkspacePage() {
       sectionErrors: { ...current.sectionErrors, [section]: '' },
     }));
     try {
-      if (section === 'casework') {
-        const [notes, communications, references] = await Promise.all([
-          getNotesByIssue(issueId),
-          getCommunicationsByIssue(issueId),
-          getReferencesByIssue(issueId),
-        ]);
-        loadedSectionsRef.current.add('casework');
-        loadedSectionsRef.current.add('communications');
-        loadedSectionsRef.current.add('references');
-        setState((current) => ({
-          ...current,
-          notes,
-          communications,
-          references,
-          recordCounts: { communications: communications.length, references: references.length, notes: notes.length },
-          sectionStatus: { ...current.sectionStatus, casework: 'loaded', communications: 'loaded', references: 'loaded' },
-        }));
-      } else if (section === 'communications') {
+      if (section === 'communications') {
         const communications = await getCommunicationsByIssue(issueId);
         loadedSectionsRef.current.add(section);
         setState((current) => ({
@@ -210,8 +174,7 @@ export default function IssueWorkspacePage() {
       loading: true,
       communications: [],
       references: [],
-      notes: [],
-      sectionStatus: { casework: 'idle', references: 'idle', communications: 'idle' },
+      sectionStatus: { references: 'idle', communications: 'idle' },
       sectionErrors: {},
       dirty: false,
       dirtySections: {},
@@ -241,7 +204,6 @@ export default function IssueWorkspacePage() {
     setState((current) => ({
       ...current,
       activeTab: tab,
-      draftingVisited: current.draftingVisited,
     }));
   };
 
@@ -251,14 +213,6 @@ export default function IssueWorkspacePage() {
       activeTab: current.pendingTab || current.activeTab,
       pendingTab: '',
       dirtySections: {},
-    }));
-  };
-
-  const selectCaseworkView = (view) => {
-    setState((current) => ({
-      ...current,
-      caseworkView: view,
-      draftingVisited: current.draftingVisited || view === 'drafting',
     }));
   };
 
@@ -322,8 +276,7 @@ export default function IssueWorkspacePage() {
   };
 
   const refreshRecordSection = async (section) => {
-    const target = loadedSectionsRef.current.has('casework') ? 'casework' : section;
-    await loadSection(target, { force: true });
+    await loadSection(section, { force: true });
   };
 
   const saveCommunicationEntry = async (communication) => {
@@ -378,51 +331,19 @@ export default function IssueWorkspacePage() {
     }
   };
 
-  const saveNoteEntry = async (note) => {
-    try {
-      await saveNote(note);
-      const notes = await getNotesByIssue(issueId);
-      setState((current) => ({
-        ...current,
-        notes,
-        recordCounts: { ...current.recordCounts, notes: notes.length },
-      }));
-      showToast(note.id ? 'Note updated; the earlier version remains in history.' : 'Note added.');
-    } catch (error) {
-      showToast(error.message || 'Unable to save note.', 'error');
-      throw error;
-    }
-  };
-
-  const createDraftFromNote = (note) => {
-    setState((current) => ({
-      ...current,
-      activeTab: 'Casework',
-      caseworkView: 'drafting',
-      draftingVisited: true,
-      draftSeedNoteIds: [note.id],
-      draftSeedCommunicationIds: [...note.linkedCommunicationIds],
-      draftSeedReferenceIds: [...note.linkedReferenceIds],
-      draftSeedRevision: current.draftSeedRevision + 1,
-      draftSourceNoteId: note.id,
-    }));
-    showToast(`Preparing a communication from Note ${note.sequence}.`);
-  };
-
   const confirmDelete = async () => {
     const target = state.deleteTarget;
     if (!target) return;
     try {
       if (target.kind === 'communication') await deleteCommunication(target.item.id);
       else if (target.kind === 'reference') await deleteReference(target.item.id);
-      else if (target.kind === 'note') await deleteNote(target.item.id);
       else await deleteSummaryVersion(target.item.id);
-      showToast(target.kind === 'communication' ? 'Communication deleted.' : target.kind === 'reference' ? 'Reference deleted.' : target.kind === 'note' ? `Note ${target.item.sequence} deleted.` : `Summary version ${target.item.version} deleted.`);
+      showToast(target.kind === 'communication' ? 'Communication deleted.' : target.kind === 'reference' ? 'Reference deleted.' : `Summary version ${target.item.version} deleted.`);
       setState((current) => ({ ...current, deleteTarget: null }));
       if (target.kind === 'summary') {
         await loadCore();
       } else {
-        await refreshRecordSection(target.kind === 'communication' ? 'communications' : target.kind === 'reference' ? 'references' : 'casework');
+        await refreshRecordSection(target.kind === 'communication' ? 'communications' : 'references');
       }
     } catch (error) {
       showToast(error.message || 'Unable to delete entry.', 'error');
@@ -469,7 +390,6 @@ export default function IssueWorkspacePage() {
   if (state.error) return <ErrorState message={state.error} />;
 
   const { issue, officers, draft } = state;
-  const assignedOfficer = officers.find((officer) => officer.id === issue.assignedOfficerId);
   const canEditIssue = auth.canEdit && state.accessLevel === 'editor';
 
   return (
@@ -479,6 +399,7 @@ export default function IssueWorkspacePage() {
         actions={
           <>
             <Link to="/issues" className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:border-teal-300 hover:bg-teal-50 hover:text-teal-800"><ArrowLeft className="h-4 w-4" />Issues</Link>
+            <Link to={`/casework/${issue.id}`} className="inline-flex h-10 items-center gap-2 rounded-md border border-indigo-200 bg-indigo-50 px-3 text-sm font-semibold text-indigo-800 transition-colors hover:bg-indigo-100"><FilePenLine className="h-4 w-4" />Open Casework</Link>
             {canEditIssue && <Link to={`/issues/${issue.id}/edit`} className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:border-teal-300 hover:bg-teal-50 hover:text-teal-800"><Pencil className="h-4 w-4" />Edit details</Link>}
           </>
         }
@@ -572,52 +493,6 @@ export default function IssueWorkspacePage() {
           <ReferenceTab issueId={issueId} references={state.references} readOnly={!canEditIssue} onSave={saveReferenceEntry} onDelete={(item) => setState((current) => ({ ...current, deleteTarget: { kind: 'reference', item } }))} onDirtyChange={setReferencesDirty} />
         </SectionGate>
       )}
-      {state.activeTab === 'Casework' && (
-        <SectionGate status={state.sectionStatus.casework} error={state.sectionErrors.casework} label="casework records" onRetry={() => loadSection('casework', { force: true })}>
-          <CaseworkWorkspace view={state.caseworkView} notes={state.notes} communications={state.communications} onChangeView={selectCaseworkView}>
-          <div hidden={state.caseworkView !== 'notes'}>
-            <NotingPanel
-              issueId={issueId}
-              issue={issue}
-              summary={state.latestSummary}
-              notes={state.notes}
-              communications={state.communications}
-              references={state.references}
-              author={{
-                userId: auth.user?.id || '',
-                name: auth.profile?.display_name || auth.user?.email || 'Local officer',
-              }}
-              readOnly={!canEditIssue}
-              onSave={saveNoteEntry}
-              onDelete={(item) => setState((current) => ({ ...current, deleteTarget: { kind: 'note', item } }))}
-              onCreateDraft={createDraftFromNote}
-              onDirtyChange={setNotesDirty}
-            />
-          </div>
-          {state.draftingVisited && (
-            <div hidden={state.caseworkView !== 'drafting'}>
-              <DraftingWorkspace
-                issue={issue}
-                assignedOfficer={assignedOfficer}
-                officers={officers}
-                summary={state.latestSummary}
-                communications={state.communications}
-                references={state.references}
-                notes={state.notes}
-                initialNoteIds={state.draftSeedNoteIds}
-                initialCommunicationIds={state.draftSeedCommunicationIds}
-                initialReferenceIds={state.draftSeedReferenceIds}
-                sourceNoteId={state.draftSourceNoteId}
-                noteSelectionRevision={state.draftSeedRevision}
-                readOnly={!canEditIssue}
-                onSaveCommunication={saveCommunicationEntry}
-                onDirtyChange={setDraftingDirty}
-              />
-            </div>
-          )}
-          </CaseworkWorkspace>
-        </SectionGate>
-      )}
       {state.activeTab === 'Share & Access' && <IssueAccessPanel auth={auth} issue={issue} canEdit={canEditIssue} onUpdateIssue={saveAccessPolicy} />}
 
       <UnsavedChangesGuard
@@ -638,8 +513,8 @@ export default function IssueWorkspacePage() {
       <ConfirmDialog open={state.confirmArchive} title={issue.isArchived ? 'Restore Issue?' : 'Archive Issue?'} message={issue.isArchived ? 'The Issue will return to the current register.' : 'The Issue will be hidden from the current register but retained in the database.'} confirmLabel={issue.isArchived ? 'Restore' : 'Archive'} onCancel={() => setState((current) => ({ ...current, confirmArchive: false }))} onConfirm={toggleArchiveIssue} />
       <ConfirmDialog
         open={Boolean(state.deleteTarget)}
-        title={state.deleteTarget?.kind === 'communication' ? 'Delete communication?' : state.deleteTarget?.kind === 'reference' ? 'Delete reference?' : state.deleteTarget?.kind === 'note' ? `Delete Note ${state.deleteTarget?.item?.sequence || ''}?` : `Delete summary version ${state.deleteTarget?.item?.version || ''}?`}
-        message={state.deleteTarget?.kind === 'summary' ? 'This saved version will be permanently removed. If it is the latest version, the preceding version will become the current running summary.' : state.deleteTarget?.kind === 'note' ? 'This note and its saved revision history will be permanently removed from the Issue. Other note numbers will remain unchanged.' : 'This entry will be permanently removed from the Issue.'}
+        title={state.deleteTarget?.kind === 'communication' ? 'Delete communication?' : state.deleteTarget?.kind === 'reference' ? 'Delete reference?' : `Delete summary version ${state.deleteTarget?.item?.version || ''}?`}
+        message={state.deleteTarget?.kind === 'summary' ? 'This saved version will be permanently removed. If it is the latest version, the preceding version will become the current running summary.' : 'This entry will be permanently removed from the Issue.'}
         confirmLabel="Delete"
         destructive
         onCancel={() => setState((current) => ({ ...current, deleteTarget: null }))}
@@ -667,87 +542,6 @@ function SectionGate({ status, error, label, onRetry, children }) {
     );
   }
   return children;
-}
-
-function CaseworkWorkspace({
-  view,
-  notes,
-  communications,
-  onChangeView,
-  children,
-}) {
-  const issued = communications.some((item) => item.draftId);
-  return (
-    <div className="space-y-4">
-      <section className={`surface overflow-hidden rounded-md border-t-4 ${view === 'notes' ? 'border-t-indigo-600' : 'border-t-teal-600'}`}>
-        <div className="flex flex-col gap-4 border-b border-slate-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-          <div>
-            <h2 className="text-base font-semibold text-[#17333b]">Casework</h2>
-            <p className="mt-1 text-sm text-slate-600">
-              Examine the matter, record the internal view and prepare the
-              communication.
-            </p>
-          </div>
-          <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-400">
-            <span className={view === 'notes' ? 'text-indigo-700' : 'text-slate-500'}>
-              Examination
-            </span>
-            <span aria-hidden="true">→</span>
-            <span className={view === 'drafting' ? 'text-teal-700' : 'text-slate-500'}>
-              Communication
-            </span>
-            <span aria-hidden="true">→</span>
-            <span className={issued ? 'text-emerald-700' : 'text-slate-400'}>
-              Issued
-            </span>
-          </div>
-        </div>
-        <div
-          className={`grid grid-cols-2 gap-1 p-1.5 ${view === 'notes' ? 'bg-indigo-50/60' : 'bg-teal-50/60'}`}
-          role="tablist"
-          aria-label="Casework"
-          onKeyDown={handleTabListKeyDown}
-        >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={view === 'notes'}
-            tabIndex={view === 'notes' ? 0 : -1}
-            onClick={() => onChangeView('notes')}
-            className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold sm:text-sm ${
-              view === 'notes'
-                ? 'bg-white text-indigo-800 shadow-sm ring-1 ring-indigo-200'
-                : 'text-slate-500 hover:bg-white/70 hover:text-indigo-800'
-            }`}
-          >
-            <MessageSquareText className="h-4 w-4" />
-            Examine and Note
-            {notes.length > 0 && (
-              <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[11px] tabular-nums text-indigo-700">
-                {notes.length}
-              </span>
-            )}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={view === 'drafting'}
-            tabIndex={view === 'drafting' ? 0 : -1}
-            onClick={() => onChangeView('drafting')}
-            className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold sm:text-sm ${
-              view === 'drafting'
-                ? 'bg-white text-teal-800 shadow-sm ring-1 ring-teal-200'
-                : 'text-slate-500 hover:bg-white/70 hover:text-teal-800'
-            }`}
-          >
-            <FilePenLine className="h-4 w-4" />
-            Prepare Communication
-          </button>
-        </div>
-      </section>
-      {children}
-    </div>
-  );
 }
 
 function CurrentPositionTab({ issue, officers, draft, dirty, saveStatus, operation, milestones, milestoneCount, milestonesExpanded, loadingMilestones, readOnly, onUpdate, onUpdateSchedule, onSave, onArchive, onLoadAllMilestones, onCollapseMilestones, onBringBack }) {

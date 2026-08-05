@@ -1,6 +1,7 @@
 import { cloudClient } from '../auth/cloudClient';
 import { CloudRevisionConflict } from './cloudRevisionConflict';
 import { shouldRetryMissingCloudIssueItem } from './cloudIssueItemRecovery';
+import { fetchCompleteCloudCollection } from './cloudPagination';
 
 const CLOUD_ITEM_FIELDS = 'workspace_id, issue_id, item_type, id, payload, updated_by, updated_at, deleted_at, revision';
 
@@ -10,13 +11,14 @@ function requireClient() {
 }
 
 export async function listCloudIssueItems(workspaceId) {
-  const { data, error } = await requireClient()
+  const client = requireClient();
+  return fetchCompleteCloudCollection(({ from, to, includeCount }) => client
     .from('cloud_issue_items')
-    .select(CLOUD_ITEM_FIELDS)
+    .select(CLOUD_ITEM_FIELDS, includeCount ? { count: 'exact' } : undefined)
     .eq('workspace_id', workspaceId)
-    .order('updated_at', { ascending: false });
-  if (error) throw error;
-  return data || [];
+    .order('updated_at', { ascending: false })
+    .order('id', { ascending: true })
+    .range(from, to));
 }
 
 async function saveCloudIssueItem({ workspaceId, itemType, item, expectedRevision }) {
