@@ -1,3 +1,5 @@
+import { resolvePdfWasmUrl } from './pdfAssetUtils.js';
+
 export const MAX_OCR_PAGES_PER_RUN = 40;
 const OCR_RENDER_SCALE = 2;
 const MAX_CANVAS_PIXELS = 6_000_000;
@@ -93,7 +95,11 @@ export async function recognizePdfPages(file, pageNumbers, {
   try {
     if (signal?.aborted) throw new DOMException('OCR cancelled.', 'AbortError');
     onProgress?.({ phase: 'loading-engine', pageNumber: 0, totalPages: selectedPages.length, progress: 0 });
-    loadingTask = getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false });
+    loadingTask = getDocument({
+      data: new Uint8Array(await file.arrayBuffer()),
+      isEvalSupported: false,
+      wasmUrl: resolvePdfWasmUrl({ baseUrl: import.meta.env.BASE_URL, origin: window.location.origin }),
+    });
     document = await loadingTask.promise;
     if (selectedPages.some((pageNumber) => pageNumber < 1 || pageNumber > document.numPages)) {
       throw new Error('One or more selected pages could not be found in this PDF.');

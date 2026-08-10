@@ -79,6 +79,7 @@ export async function requestCloudDraftAI({
   operation,
   instructions,
   input,
+  maxOutputTokens,
   signal,
 }) {
   if (!workspaceId) throw new Error('An active cloud workspace is required.');

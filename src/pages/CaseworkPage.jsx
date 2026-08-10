@@ -192,10 +192,10 @@ export default function CaseworkPage() {
       />
 
       <section className="surface mb-4 border-l-4 border-l-indigo-600 p-4 sm:p-5">
-        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
           <CaseworkIssuePicker issues={issues} selectedId={issueId} auth={auth} onSelect={(value) => navigate(`/casework/${value}`)} />
           {auth.canEdit && (
-            <Link to="/issues/new" className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-indigo-200 bg-indigo-50 px-4 text-sm font-semibold text-indigo-800 hover:bg-indigo-100">
+            <Link to="/issues/new" className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md border border-indigo-200 bg-indigo-50 px-4 text-sm font-semibold text-indigo-800 hover:bg-indigo-100 sm:mt-6 sm:h-10 sm:w-auto">
               <FilePenLine className="h-4 w-4" />Create Issue
             </Link>
           )}
@@ -209,7 +209,7 @@ export default function CaseworkPage() {
           <EmptyState
             title={issues.length ? 'No saved Casework yet' : 'No current Issues'}
             message={issues.length ? 'Choose an Issue above to add its first Note or prepare a communication.' : 'Create an Issue first, then return here to examine it and prepare a communication.'}
-            action={issues.length ? null : auth.canEdit ? <Link to="/issues/new" className="inline-flex h-10 items-center rounded-md bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800">Create Issue</Link> : <Link to="/issues" className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 px-4 text-sm font-semibold text-slate-700"><ArrowLeft className="h-4 w-4" />View Issues</Link>}
+            action={issues.length ? null : auth.canEdit ? <Link to="/issues/new" className="inline-flex h-11 w-full items-center justify-center rounded-md bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800 sm:h-10 sm:w-auto">Create Issue</Link> : <Link to="/issues" className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md border border-slate-300 px-4 text-sm font-semibold text-slate-700 sm:h-10 sm:w-auto"><ArrowLeft className="h-4 w-4" />View Issues</Link>}
           />
         )
       ) : (

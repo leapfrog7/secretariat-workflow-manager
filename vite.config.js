@@ -15,6 +15,11 @@ function localOcrAssets() {
     ['node_modules/tesseract.js-core/tesseract-core-relaxedsimd-lstm.wasm', 'ocr/core/tesseract-core-relaxedsimd-lstm.wasm'],
     ['node_modules/@tesseract.js-data/eng/4.0.0_best_int/eng.traineddata.gz', 'ocr/lang/eng.traineddata.gz'],
     ['node_modules/@tesseract.js-data/hin/4.0.0_best_int/hin.traineddata.gz', 'ocr/lang/hin.traineddata.gz'],
+    ['node_modules/pdfjs-dist/wasm/jbig2.wasm', 'pdfjs/wasm/jbig2.wasm'],
+    ['node_modules/pdfjs-dist/wasm/jbig2_nowasm_fallback.js', 'pdfjs/wasm/jbig2_nowasm_fallback.js'],
+    ['node_modules/pdfjs-dist/wasm/openjpeg.wasm', 'pdfjs/wasm/openjpeg.wasm'],
+    ['node_modules/pdfjs-dist/wasm/openjpeg_nowasm_fallback.js', 'pdfjs/wasm/openjpeg_nowasm_fallback.js'],
+    ['node_modules/pdfjs-dist/wasm/qcms_bg.wasm', 'pdfjs/wasm/qcms_bg.wasm'],
   ];
   return {
     name: 'local-ocr-assets',

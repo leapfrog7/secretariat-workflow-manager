@@ -27,12 +27,11 @@ import { DEFAULT_AI_PREFERENCES } from '../../constants/issueConstants';
 import { normalizeLocalAISettings } from '../../services/lmStudioClient';
 import { useAuth } from '../auth/AuthContext';
 import AIModeControl from '../../components/ai/AIModeControl';
-import GeminiTaskLevelControl from '../../components/ai/GeminiTaskLevelControl';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import ModalFrame from '../../components/common/ModalFrame';
 import { createDraftAIProvider } from '../drafting/ai/draftAIProviders';
 import { buildAIContext } from '../../utils/aiContextUtils';
-import { generateOrRefineNote, rewriteNoteSelection } from './noteAI';
+import { generateExaminationMap, generateOrRefineNote, noteModeTaskLevel, NOTE_ANALYTICAL_EMPHASES, NOTE_LENGTHS, NOTE_MODES, NOTE_PURPOSES, NOTE_STRUCTURES, rewriteNoteSelection } from './noteAI';
 import { MAX_PDF_BYTES } from './pdf/pdfExtractionService';
 import { extractSourceDocument } from './document/documentTextExtraction';
 import { recordCaseworkOperationalEvent } from '../casework/caseworkApi';
@@ -130,6 +129,12 @@ function NoteForm({ issueId, issue, summary, note, communications, references, a
   const [aiInstruction, setAIInstruction] = useState('');
   const [aiGoal, setAIGoal] = useState('');
   const [aiProposedDirection, setAIProposedDirection] = useState('');
+  const [noteMode, setNoteMode] = useState('routine');
+  const [notePurpose, setNotePurpose] = useState('approval');
+  const [noteStructure, setNoteStructure] = useState('connected_paragraphs');
+  const [noteLength, setNoteLength] = useState('very_short');
+  const [analyticalEmphasis, setAnalyticalEmphasis] = useState([]);
+  const [examinationMap, setExaminationMap] = useState('');
   const [aiDialogOpen, setAIDialogOpen] = useState(false);
   const [aiMenuOpen, setAIMenuOpen] = useState(false);
   const [aiAction, setAIAction] = useState('prepare');
@@ -288,7 +293,7 @@ function NoteForm({ issueId, issue, summary, note, communications, references, a
           workspaceId: auth.workspace.id,
           issueId,
           provider: aiConfig.preferences.cloudProvider,
-          taskLevel: aiConfig.preferences.geminiTaskLevel,
+          taskLevel: noteModeTaskLevel(noteMode),
         }
         : { mode: 'local', settings: aiConfig.local });
       const result = await generateOrRefineNote({
@@ -299,6 +304,12 @@ function NoteForm({ issueId, issue, summary, note, communications, references, a
         instruction: noteAIInstruction(aiAction, aiInstruction),
         goal: operation === 'generate' ? aiGoal : '',
         proposedDirection: operation === 'generate' ? aiProposedDirection : '',
+        noteMode,
+        purpose: notePurpose,
+        structurePreference: noteStructure,
+        lengthExpectation: noteLength,
+        analyticalEmphasis,
+        examinationMap,
         signal: controller.signal,
       });
       const richText = plainTextToNoteRichText(result.text);
@@ -320,6 +331,39 @@ function NoteForm({ issueId, issue, summary, note, communications, references, a
         setError(aiError.message || 'AI could not prepare the note.');
         setAIStatus({ status: 'idle', model: '' });
       }
+    } finally {
+      aiController.current = null;
+    }
+  };
+
+  const prepareExaminationMap = async (confirmed = false) => {
+    if (!aiConfig || !aiGoal.trim()) {
+      setError(!aiConfig ? 'AI settings are still loading.' : 'State what decision or outcome this note should enable.');
+      return;
+    }
+    if (aiConfig.preferences.mode === 'cloud' && !confirmed) {
+      if (!auth.workspace?.id) {
+        setError('Sign in to an active workspace before using Cloud AI.');
+        return;
+      }
+      setAIDialogOpen(false);
+      setCloudConsent('map');
+      return;
+    }
+    const controller = new AbortController();
+    aiController.current = controller;
+    setError('');
+    setAIStatus({ status: 'mapping', model: '' });
+    try {
+      const provider = createDraftAIProvider(aiConfig.preferences.mode === 'cloud'
+        ? { mode: 'cloud', workspaceId: auth.workspace.id, issueId, provider: aiConfig.preferences.cloudProvider, taskLevel: noteModeTaskLevel(noteMode) }
+        : { mode: 'local', settings: aiConfig.local });
+      const result = await generateExaminationMap({ provider, issueContext: buildRequestIssueContext(), goal: aiGoal, proposedDirection: aiProposedDirection, purpose: notePurpose, analyticalEmphasis, signal: controller.signal });
+      setExaminationMap(result.text);
+      setAIStatus({ status: 'idle', model: result.model });
+    } catch (mapError) {
+      if (mapError.name !== 'AbortError') setError(mapError.message || 'AI could not prepare the examination map.');
+      setAIStatus({ status: 'idle', model: '' });
     } finally {
       aiController.current = null;
     }
@@ -390,7 +434,7 @@ function NoteForm({ issueId, issue, summary, note, communications, references, a
     }
   };
 
-  const aiBusy = ['generating', 'refining', 'rewriting-selection'].includes(aiStatus.status);
+  const aiBusy = ['generating', 'refining', 'rewriting-selection', 'mapping'].includes(aiStatus.status);
 
   const openAIAssistance = (action = form.content.trim() ? 'improve' : 'prepare') => {
     setAIAction(action);
@@ -455,9 +499,7 @@ function NoteForm({ issueId, issue, summary, note, communications, references, a
     linkedSourceCount ? `${linkedSourceCount} linked record${linkedSourceCount === 1 ? '' : 's'}` : '',
     markdownContext ? (markdownContext.originalName || markdownContext.name) : '',
   ].filter(Boolean);
-  const providerLabel = aiConfig?.preferences.mode === 'cloud'
-    ? `${aiConfig.preferences.cloudProvider === 'gemini' ? 'Gemini' : 'Cloud API'}${aiConfig.preferences.cloudProvider === 'gemini' ? ` - ${aiConfig.preferences.geminiTaskLevel || 'moderate'}` : ''}`
-    : 'Local LLM';
+  const providerLabel = aiConfig?.preferences.mode === 'cloud' ? 'Cloud AI' : 'Local LLM';
   const aiSubmitLabel = {
     prepare: 'Prepare note',
     improve: 'Improve note',
@@ -646,8 +688,16 @@ function NoteForm({ issueId, issue, summary, note, communications, references, a
             )}
             {aiAction === 'prepare' && (
               <div className="space-y-3">
+                <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-700">Note type</span><select value={noteMode} disabled={aiBusy} onChange={(event) => { setNoteMode(event.target.value); setExaminationMap(''); }} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm disabled:bg-slate-100">{NOTE_MODES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select><span className="mt-1 block text-xs leading-5 text-slate-500">{NOTE_MODES.find((option) => option.value === noteMode)?.description}</span></label>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-700">Purpose</span><select value={notePurpose} disabled={aiBusy} onChange={(event) => setNotePurpose(event.target.value)} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm disabled:bg-slate-100">{NOTE_PURPOSES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+                  <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-700">Structure</span><select value={noteStructure} disabled={aiBusy} onChange={(event) => setNoteStructure(event.target.value)} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm disabled:bg-slate-100">{NOTE_STRUCTURES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+                </div>
+                <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-700">Length expectation</span><select value={noteLength} disabled={aiBusy} onChange={(event) => setNoteLength(event.target.value)} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm disabled:bg-slate-100">{NOTE_LENGTHS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+                {noteMode !== 'routine' && <fieldset disabled={aiBusy}><legend className="text-xs font-semibold text-slate-700">Analytical emphasis <span className="font-normal text-slate-500">(choose any)</span></legend><div className="mt-2 grid gap-2 sm:grid-cols-2">{NOTE_ANALYTICAL_EMPHASES.map((option) => <label key={option.value} className="flex items-center gap-2 rounded-md border border-slate-200 px-2.5 py-2 text-xs text-slate-700"><input type="checkbox" checked={analyticalEmphasis.includes(option.value)} onChange={(event) => setAnalyticalEmphasis((current) => event.target.checked ? [...current, option.value] : current.filter((value) => value !== option.value))} className="accent-cyan-700" />{option.label}</label>)}</div></fieldset>}
                 <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-700">Goal of this note <span className="text-red-600">*</span></span><textarea rows={2} disabled={aiBusy} value={aiGoal} onChange={(event) => setAIGoal(event.target.value)} placeholder="Example: enable a decision on whether comments should be called for from the attached office" className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm leading-6 disabled:bg-slate-100" /><span className="mt-1 block text-xs leading-5 text-slate-500">What decision, approval or understanding should the note enable?</span></label>
                 <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-700">Proposed course or direction <span className="font-normal text-slate-500">(optional)</span></span><textarea rows={2} disabled={aiBusy} value={aiProposedDirection} onChange={(event) => setAIProposedDirection(event.target.value)} placeholder="Example: propose seeking the report within ten days; keep the view tentative pending receipt" className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm leading-6 disabled:bg-slate-100" /><span className="mt-1 block text-xs leading-5 text-slate-500">Give the intended proposal when known. AI must not invent one when it is not supplied or supported by the record.</span></label>
+                {['detailed_examination', 'full_background_analysis'].includes(noteMode) && <div className="rounded-md border border-indigo-200 bg-indigo-50/50 p-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-semibold text-indigo-950">Examination map first <span className="font-normal text-indigo-700">(optional)</span></p><p className="mt-1 text-xs leading-5 text-indigo-800">Generate a working map, edit it, then use it to prepare the final note.</p></div><button type="button" disabled={aiBusy} onClick={() => prepareExaminationMap()} className="h-9 rounded-md border border-indigo-300 bg-white px-3 text-xs font-semibold text-indigo-800 hover:bg-indigo-50 disabled:opacity-50">{aiStatus.status === 'mapping' ? 'Mapping…' : examinationMap ? 'Regenerate map' : 'Generate map'}</button></div>{examinationMap && <textarea rows={10} value={examinationMap} disabled={aiBusy} onChange={(event) => setExaminationMap(event.target.value)} aria-label="Editable examination map" className="mt-3 w-full rounded-md border border-indigo-200 bg-white px-3 py-2 text-xs leading-5 disabled:bg-slate-100" />}</div>}
               </div>
             )}
             {aiAction === 'custom' && (
@@ -667,17 +717,7 @@ function NoteForm({ issueId, issue, summary, note, communications, references, a
               </summary>
               <div className="space-y-3 border-t border-slate-200 p-3">
                 <AIModeControl value={aiConfig?.preferences.mode || 'local'} onChange={changeAIMode} cloudDisabled={!auth.workspace?.id} disabled={!aiConfig || aiBusy} compact />
-                {aiConfig?.preferences.mode === 'cloud' && aiConfig.preferences.cloudProvider === 'gemini' && (
-                  <GeminiTaskLevelControl
-                    value={aiConfig.preferences.geminiTaskLevel}
-                    onChange={(geminiTaskLevel) => setAIConfig((current) => current ? {
-                      ...current,
-                      preferences: { ...current.preferences, geminiTaskLevel },
-                    } : current)}
-                    disabled={aiBusy}
-                    label="Case complexity"
-                  />
-                )}
+                <p className="text-xs leading-5 text-slate-500">Noting quality and reasoning depth are selected automatically from the note type.</p>
               </div>
             </details>
             {error && <p className="text-xs font-medium text-red-700">{error}</p>}
@@ -697,8 +737,10 @@ function NoteForm({ issueId, issue, summary, note, communications, references, a
       title="Send Issue context to Cloud AI?"
       message={cloudConsent === 'selection'
         ? `The selected passage, surrounding note and recorded Issue context${includeRunningSummary && summary?.content ? ', including the latest running summary' : ''}${markdownContext ? `, and ${markdownContext.originalName || markdownContext.name}` : ''}, will be sent to the selected Cloud AI provider. Only the selected passage will be replaced.`
+        : cloudConsent === 'map'
+          ? `The recorded Issue context${includeRunningSummary && summary?.content ? ', including the latest running summary' : ''}, linked communications and references${markdownContext ? `, and ${markdownContext.originalName || markdownContext.name}` : ''}, will be sent to Cloud AI to prepare an editable working examination map.`
         : `The current note and recorded Issue context${includeRunningSummary && summary?.content ? ', including the latest running summary' : ''}, linked communications and references${markdownContext ? `, and ${markdownContext.originalName || markdownContext.name}` : ''}, will be sent to the selected Cloud AI provider. Review the returned note before saving.`}
-      confirmLabel={cloudConsent === 'selection' ? 'Send and rewrite' : aiAction === 'prepare' ? 'Send and prepare' : 'Send and refine'}
+      confirmLabel={cloudConsent === 'selection' ? 'Send and rewrite' : cloudConsent === 'map' ? 'Send and map' : aiAction === 'prepare' ? 'Send and prepare' : 'Send and refine'}
       onCancel={() => {
         pendingRewriteSelection.current = null;
         setCloudConsent('');
@@ -707,6 +749,10 @@ function NoteForm({ issueId, issue, summary, note, communications, references, a
         const action = cloudConsent;
         setCloudConsent('');
         if (action === 'selection') rewriteSelection(true);
+        else if (action === 'map') {
+          setAIDialogOpen(true);
+          prepareExaminationMap(true);
+        }
         else {
           setAIDialogOpen(true);
           runAI(true);

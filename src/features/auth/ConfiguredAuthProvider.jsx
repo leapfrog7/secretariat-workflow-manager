@@ -221,6 +221,8 @@ export default function ConfiguredAuthProvider({ children }) {
     syncNow,
     signIn: (credentials) => cloudClient.auth.signIn.email(credentials),
     signUp: (details) => cloudClient.auth.signUp.email(details),
+    requestPasswordReset: (details) => cloudClient.auth.requestPasswordReset(details),
+    resetPassword: (details) => cloudClient.auth.resetPassword(details),
     signOut: () => cloudClient.auth.signOut(),
   }), [profileState, session.isPending, user, workspaceState]);
 

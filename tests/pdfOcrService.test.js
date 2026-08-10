@@ -6,6 +6,12 @@ import {
   mergeOcrWithSelectableText,
   ocrTextToMarkdown,
 } from '../src/features/noting/pdf/pdfOcrService.js';
+import { resolvePdfWasmUrl } from '../src/features/noting/pdf/pdfAssetUtils.js';
+
+test('PDF decoder assets resolve under the application base path', () => {
+  assert.equal(resolvePdfWasmUrl({ baseUrl: '/secretariat-workflow-manager/', origin: 'https://example.test' }), 'https://example.test/secretariat-workflow-manager/pdfjs/wasm/');
+  assert.equal(resolvePdfWasmUrl({ baseUrl: '/', origin: 'http://localhost:5173' }), 'http://localhost:5173/pdfjs/wasm/');
+});
 
 test('OCR text becomes page-labelled, editable Markdown', () => {
   const markdown = ocrTextToMarkdown(

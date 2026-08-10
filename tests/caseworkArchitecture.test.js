@@ -24,3 +24,11 @@ test('Casework supports an Issue picker and a stable Issue deep link', () => {
   assert.match(source('db/migrations/025_casework_scale_and_telemetry.sql'), /public\.can_read_issue/);
   assert.doesNotMatch(source('db/migrations/025_casework_scale_and_telemetry.sql'), /prompt|generated_text|payload\s+jsonb/i);
 });
+
+test('Casework aligns its primary action with the Issue search control', () => {
+  const page = source('src/pages/CaseworkPage.jsx');
+  assert.match(page, /Create Issue/);
+  assert.match(page, /sm:mt-6 sm:h-10 sm:w-auto/);
+  assert.match(page, /h-11 w-full items-center justify-center rounded-md bg-teal-700/);
+  assert.doesNotMatch(page, /sm:items-end/);
+});

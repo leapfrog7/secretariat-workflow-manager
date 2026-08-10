@@ -1,4 +1,5 @@
 import { isLikelyScannedPage, pdfItemsToLines, reconstructPdfPages } from './pdfTextToMarkdown';
+import { resolvePdfWasmUrl } from './pdfAssetUtils.js';
 
 export const MAX_PDF_BYTES = 20 * 1024 * 1024;
 export const MAX_PDF_PAGES = 150;
@@ -33,7 +34,11 @@ export async function extractPdfAsMarkdown(file, { signal, onProgress } = {}) {
     if (signal?.aborted) throw new DOMException('PDF extraction cancelled.', 'AbortError');
     const data = new Uint8Array(await file.arrayBuffer());
     if (signal?.aborted) throw new DOMException('PDF extraction cancelled.', 'AbortError');
-    loadingTask = getDocument({ data, isEvalSupported: false });
+    loadingTask = getDocument({
+      data,
+      isEvalSupported: false,
+      wasmUrl: resolvePdfWasmUrl({ baseUrl: import.meta.env.BASE_URL, origin: window.location.origin }),
+    });
     loadingTask.onPassword = () => {
       passwordProtected = true;
       loadingTask.destroy();

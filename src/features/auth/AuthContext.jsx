@@ -24,6 +24,8 @@ export function AuthProvider({ children }) {
         syncNow: null,
         signIn: null,
         signUp: null,
+        requestPasswordReset: null,
+        resetPassword: null,
         signOut: null,
       }}>
         {children}

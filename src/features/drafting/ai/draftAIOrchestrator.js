@@ -11,6 +11,8 @@ import {
 } from '../../../utils/governmentDraftUtils.js';
 import {
   buildParagraphRewriteInput,
+  draftContentGuidance,
+  draftContentOutputTokens,
   GOVERNMENT_DRAFT_SYSTEM_PROMPT,
   PARAGRAPH_REWRITE_SYSTEM_PROMPT,
 } from './draftAIPrompts.js';
@@ -57,6 +59,8 @@ export function buildDraftAIRequest({
   draftMode = 'conservative',
   instruction,
   additionalInstruction,
+  contentLength = 'short',
+  paragraphStyle = 'balanced',
 }) {
   return {
     instructions: GOVERNMENT_DRAFT_SYSTEM_PROMPT,
@@ -69,7 +73,7 @@ export function buildDraftAIRequest({
       draftMode,
       context,
       instruction,
-      additionalInstruction,
+      additionalInstruction: [draftContentGuidance(contentLength, paragraphStyle), additionalInstruction].filter(Boolean).join('\n\n'),
     }),
   };
 }
@@ -115,6 +119,8 @@ export async function generateDraftBody({
   documentDetails = {},
   instruction,
   additionalInstruction,
+  contentLength = 'short',
+  paragraphStyle = 'balanced',
   signal,
 }) {
   requireProvider(provider);
@@ -130,9 +136,12 @@ export async function generateDraftBody({
     draftMode,
     instruction,
     additionalInstruction,
+    contentLength,
+    paragraphStyle,
   });
   const response = await provider.generateText({
     operation: 'draft',
+    maxOutputTokens: draftContentOutputTokens(contentLength),
     ...request,
     signal,
   });
@@ -159,6 +168,17 @@ function bodyRange(document) {
   const body = rendered.layout.blocks.find((block) => block.role === 'body');
   if (!body) throw new Error('The draft has no editable substantive body.');
   return { ...rendered, body };
+}
+
+export function mapRichBodySelectionToDocument(document, selection = {}) {
+  const current = bodyRange(document);
+  const bodyLength = current.body.content.length;
+  const start = Math.max(0, Math.min(bodyLength, Number(selection.start) || 0));
+  const end = Math.max(start, Math.min(bodyLength, Number(selection.end) || 0));
+  return {
+    start: current.body.start + start,
+    end: current.body.start + end,
+  };
 }
 
 function assertCurrentStructuredText(fullText, renderedText) {

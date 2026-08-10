@@ -4,6 +4,7 @@ import {
   buildDraftAIRequest,
   generateDraftBody,
   insertDraftBodyText,
+  mapRichBodySelectionToDocument,
   normalizeAITextResponse,
   regenerateDraftBodySelection,
   renderStructuredDraft,
@@ -108,6 +109,31 @@ test('prompt preview contract matches the request sent to the provider', async (
   assert.match(preview.input, /Keep the request courteous and put the deadline last\./);
 });
 
+test('draft body extent controls guidance and output allowance without changing protected structure', async () => {
+  const provider = fakeProvider('The background is recorded.\n\nThe reasons have been examined.\n\nThe requested action may be taken.');
+  const result = await generateDraftBody({
+    provider,
+    context: 'Recorded background and reasons.',
+    communicationType: 'Office Memorandum',
+    officeProfile,
+    signatory,
+    recipient,
+    recipientRelationship: 'Another Ministry / Department',
+    draftMode: 'detailed',
+    documentDetails,
+    instruction: 'Communicate the reasoned decision.',
+    contentLength: 'detailed',
+    paragraphStyle: 'developed',
+  });
+
+  assert.match(provider.calls[0].input, /Detailed: 1–2 pages/);
+  assert.match(provider.calls[0].input, /Developed reasoning/);
+  assert.match(provider.calls[0].input, /Do not pad, repeat, or invent material/);
+  assert.equal(provider.calls[0].maxOutputTokens, 3000);
+  assert.deepEqual(result.document.blocks.map((block) => block.role), ['bodyParagraph', 'bodyParagraph', 'bodyParagraph']);
+  assert.match(result.text, /OFFICE MEMORANDUM/);
+});
+
 test('AI normalization rejects unusable, excessive and structural responses', () => {
   assert.throws(() => normalizeAITextResponse('```text\n```'), /no draft text/i);
   assert.throws(() => normalizeAITextResponse('x'.repeat(24001)), /too long/i);
@@ -138,6 +164,19 @@ test('paragraph regeneration cannot target the subject or signature', async () =
     /only within the substantive body/i,
   );
   assert.equal(provider.calls.length, 0);
+});
+
+test('rich editor paragraph-boundary selections are clamped to the substantive body', async () => {
+  const { result } = await generatedDraft('First body paragraph.\n\nSecond body paragraph.');
+  const rendered = renderStructuredDraft(result.document);
+  const body = rendered.layout.blocks.find((block) => block.role === 'body');
+  const mapped = mapRichBodySelectionToDocument(result.document, {
+    start: 0,
+    end: body.content.length + 2,
+  });
+
+  assert.deepEqual(mapped, { start: body.start, end: body.end });
+  assert.equal(result.text.slice(mapped.start, mapped.end), body.content);
 });
 
 test('body regeneration preserves deterministic document structure', async () => {

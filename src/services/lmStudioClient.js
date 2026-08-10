@@ -211,12 +211,12 @@ export async function summarizeLocalNotes({ settings, notes, issueTitle, signal 
   return { text, model: payload.model_instance_id || model.id, stats: payload.stats || {} };
 }
 
-export async function requestLocalDraftAI({ settings, operation = 'draft', instructions, input, signal }) {
+export async function requestLocalDraftAI({ settings, operation = 'draft', instructions, input, maxOutputTokens, signal }) {
   const { payload, model } = await requestLocalChat({
     settings,
     systemPrompt: instructions,
     input,
-    maxOutputTokens: operation === 'paragraph' ? 700 : 1000,
+    maxOutputTokens: maxOutputTokens || (operation === 'paragraph' ? 700 : 1000),
     signal,
   });
   const text = (payload.output || [])

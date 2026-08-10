@@ -4,6 +4,9 @@ import {
   buildNoteAIInput,
   buildNoteSelectionRewriteInput,
   generateOrRefineNote,
+  generateExaminationMap,
+  noteModeTaskLevel,
+  NOTE_ANALYTICAL_SYSTEM_PROMPT,
   NOTE_AI_SYSTEM_PROMPT,
   NOTE_SELECTION_REWRITE_SYSTEM_PROMPT,
   rewriteNoteSelection,
@@ -20,7 +23,7 @@ test('noting AI uses a separate Government note contract', () => {
   });
 
   assert.match(NOTE_AI_SYSTEM_PROMPT, /Do not create a letter/);
-  assert.match(NOTE_AI_SYSTEM_PROMPT, /never claim that consultation, discussion, approval or a decision occurred/);
+  assert.match(NOTE_AI_SYSTEM_PROMPT, /never claim that consultation, discussion, approval or a decision occurred/i);
   assert.match(NOTE_AI_SYSTEM_PROMPT, /Markdown headings/);
   assert.match(input, /Refine the existing note/);
   assert.match(input, /eReceipt 42/);
@@ -77,6 +80,53 @@ test('noting AI removes report-style headings from weak model output', async () 
   });
 
   assert.equal(result.text, 'Subject: Calling for comments\n\nThe reference was received.\n\nIt is proposed that comments may be called for.');
+});
+
+test('routine noting remains concise and uses the light internal tier', async () => {
+  const calls = [];
+  await generateOrRefineNote({
+    provider: { id: 'test', async generateText(request) { calls.push(request); return { text: 'Subject: Routine receipt\n\nThe receipt may be placed on file.' }; } },
+    operation: 'generate', issueContext: 'A routine receipt was recorded.', goal: 'Enable filing of the receipt.', noteMode: 'routine',
+  });
+  assert.match(calls[0].instructions, /2–4 short, connected paragraphs/);
+  assert.equal(calls[0].maxOutputTokens, 1000);
+  assert.equal(noteModeTaskLevel('routine'), 'simple');
+});
+
+test('detailed noting carries analytical controls and missing-fact discipline', async () => {
+  const calls = [];
+  await generateOrRefineNote({
+    provider: { id: 'test', async generateText(request) { calls.push(request); return { text: 'Subject: Detailed examination\n\nThe rule position may need verification.' }; } },
+    operation: 'generate', issueContext: 'The applicable rule was not supplied.', goal: 'Enable a decision.',
+    noteMode: 'detailed_examination', purpose: 'options', structurePreference: 'limited_headings', lengthExpectation: 'medium', analyticalEmphasis: ['chronology', 'rules', 'risk'],
+  });
+  assert.equal(calls[0].instructions, NOTE_ANALYTICAL_SYSTEM_PROMPT);
+  assert.match(calls[0].instructions, /state that it may need verification/);
+  assert.match(calls[0].input, /Detailed examination/);
+  assert.match(calls[0].input, /Chronology; Rules \/ guidelines; Risk and alternatives/);
+  assert.equal(calls[0].maxOutputTokens, 3000);
+  assert.equal(noteModeTaskLevel('detailed_examination'), 'hard');
+});
+
+test('full background analysis permits a long structured examination', async () => {
+  const calls = [];
+  const result = await generateOrRefineNote({
+    provider: { id: 'test', async generateText(request) { calls.push(request); return { text: 'BACKGROUND\n\nRecorded background.\n\nPROPOSAL\n\nA decision is requested.' }; } },
+    operation: 'generate', issueContext: 'Recorded material.', goal: 'Enable final decision.', noteMode: 'full_background_analysis', structurePreference: 'full_structure', lengthExpectation: 'as_required',
+  });
+  assert.match(result.text, /BACKGROUND/);
+  assert.match(calls[0].input, /As required by complexity/);
+  assert.equal(calls[0].maxOutputTokens, 3000);
+});
+
+test('examination map is a separate editable working aid request', async () => {
+  const calls = [];
+  const result = await generateExaminationMap({
+    provider: { id: 'test', async generateText(request) { calls.push(request); return { text: 'Material facts\nRecorded fact.\n\nGaps, uncertainties or contradictions\nRule position requires verification.' }; } },
+    issueContext: 'Recorded fact.', goal: 'Enable a decision.', analyticalEmphasis: ['missing_information'],
+  });
+  assert.match(calls[0].instructions, /working examination map/);
+  assert.match(result.text, /Gaps, uncertainties or contradictions/);
 });
 
 test('selected note text uses a bounded Government-noting rewrite contract', async () => {

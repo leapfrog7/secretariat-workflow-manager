@@ -14,6 +14,8 @@ export function normalizeDraft(input = {}) {
     documentDetails: input.documentDetails && typeof input.documentDetails === 'object' ? input.documentDetails : {},
     instruction: input.instruction || '',
     additionalInstruction: input.additionalInstruction || '',
+    contentLength: input.contentLength || 'short',
+    paragraphStyle: input.paragraphStyle || 'balanced',
     content: input.content || '',
     document: normalizeDraftDocument(input.document, {
       content: input.content,

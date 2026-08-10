@@ -10,8 +10,6 @@ import { getDraftsByIssue, MAX_DRAFTS_PER_ISSUE, saveDraft, saveDraftSnapshot } 
 import { DEFAULT_AI_PREFERENCES } from '../../constants/issueConstants';
 import { useAuth } from '../auth/AuthContext';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
-import GeminiTaskLevelControl from '../../components/ai/GeminiTaskLevelControl';
-import { getGeminiTaskLevel } from '../../../shared/cloudAIModels';
 import AIModeControl from '../../components/ai/AIModeControl';
 import AdaptiveSelect from '../../components/common/AdaptiveSelect';
 import ModalFrame from '../../components/common/ModalFrame';
@@ -28,7 +26,8 @@ import {
 import ParagraphBankPanel from './paragraphBank/ParagraphBankPanel';
 import { getParagraphBankEntries } from './paragraphBank/paragraphBankRepository';
 import { createDraftAIProvider } from './ai/draftAIProviders';
-import { buildDraftAIRequest, generateDraftBody, insertDraftBodyText, regenerateDraftBodySelection } from './ai/draftAIOrchestrator';
+import { buildDraftAIRequest, generateDraftBody, insertDraftBodyText, mapRichBodySelectionToDocument, regenerateDraftBodySelection } from './ai/draftAIOrchestrator';
+import { DRAFT_CONTENT_LENGTHS, DRAFT_PARAGRAPH_STYLES, draftContentTaskLevel } from './ai/draftAIPrompts';
 import {
   createGeneratedWorkingCopy,
   createSavedWorkingCopy,
@@ -63,6 +62,8 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
   const [useDetailedContext, setUseDetailedContext] = useState(true);
   const [instruction, setInstruction] = useState('');
   const [additionalInstruction, setAdditionalInstruction] = useState('');
+  const [contentLength, setContentLength] = useState('short');
+  const [paragraphStyle, setParagraphStyle] = useState('balanced');
   const [advancedSettingsOpen, setAdvancedSettingsOpen] = useState(false);
   const [generation, setGeneration] = useState({ status: 'idle', text: '', error: '', model: '', stats: {}, draftId: '' });
   const [draftCopyStatus, setDraftCopyStatus] = useState('idle');
@@ -241,6 +242,8 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
       draftMode: useDetailedContext ? 'detailed' : 'conservative',
       instruction: resolvedInstruction,
       additionalInstruction,
+      contentLength,
+      paragraphStyle,
     });
     const text = `PROTECTED DRAFTING RULES\n${request.instructions}\n\nREQUEST SENT TO AI\n${request.input}`;
     return {
@@ -250,7 +253,7 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
       words: text.trim() ? text.trim().split(/\s+/).length : 0,
       estimatedTokens: Math.ceil(text.length / 4),
     };
-  }, [additionalInstruction, context.text, documentDetails.subject, draftDialogType, issue.shortTitle, officeProfile, recipient, recipientRelationship, resolvedInstruction, signatory, useDetailedContext]);
+  }, [additionalInstruction, contentLength, context.text, documentDetails.subject, draftDialogType, issue.shortTitle, officeProfile, paragraphStyle, recipient, recipientRelationship, resolvedInstruction, signatory, useDetailedContext]);
 
   useEffect(() => {
     if (generation.status === 'generating') generationController.current?.abort();
@@ -420,7 +423,7 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
     setWorkspaceView('compose');
     try {
       const provider = createDraftAIProvider(aiPreferences.mode === 'cloud'
-        ? { mode: 'cloud', workspaceId: auth.workspace.id, issueId: issue.id, provider: aiPreferences.cloudProvider, taskLevel: aiPreferences.geminiTaskLevel }
+        ? { mode: 'cloud', workspaceId: auth.workspace.id, issueId: issue.id, provider: aiPreferences.cloudProvider, taskLevel: draftContentTaskLevel(contentLength) }
         : { mode: 'local', settings: aiSettings });
       const result = await generateDraftBody({
         provider,
@@ -434,6 +437,8 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
         documentDetails,
         instruction: instruction.trim() || `Prepare the ${requestedType} from the proposal and reasoning in the selected Note. Use other selected Issue material only for supporting facts and references. Do not invent missing addressee details, decisions or requested actions.`,
         additionalInstruction,
+        contentLength,
+        paragraphStyle,
         signal: controller.signal,
       });
       setGeneration({ status: 'complete', text: result.text, document: result.document, error: '', model: result.model, stats: result.stats, draftId: '' });
@@ -541,6 +546,8 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
         documentDetails,
         instruction,
         additionalInstruction,
+        contentLength,
+        paragraphStyle,
         content: generation.text,
         document: generation.document || legacyDraftToDocument(generation.text, communicationType),
         model: generation.model,
@@ -574,6 +581,8 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
     setDocumentDetails(draft.documentDetails || { subject: issue.shortTitle || '', fileNumber: issue.eFileNumber || '', issueDate: '', salutation: '', copyTo: '' });
     setInstruction(draft.instruction || '');
     setAdditionalInstruction(draft.additionalInstruction || '');
+    setContentLength(draft.contentLength || 'short');
+    setParagraphStyle(draft.paragraphStyle || 'balanced');
     setSelectedCommunicationIds(draft.selectedCommunicationIds || []);
     setSelectedReferenceIds(draft.selectedReferenceIds || []);
     setSelectedNoteIds(draft.selectedNoteIds || []);
@@ -837,7 +846,6 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
   };
 
   const providerLabel = aiPreferences.cloudProvider === 'openai' ? 'OpenAI' : 'Gemini';
-  const geminiTask = getGeminiTaskLevel(aiPreferences.geminiTaskLevel);
   const selectedPassage = generation.text.slice(selection.start, selection.end).trim();
   const selectedWordCount = selectedPassage ? selectedPassage.split(/\s+/).filter(Boolean).length : 0;
   const draftReview = useMemo(
@@ -900,12 +908,9 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
 
   const updateRichSelection = ({ start, end }) => {
     try {
-      const rendered = renderStructuredDraft(generation.document);
-      const body = rendered.layout.blocks.find((block) => block.role === 'body');
-      if (body) {
-        rememberSelection({ start: body.start + start, end: body.start + end });
-        if (end > start && paragraphStatus.error) setParagraphStatus({ status: 'idle', error: '' });
-      }
+      const mapped = mapRichBodySelectionToDocument(generation.document, { start, end });
+      rememberSelection(mapped);
+      if (mapped.end > mapped.start && paragraphStatus.error) setParagraphStatus({ status: 'idle', error: '' });
     } catch {
       // Legacy drafts continue using the plain-text selection path.
     }
@@ -1023,7 +1028,7 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
             </div>
           </div>
         )}
-        {workspaceView === 'compose' && generation.status === 'generating' && <div className="flex min-h-36 items-center justify-center gap-3 border-t border-[#e3ebe9] px-4 py-8 text-center text-sm font-medium text-slate-600"><LoaderCircle className="h-5 w-5 shrink-0 animate-spin text-cyan-700" />{aiPreferences.mode === 'cloud' ? `Generating through ${providerLabel}${aiPreferences.cloudProvider === 'gemini' ? ` for a ${geminiTask.label.toLowerCase()} task` : ''}.` : 'Generating locally. The first request may include model loading time.'}</div>}
+        {workspaceView === 'compose' && generation.status === 'generating' && <div className="flex min-h-36 items-center justify-center gap-3 border-t border-[#e3ebe9] px-4 py-8 text-center text-sm font-medium text-slate-600"><LoaderCircle className="h-5 w-5 shrink-0 animate-spin text-cyan-700" />{aiPreferences.mode === 'cloud' ? `Generating through ${providerLabel}.` : 'Generating locally. The first request may include model loading time.'}</div>}
         {workspaceView === 'compose' && generation.status === 'error' && (
           <div className="border-t border-red-200 bg-red-50 px-4 py-5 text-center sm:px-5">
             <p className="text-sm font-medium text-red-800">{generation.error}</p>
@@ -1136,14 +1141,14 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
                   <div>
                     <p className="text-xs font-semibold text-slate-700">AI provider</p>
-                    <p className="mt-0.5 text-xs text-slate-500">{aiPreferences.mode === 'cloud' ? `${providerLabel}${aiPreferences.cloudProvider === 'gemini' ? ` · ${geminiTask.label}` : ''}` : aiSettings?.model || 'Loading local settings...'}</p>
+                    <p className="mt-0.5 text-xs text-slate-500">{aiPreferences.mode === 'cloud' ? providerLabel : 'Local AI configured in Settings'}</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
                     <AIModeControl value={aiPreferences.mode} onChange={changeAIMode} cloudDisabled={!auth.workspace?.id} disabled={generation.status === 'generating' || paragraphStatus.status === 'regenerating'} compact />
                     <Link to="/settings" className="text-xs font-semibold text-teal-700 hover:underline">Configure</Link>
                   </div>
                 </div>
-                {aiPreferences.mode === 'cloud' && aiPreferences.cloudProvider === 'gemini' && <div className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3"><GeminiTaskLevelControl value={aiPreferences.geminiTaskLevel} onChange={(value) => setAIPreferences((current) => ({ ...current, geminiTaskLevel: value }))} disabled={generation.status === 'generating'} label="Draft complexity" /></div>}
+                <p className="mt-2 text-xs leading-5 text-slate-500">Model depth and output allowance are selected automatically from the requested body extent.</p>
 
                 <fieldset disabled={readOnly || generation.status === 'generating'} className="mt-4 grid gap-3 disabled:opacity-70 sm:grid-cols-2">
                   <div>
@@ -1151,6 +1156,8 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
                     {generation.status === 'complete' && <p className="mt-1 text-xs text-slate-500">Current draft: {communicationType}. Changing its type preserves the body and rebuilds the official structure.</p>}
                   </div>
                   <AdaptiveSelect label="Authorized signatory" value={signatoryId} onChange={changeSignatory} options={authorizedSignatories.map((officer) => ({ value: officer.id, label: officer.designation ? `${officer.name} - ${officer.designation}` : officer.name }))} placeholder="Select signatory" disabled={generation.status === 'generating' || !authorizedSignatories.length} />
+                  <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Substantive body extent</span><select value={contentLength} onChange={(event) => setContentLength(event.target.value)} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900">{DRAFT_CONTENT_LENGTHS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select><span className="mt-1 block text-xs leading-5 text-slate-500">{DRAFT_CONTENT_LENGTHS.find((option) => option.value === contentLength)?.description}</span></label>
+                  <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Paragraph style</span><select value={paragraphStyle} onChange={(event) => setParagraphStyle(event.target.value)} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900">{DRAFT_PARAGRAPH_STYLES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select><span className="mt-1 block text-xs leading-5 text-slate-500">{DRAFT_PARAGRAPH_STYLES.find((option) => option.value === paragraphStyle)?.description}</span></label>
                   <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Recipient relationship</span><select value={recipientRelationship} onChange={(event) => { setRecipientRelationship(event.target.value); markDraftDirty(); }} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900">{RECIPIENT_RELATIONSHIPS.map((relationship) => <option key={relationship} value={relationship}>{relationship}</option>)}</select></label>
                   <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Recipient organization <span className="font-normal text-slate-500">(optional)</span></span><input value={recipient.organization} onChange={(event) => updateRecipient('organization', event.target.value)} placeholder="Example: Department of Legal Affairs" className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900" /></label>
                   <label className="block sm:col-span-2"><span className="mb-1 block text-sm font-medium text-slate-700">Saved Note as drafting basis <span className="font-normal text-slate-500">(optional)</span></span><select value={selectedNoteIds.length === 1 ? selectedNoteIds[0] : ''} onChange={(event) => chooseDraftingNote(event.target.value)} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900"><option value="">{selectedNoteIds.length > 1 ? `${selectedNoteIds.length} Notes selected in Information used` : 'Draft without a saved Note'}</option>{notes.map((item) => <option key={item.id} value={item.id}>Note {item.sequence} - {item.content.slice(0, 90)}{item.content.length > 90 ? '...' : ''}</option>)}</select><span className="mt-1 block text-xs leading-5 text-slate-500">When selected, its reasoning and proposal guide the communication. Linked communications and references are included automatically.</span></label>
