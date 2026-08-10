@@ -20,7 +20,7 @@ const [tables, policies, functions, migrations, triggers, workspaces, membership
     SELECT count(*)::int AS count
     FROM information_schema.tables
     WHERE table_schema = 'public'
-      AND table_name IN ('profiles', 'workspaces', 'workspace_members', 'workspace_divisions', 'division_members', 'issue_access_grants', 'audit_events', 'cloud_issues', 'cloud_officers', 'cloud_issue_items', 'cloud_workspace_settings', 'cloud_user_settings', 'cloud_notifications', 'automation_runs', 'cloud_ai_provider_settings', 'cloud_ai_user_permissions', 'cloud_ai_generation_logs', 'paragraph_bank_entries', 'casework_operational_events')
+      AND table_name IN ('profiles', 'workspaces', 'workspace_members', 'workspace_divisions', 'division_members', 'issue_access_grants', 'audit_events', 'cloud_issues', 'cloud_officers', 'cloud_issue_items', 'cloud_workspace_settings', 'cloud_user_settings', 'cloud_notifications', 'automation_runs', 'cloud_ai_provider_settings', 'cloud_ai_user_permissions', 'cloud_ai_generation_logs', 'paragraph_bank_entries', 'casework_operational_events', 'push_subscriptions', 'push_notification_deliveries')
   `),
   query("SELECT count(*)::int AS count FROM pg_policies WHERE schemaname = 'public'"),
   query(`
@@ -60,7 +60,9 @@ const [tables, policies, functions, migrations, triggers, workspaces, membership
         'require_issue_division_when_enforced',
         'search_casework_issues',
         'record_casework_operational_event',
-        'save_cloud_workspace_settings_revision'
+        'save_cloud_workspace_settings_revision',
+        'register_push_subscription',
+        'unregister_push_subscription'
       )
   `),
   query(`
@@ -92,7 +94,8 @@ const [tables, policies, functions, migrations, triggers, workspaces, membership
       '023_administration_workspace_directory.sql',
       '024_admin_approve_and_assign_workspace.sql',
       '025_casework_scale_and_telemetry.sql',
-      '026_workspace_configuration_hardening.sql'
+      '026_workspace_configuration_hardening.sql',
+      '027_web_push_deadline_notifications.sql'
     )
   `),
   query(`
@@ -122,10 +125,10 @@ const result = {
 };
 
 const expected = {
-  tables: 19,
-  policies: 48,
-  functions: 32,
-  migrationRecords: 26,
+  tables: 21,
+  policies: 49,
+  functions: 34,
+  migrationRecords: 27,
   securityGuardTriggers: 5,
 };
 const valid = Object.entries(expected).every(([key, value]) => result[key] === value);

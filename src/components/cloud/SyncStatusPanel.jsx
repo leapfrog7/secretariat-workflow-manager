@@ -92,7 +92,7 @@ export default function SyncStatusPanel() {
       </button>
 
       {open && (
-        <section ref={panelRef} aria-label="Cloud synchronization" className="absolute right-0 top-10 z-50 w-[min(calc(100vw-1.5rem),22rem)] overflow-hidden rounded-md border border-slate-200 bg-white shadow-xl">
+        <section ref={panelRef} aria-label="Cloud synchronization" className="fixed inset-x-3 top-16 z-50 max-h-[calc(100dvh-5rem)] overflow-y-auto rounded-md border border-slate-200 bg-white shadow-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-10 sm:w-[min(calc(100vw-1.5rem),22rem)] sm:max-h-[calc(100dvh-4.5rem)]">
           <header className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3">
             <div>
               <h2 className="text-sm font-semibold text-[#17333b]">Cloud synchronization</h2>

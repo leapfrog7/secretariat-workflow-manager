@@ -69,6 +69,12 @@ Optional secrets remain:
 - `CRON_SECRET`
 - `RESEND_API_KEY`
 - `REMINDER_FROM_EMAIL`
+- `WEB_PUSH_PRIVATE_KEY`
+
+Deadline push delivery additionally requires matching `WEB_PUSH_PUBLIC_KEY`
+and `WEB_PUSH_SUBJECT` configuration on Cloud Run. The public key must also be
+published to the frontend build as the GitHub Actions variable
+`VITE_WEB_PUSH_PUBLIC_KEY`; the private key must never be exposed to Vite.
 
 The first revision will be deployed publicly because the browser must invoke
 it. AI routes still require a valid Neon bearer token and enforce workspace and

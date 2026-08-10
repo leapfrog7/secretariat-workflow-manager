@@ -9,6 +9,14 @@ import AppErrorBoundary from './components/common/AppErrorBoundary';
 
 initializeTextSize();
 
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`, { scope: import.meta.env.BASE_URL }).catch(() => {
+      // Installation and offline support remain optional if registration is blocked.
+    });
+  });
+}
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <AppErrorBoundary>

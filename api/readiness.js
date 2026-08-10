@@ -25,7 +25,14 @@ export default async function handler(request, response) {
       status: 'ready',
       service: 'secretariat-workflow-manager-api',
       requiredMigration: REQUIRED_DATABASE_MIGRATION,
-      capabilities: { dailyAutomation: Boolean(process.env.CRON_SECRET) },
+      capabilities: {
+        dailyAutomation: Boolean(process.env.CRON_SECRET),
+        webPush: Boolean(
+          process.env.WEB_PUSH_PUBLIC_KEY
+          && process.env.WEB_PUSH_PRIVATE_KEY
+          && process.env.WEB_PUSH_SUBJECT
+        ),
+      },
     });
   } catch (error) {
     console.error('API readiness check failed.', { message: error.message });

@@ -1,0 +1,25 @@
+{
+  "id": "./",
+  "name": "Secretariat Workflow Manager",
+  "short_name": "SWM",
+  "description": "Local-first Issue, Casework, Noting and Drafting workspace.",
+  "start_url": "./#/issues",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f2f6f5",
+  "theme_color": "#17333b",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

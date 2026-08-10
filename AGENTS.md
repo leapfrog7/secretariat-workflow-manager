@@ -112,6 +112,10 @@ Current implementation status:
   directory and shared office profile to workspace administrators and adds
   revision-checked workspace-setting saves. Apply it before deploying clients
   that use the hardened settings synchronization contract.
+- Migration `027_web_push_deadline_notifications.sql` must be applied before
+  enabling per-device Web Push for approaching, due and overdue Issue deadlines.
+  Push subscription endpoints and keys are user/workspace-scoped credentials;
+  the VAPID private key remains server-only.
 - Division enforcement remains off until a workspace administrator creates
   divisions, assigns active members and Issues, passes the readiness report, and
   explicitly enables it.

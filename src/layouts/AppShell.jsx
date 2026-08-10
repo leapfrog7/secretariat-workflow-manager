@@ -12,6 +12,7 @@ import WelcomeBanner from '../components/common/WelcomeBanner';
 import { NavigationFeedbackProvider } from '../components/common/NavigationFeedback';
 import SyncStatusPanel from '../components/cloud/SyncStatusPanel';
 import ConnectivityBanner from '../components/cloud/ConnectivityBanner';
+import InstallAppButton from '../components/pwa/InstallAppButton';
 
 export default function AppShell() {
   const auth = useAuth();
@@ -56,6 +57,7 @@ export default function AppShell() {
               </div>
             </div>
             <div className="flex min-w-0 items-center gap-2">
+              <InstallAppButton />
               {auth.mode === 'local' ? (
                 <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">Local mode</span>
               ) : (

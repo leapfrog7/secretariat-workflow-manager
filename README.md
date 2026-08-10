@@ -179,6 +179,7 @@ Set these values in `.env.local`:
 VITE_NEON_AUTH_URL=https://your-project.neonauth.example/neondb/auth
 VITE_NEON_DATA_API_URL=https://your-project.apirest.example/neondb/rest/v1
 VITE_API_BASE_URL=https://your-cloud-run-service.run.app
+VITE_WEB_PUSH_PUBLIC_KEY=
 DATABASE_URL=postgresql://user:password@host/database
 NEON_DATA_API_URL=https://your-project.apirest.example/neondb/rest/v1
 CRON_SECRET=replace-with-a-long-random-secret
@@ -187,12 +188,20 @@ OPENAI_API_KEY=
 GEMINI_API_KEY=
 RESEND_API_KEY=
 REMINDER_FROM_EMAIL=
+WEB_PUSH_PUBLIC_KEY=
+WEB_PUSH_PRIVATE_KEY=
+WEB_PUSH_SUBJECT=mailto:administrator@example.gov.in
 ```
 
 - `VITE_NEON_AUTH_URL` and `VITE_NEON_DATA_API_URL` are public browser configuration values.
 - `VITE_API_BASE_URL` is the public protected-API origin, currently Google Cloud Run.
+- `VITE_WEB_PUSH_PUBLIC_KEY` is the browser-safe VAPID public key. Generate the
+  matching key pair with `npm run push:generate-keys`; keep the private key on
+  the protected API only.
 - `DATABASE_URL` is privileged server-side configuration. Never commit it or expose it through a `VITE_` variable.
-- `OPENAI_API_KEY`, `GEMINI_API_KEY`, `CRON_SECRET` and `RESEND_API_KEY` remain server-side. Never prefix provider keys with `VITE_`.
+- `OPENAI_API_KEY`, `GEMINI_API_KEY`, `CRON_SECRET`, `RESEND_API_KEY` and
+  `WEB_PUSH_PRIVATE_KEY` remain server-side. Never prefix provider keys or the
+  VAPID private key with `VITE_`.
 - If the two `VITE_NEON_*` URLs are absent or invalid, the application starts in local mode without account or workspace controls.
 
 Start the development server:
@@ -381,6 +390,7 @@ Pushes to `main` run `.github/workflows/deploy-pages.yml`. The workflow installs
 - `VITE_NEON_AUTH_URL`
 - `VITE_NEON_DATA_API_URL`
 - `VITE_API_BASE_URL`
+- `VITE_WEB_PUSH_PUBLIC_KEY`
 
 Before publishing, the workflow calls the protected API readiness endpoint and
 checks that its required Neon migration is present. Apply migrations and deploy

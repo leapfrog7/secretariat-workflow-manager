@@ -523,7 +523,7 @@ export default function IssueRegisterPage() {
           </div>
         </section>
         <div className="flex items-center justify-between gap-3">
-          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate-600">
             {filters.archiveMode === "Archived" && filtered.length
               ? `Showing ${archivedRangeStart}-${archivedRangeEnd} of `
               : ""}
@@ -766,7 +766,7 @@ function ArchiveViewSwitch({
           {option.icon && <option.icon className="h-3.5 w-3.5" />}
           {option.label}
           <span
-            className={`rounded-full px-1.5 py-0.5 text-xs tabular-nums ${value === option.label ? "bg-white/15 text-white" : "bg-slate-100 text-slate-500"}`}
+            className={`rounded-full px-1.5 py-0.5 text-xs tabular-nums ${value === option.label ? "bg-white/15 text-white" : "bg-slate-100 text-slate-600"}`}
           >
             {option.count}
           </span>

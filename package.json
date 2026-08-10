@@ -21,7 +21,8 @@
     "release:verify": "node scripts/verify-release.js",
     "db:reload-api": "node --env-file-if-exists=.env.local scripts/reload-data-api-schema.js",
     "auth:trust-origin": "node --env-file-if-exists=.env.local scripts/trust-auth-origin.js",
-    "admin:bootstrap": "node --env-file-if-exists=.env.local scripts/bootstrap-admin.js"
+    "admin:bootstrap": "node --env-file-if-exists=.env.local scripts/bootstrap-admin.js",
+    "push:generate-keys": "node scripts/generate-vapid-keys.js"
   },
   "dependencies": {
     "@neondatabase/neon-js": "^0.6.2-beta",
@@ -49,7 +50,8 @@
     "remark-gfm": "^4.0.1",
     "tailwindcss": "latest",
     "tesseract.js": "^7.0.0",
-    "vite": "8.1.4"
+    "vite": "8.1.4",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "jszip": "^3.10.1"

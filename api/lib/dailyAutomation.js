@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { neon } from '@neondatabase/serverless';
+import webpush from 'web-push';
 
 const DEFAULT_REMINDERS = {
   inAppEnabled: true,
@@ -86,6 +87,75 @@ async function sendEmailBatch({ recipient, displayName, notifications, eventDate
   return { status: 'sent', error: '' };
 }
 
+function configureWebPush() {
+  const publicKey = process.env.WEB_PUSH_PUBLIC_KEY;
+  const privateKey = process.env.WEB_PUSH_PRIVATE_KEY;
+  const subject = process.env.WEB_PUSH_SUBJECT;
+  if (!publicKey || !privateKey || !subject) return false;
+  webpush.setVapidDetails(subject, publicKey, privateKey);
+  return true;
+}
+
+async function deliverDeadlinePushNotifications(sql) {
+  if (!configureWebPush()) return 0;
+  const appUrl = (process.env.APP_PUBLIC_URL || 'https://leapfrog7.github.io/secretariat-workflow-manager/').replace(/\/?$/, '/');
+  const deliveries = await sql`
+    SELECT n.id AS notification_id, n.issue_id, n.title, n.message, n.due_date,
+           s.id AS subscription_id, s.endpoint, s.p256dh, s.auth_secret,
+           coalesce(d.attempts, 0)::int AS attempts
+    FROM public.cloud_notifications n
+    JOIN public.push_subscriptions s
+      ON s.workspace_id = n.workspace_id AND s.user_id = n.user_id
+    JOIN public.profiles p ON p.user_id = n.user_id AND p.status = 'active'
+    JOIN public.workspace_members m
+      ON m.workspace_id = n.workspace_id AND m.user_id = n.user_id AND m.status = 'active'
+    LEFT JOIN public.push_notification_deliveries d
+      ON d.notification_id = n.id AND d.subscription_id = s.id
+    WHERE n.notification_type IN ('deadline_upcoming', 'deadline_due', 'deadline_overdue')
+      AND n.created_at >= now() - interval '7 days'
+      AND (n.issue_id IS NULL OR public.can_read_issue(n.workspace_id, n.issue_id, n.user_id))
+      AND (d.notification_id IS NULL OR (d.status = 'failed' AND d.attempts < 3))
+  `;
+
+  let sent = 0;
+  await Promise.all(deliveries.map(async (delivery) => {
+    try {
+      await webpush.sendNotification({
+        endpoint: delivery.endpoint,
+        keys: { p256dh: delivery.p256dh, auth: delivery.auth_secret },
+      }, JSON.stringify({
+        title: delivery.title,
+        body: delivery.message,
+        tag: `deadline-${delivery.notification_id}`,
+        url: delivery.issue_id ? `${appUrl}#/issues/${delivery.issue_id}` : `${appUrl}#/issues`,
+      }), { TTL: 86400, urgency: 'high' });
+      await sql`
+        INSERT INTO public.push_notification_deliveries
+          (notification_id, subscription_id, status, attempts, error, attempted_at, sent_at)
+        VALUES (${delivery.notification_id}::uuid, ${delivery.subscription_id}::uuid, 'sent', ${delivery.attempts + 1}, '', now(), now())
+        ON CONFLICT (notification_id, subscription_id) DO UPDATE
+          SET status = 'sent', attempts = public.push_notification_deliveries.attempts + 1,
+              error = '', attempted_at = now(), sent_at = now()
+      `;
+      sent += 1;
+    } catch (error) {
+      if ([404, 410].includes(error.statusCode)) {
+        await sql`DELETE FROM public.push_subscriptions WHERE id = ${delivery.subscription_id}::uuid`;
+        return;
+      }
+      await sql`
+        INSERT INTO public.push_notification_deliveries
+          (notification_id, subscription_id, status, attempts, error, attempted_at)
+        VALUES (${delivery.notification_id}::uuid, ${delivery.subscription_id}::uuid, 'failed', ${delivery.attempts + 1}, ${String(error.message || error).slice(0, 500)}, now())
+        ON CONFLICT (notification_id, subscription_id) DO UPDATE
+          SET status = 'failed', attempts = public.push_notification_deliveries.attempts + 1,
+              error = EXCLUDED.error, attempted_at = now()
+      `;
+    }
+  }));
+  return sent;
+}
+
 export async function runDailyAutomation() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is required.');
   const sql = neon(process.env.DATABASE_URL);
@@ -104,6 +174,7 @@ export async function runDailyAutomation() {
   let reactivatedCount = 0;
   let notificationCount = 0;
   let emailCount = 0;
+  let pushCount = 0;
   try {
     const dueScheduled = await sql`
       SELECT workspace_id, id, payload
@@ -162,7 +233,11 @@ export async function runDailyAutomation() {
 
     const [members, activeIssues, accessibleIssues] = await Promise.all([
       sql`
-        SELECT m.workspace_id, m.user_id, p.email, p.display_name, coalesce(s.payload, '{}'::jsonb) AS settings
+        SELECT m.workspace_id, m.user_id, p.email, p.display_name, coalesce(s.payload, '{}'::jsonb) AS settings,
+               EXISTS (
+                 SELECT 1 FROM public.push_subscriptions ps
+                 WHERE ps.workspace_id = m.workspace_id AND ps.user_id = m.user_id
+               ) AS push_enabled
         FROM public.workspace_members m
         JOIN public.profiles p ON p.user_id = m.user_id AND p.status = 'active'
         LEFT JOIN public.cloud_user_settings s ON s.workspace_id = m.workspace_id AND s.user_id = m.user_id
@@ -221,7 +296,7 @@ export async function runDailyAutomation() {
       }
 
       for (const candidate of candidates) {
-        if (!preferences.inAppEnabled && !preferences.emailEnabled) continue;
+        if (!preferences.inAppEnabled && !preferences.emailEnabled && !member.push_enabled) continue;
         const inserted = await sql`
           INSERT INTO public.cloud_notifications (
             workspace_id, user_id, issue_id, notification_type, title, message, event_date, due_date,
@@ -273,11 +348,14 @@ export async function runDailyAutomation() {
       `;
     }
 
-    const result = { runDate, status: 'completed', reactivatedCount, notificationCount, emailCount };
+    pushCount = await deliverDeadlinePushNotifications(sql);
+
+    const result = { runDate, status: 'completed', reactivatedCount, notificationCount, emailCount, pushCount };
     await sql`
       UPDATE public.automation_runs
       SET status = 'completed', completed_at = now(), reactivated_count = ${reactivatedCount},
-          notification_count = ${notificationCount}, email_count = ${emailCount}, result = ${JSON.stringify(result)}::jsonb
+          notification_count = ${notificationCount}, email_count = ${emailCount}, push_count = ${pushCount},
+          result = ${JSON.stringify(result)}::jsonb
       WHERE run_date = ${runDate}::date
     `;
     return result;

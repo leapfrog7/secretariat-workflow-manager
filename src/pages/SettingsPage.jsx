@@ -35,6 +35,7 @@ import { queueCloudSettingsUpsert } from '../features/cloud/cloudSettingsSync';
 import { useAuth } from '../features/auth/AuthContext';
 import { getCloudAIStatus } from '../services/cloudAIClient';
 import { applyTextSize, normalizeTextSize } from '../utils/appearanceUtils';
+import PushNotificationSetting from '../components/notifications/PushNotificationSetting';
 
 export default function SettingsPage() {
   const fileRef = useRef(null);
@@ -643,6 +644,7 @@ export default function SettingsPage() {
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <ReminderToggle label="In-app notifications" description="Show reminders in the notification inbox." checked={state.reminderSettings.inAppEnabled} onChange={(value) => setState((current) => ({ ...current, reminderSettings: { ...current.reminderSettings, inAppEnabled: value } }))} />
             <ReminderToggle label="Email notifications" description="Send reminders to the signed-in email when server email delivery is configured." checked={state.reminderSettings.emailEnabled} onChange={(value) => setState((current) => ({ ...current, reminderSettings: { ...current.reminderSettings, emailEnabled: value } }))} />
+            <PushNotificationSetting />
           </div>
           <div className="mt-4 grid gap-4 border-t border-slate-200 pt-4 sm:grid-cols-2">
             <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Upcoming deadline window</span><div className="flex items-center gap-2"><input type="number" min="1" max="30" value={state.reminderSettings.upcomingDays} onChange={(event) => setState((current) => ({ ...current, reminderSettings: { ...current.reminderSettings, upcomingDays: event.target.value } }))} className="h-10 w-24 rounded-md border border-slate-300 bg-white px-3 text-sm tabular-nums text-slate-900" /><span className="text-sm text-slate-500">days</span></div></label>

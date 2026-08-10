@@ -35,3 +35,21 @@ test('mobile navigation keeps the five primary destinations in the intended orde
   assert.ok(issues >= 0 && issues < casework && casework < create && create < reports);
   assert.match(navigation, /<span>More<\/span>/);
 });
+
+test('header popovers and PWA installation remain mobile-safe', () => {
+  const syncPanel = source('src/components/cloud/SyncStatusPanel.jsx');
+  const shell = source('src/layouts/AppShell.jsx');
+  const installer = source('src/components/pwa/InstallAppButton.jsx');
+  assert.match(syncPanel, /fixed inset-x-3 top-16/);
+  assert.match(syncPanel, /max-h-\[calc\(100dvh-5rem\)\]/);
+  assert.match(shell, /<InstallAppButton \/>/);
+  assert.match(installer, /beforeinstallprompt/);
+  assert.match(installer, /Add to Home Screen/);
+});
+
+test('the application publishes an installable PWA shell', () => {
+  assert.match(source('index.html'), /manifest\.webmanifest/);
+  assert.match(source('src/main.jsx'), /serviceWorker\.register/);
+  assert.match(source('public/manifest.webmanifest'), /"display": "standalone"/);
+  assert.match(source('public/sw.js'), /self\.addEventListener\('fetch'/);
+});
