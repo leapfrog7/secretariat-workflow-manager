@@ -1,5 +1,5 @@
 import { cloudClient } from '../features/auth/cloudClient';
-import { RUNNING_SUMMARY_SYSTEM_PROMPT } from './lmStudioClient';
+import { buildRunningSummarySystemPrompt } from '../utils/runningSummaryAI';
 import { buildReportRefinementInput, normalizeReportRefinement, REPORT_REFINEMENT_SYSTEM_PROMPT } from '../utils/reportAIUtils';
 import { resolveCloudAIBaseUrl } from '../utils/cloudAIUrl';
 
@@ -59,13 +59,13 @@ async function generate({ workspaceId, issueId, issueIds, provider, taskLevel, o
   });
 }
 
-export async function summarizeCloudNotes({ workspaceId, issueId, provider, taskLevel, notes, issueTitle, signal }) {
+export async function summarizeCloudNotes({ workspaceId, issueId, provider, taskLevel, notes, issueTitle, detail = 'standard', signal }) {
   if (!workspaceId) throw new Error('An active cloud workspace is required.');
   if (!notes?.trim()) throw new Error('Add notes before asking AI to summarize them.');
   const input = `ISSUE\n${issueTitle || 'Not specified'}\n\nSOURCE NOTES\n${notes}`;
   // Summary generation uses the existing draft authorization bucket until AI log
   // operations can be migrated without interrupting deployed workspaces.
-  const payload = await generate({ workspaceId, issueId, provider, taskLevel, operation: 'draft', instructions: RUNNING_SUMMARY_SYSTEM_PROMPT, input, signal });
+  const payload = await generate({ workspaceId, issueId, provider, taskLevel, operation: 'draft', instructions: buildRunningSummarySystemPrompt(detail), input, signal });
   const text = String(payload.text || '').replace(/```(?:markdown|md)?/gi, '').trim();
   if (!text) throw new Error('Cloud AI returned no summary text.');
   return { text, model: `${payload.provider}: ${payload.model}`, stats: payload.usage || {} };

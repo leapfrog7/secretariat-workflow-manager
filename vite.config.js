@@ -57,6 +57,9 @@ function localOcrAssets() {
 export default defineConfig({
   base: process.env.GITHUB_ACTIONS ? '/secretariat-workflow-manager/' : '/',
   plugins: [react(), tailwindcss(), localOcrAssets()],
+  optimizeDeps: {
+    exclude: ['pdfjs-dist'],
+  },
   server: {
     watch: {
       ignored: ['**/.tmp/**'],

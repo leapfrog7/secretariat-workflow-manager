@@ -1,9 +1,10 @@
 import { DEFAULT_LOCAL_AI_SETTINGS } from '../constants/issueConstants.js';
 import { COMMUNICATION_TYPES } from '../utils/governmentDraftUtils.js';
 import { buildReportRefinementInput, normalizeReportRefinement, REPORT_REFINEMENT_SYSTEM_PROMPT } from '../utils/reportAIUtils.js';
+import { buildRunningSummarySystemPrompt, runningSummaryOutputTokens } from '../utils/runningSummaryAI.js';
 
 export { COMMUNICATION_TYPES };
-export const RUNNING_SUMMARY_SYSTEM_PROMPT = 'Convert the supplied official notes into a concise factual running summary for Government work. Preserve material dates, names, file or eReceipt numbers, decisions, directions, rule citations, deadlines, pending actions and responsibility. Remove repetition, drafting discussion and non-material detail. Never invent facts or resolve uncertainty. Use short paragraphs, bullets and Markdown tables only where a table makes dates, responsibilities or status clearer. Return only the summary in Markdown.';
+export { RUNNING_SUMMARY_SYSTEM_PROMPT } from '../utils/runningSummaryAI.js';
 
 export function normalizeLocalAISettings(input = {}) {
   return {
@@ -192,13 +193,13 @@ export async function testLMStudioModel(settings, { signal } = {}) {
   };
 }
 
-export async function summarizeLocalNotes({ settings, notes, issueTitle, signal }) {
+export async function summarizeLocalNotes({ settings, notes, issueTitle, detail = 'standard', signal }) {
   if (!notes?.trim()) throw new Error('Add notes before asking AI to summarize them.');
   const { payload, model } = await requestLocalChat({
     settings,
-    systemPrompt: RUNNING_SUMMARY_SYSTEM_PROMPT,
+    systemPrompt: buildRunningSummarySystemPrompt(detail),
     input: `ISSUE\n${issueTitle || 'Not specified'}\n\nSOURCE NOTES\n${notes}`,
-    maxOutputTokens: 1400,
+    maxOutputTokens: runningSummaryOutputTokens(detail),
     signal,
   });
   const text = (payload.output || [])

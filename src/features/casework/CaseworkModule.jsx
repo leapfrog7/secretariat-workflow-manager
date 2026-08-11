@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ArrowRight, FilePenLine, MessageSquareText } from 'lucide-react';
 import NotingPanel from '../noting/NotingPanel';
 import DraftingWorkspace from '../drafting/DraftingWorkspace';
@@ -32,6 +32,8 @@ export default function CaseworkModule({
     sourceNoteId: '',
     revision: 0,
   });
+  const reportNotesDirty = useCallback((dirty) => onDirtyChange?.('notes', dirty), [onDirtyChange]);
+  const reportDraftingDirty = useCallback((dirty) => onDirtyChange?.('drafting', dirty), [onDirtyChange]);
 
   useEffect(() => {
     setView(initialView);
@@ -100,7 +102,7 @@ export default function CaseworkModule({
           onSave={onSaveNote}
           onDelete={onDeleteNote}
           onCreateDraft={createDraftFromNote}
-          onDirtyChange={(dirty) => onDirtyChange?.('notes', dirty)}
+          onDirtyChange={reportNotesDirty}
           initialEditNoteId={initialNoteId}
         />
       </div>
@@ -122,7 +124,7 @@ export default function CaseworkModule({
             noteSelectionRevision={draftSeed.revision}
             readOnly={readOnly}
             onSaveCommunication={onSaveCommunication}
-            onDirtyChange={(dirty) => onDirtyChange?.('drafting', dirty)}
+            onDirtyChange={reportDraftingDirty}
             initialDraftId={initialDraftId}
           />
         </div>

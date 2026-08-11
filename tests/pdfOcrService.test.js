@@ -5,6 +5,7 @@ import {
   OCR_LANGUAGE_OPTIONS,
   mergeOcrWithSelectableText,
   ocrTextToMarkdown,
+  prepareOcrText,
 } from '../src/features/noting/pdf/pdfOcrService.js';
 import { resolvePdfWasmUrl } from '../src/features/noting/pdf/pdfAssetUtils.js';
 
@@ -21,8 +22,24 @@ test('OCR text becomes page-labelled, editable Markdown', () => {
 
   assert.equal(
     markdown,
-    '## Page 4 (OCR)\n\nGOVERNMENT OF INDIA\n\n1. The matter was examined.\n- Report may be called for.',
+    '## Page 4 (OCR)\n\n### GOVERNMENT OF INDIA\n\n1. The matter was examined.\n\n- Report may be called for.',
   );
+});
+
+test('OCR cleanup removes symbol noise while preserving official English and Hindi text', () => {
+  const prepared = prepareOcrText(
+    'GOVERNMENT OF INDIA\n\nF. No. A-12011/4/2026-Admn. � \ue000 ~~~ |||\nभारत सरकार\n\nThe amount is ₹5,000 and the report may be furnished.\nwithin seven days.',
+    7,
+  );
+
+  assert.match(prepared.markdown, /### GOVERNMENT OF INDIA/);
+  assert.match(prepared.markdown, /F\. No\. A-12011\/4\/2026-Admn\./);
+  assert.match(prepared.markdown, /भारत सरकार/);
+  assert.match(prepared.markdown, /₹5,000/);
+  assert.match(prepared.markdown, /report may be furnished\. within seven days\./);
+  assert.doesNotMatch(prepared.markdown, /[�\ue000~|]/u);
+  assert.ok(prepared.cleanup.removedCharacterCount >= 5);
+  assert.match(prepared.rawMarkdown, /~~~ \|\|\|/);
 });
 
 test('OCR does not create a page block when recognition returns no text', () => {

@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { BookOpen, CheckCircle2, LoaderCircle, Pencil, Plus, Save, Trash2, X } from 'lucide-react';
 import { formatDisplayDate } from '../../utils/dateUtils';
 import { normalizeReference, validateReference } from '../../utils/referenceUtils';
+import useDirtyStateReporter from '../../hooks/useDirtyStateReporter';
 
 export default function ReferenceTab({ issueId, references, readOnly = false, onSave, onDelete, onDirtyChange }) {
   const [form, setForm] = useState(null);
@@ -48,10 +49,7 @@ function ReferenceForm({ issueId, initialReference, onSave, onComplete, onCancel
     setReference((current) => ({ ...current, [field]: value }));
     setDirty(true);
   };
-  useEffect(() => {
-    onDirtyChange?.(dirty);
-    return () => onDirtyChange?.(false);
-  }, [dirty, onDirtyChange]);
+  useDirtyStateReporter(dirty, onDirtyChange);
   const submit = async (event) => {
     event.preventDefault();
     const nextErrors = validateReference(reference);

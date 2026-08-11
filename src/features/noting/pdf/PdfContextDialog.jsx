@@ -9,7 +9,7 @@ function markdownName(fileName) {
   return String(fileName || 'source.pdf').replace(/\.pdf$/i, '') + '.md';
 }
 
-export default function PdfContextDialog({ file, maxBytes, modeLabel, onAttach, onClose }) {
+export default function PdfContextDialog({ file, maxBytes, modeLabel, attachLabel = 'Use and prepare note', onAttach, onClose }) {
   const [status, setStatus] = useState('extracting');
   const [progress, setProgress] = useState({ pageNumber: 0, totalPages: 0 });
   const [result, setResult] = useState(null);
@@ -18,6 +18,7 @@ export default function PdfContextDialog({ file, maxBytes, modeLabel, onAttach, 
   const [ocrLanguage, setOcrLanguage] = useState('eng');
   const [selectingOcrPages, setSelectingOcrPages] = useState(false);
   const [content, setContent] = useState('');
+  const [showOriginalOcr, setShowOriginalOcr] = useState(false);
   const [error, setError] = useState('');
   const controllerRef = useRef(null);
 
@@ -54,10 +55,21 @@ export default function PdfContextDialog({ file, maxBytes, modeLabel, onAttach, 
     result.reconstruction?.headingCount > 0 && `${result.reconstruction.headingCount} heading${result.reconstruction.headingCount === 1 ? '' : 's'} recognized`,
     result.reconstruction?.tableCount > 0 && `${result.reconstruction.tableCount} table${result.reconstruction.tableCount === 1 ? '' : 's'} reconstructed`,
   ].filter(Boolean) : [];
+  const ocrCleanup = result?.pages.reduce((summary, page) => ({
+    pageCount: summary.pageCount + (page.cleanup ? 1 : 0),
+    removedCharacterCount: summary.removedCharacterCount + (page.cleanup?.removedCharacterCount || 0),
+    paragraphCount: summary.paragraphCount + (page.cleanup?.paragraphCount || 0),
+    headingCount: summary.headingCount + (page.cleanup?.headingCount || 0),
+    listItemCount: summary.listItemCount + (page.cleanup?.listItemCount || 0),
+  }), { pageCount: 0, removedCharacterCount: 0, paragraphCount: 0, headingCount: 0, listItemCount: 0 }) || null;
+
+  const previewPages = (pages, original = showOriginalOcr) => pages.map((page) => (
+    original && page.rawMarkdown ? { ...page, markdown: page.rawMarkdown } : page
+  ));
 
   const updateSelection = (next) => {
     setSelectedPages(next);
-    setContent(composePdfMarkdown(result.pages, next));
+    setContent(composePdfMarkdown(previewPages(result.pages), next));
   };
 
   const togglePage = (pageNumber, checked) => {
@@ -102,7 +114,13 @@ export default function PdfContextDialog({ file, maxBytes, modeLabel, onAttach, 
       const pages = result.pages.map((page) => {
         const recognizedPage = recognizedByPage.get(page.pageNumber);
         return recognizedPage?.markdown
-          ? { ...page, ...recognizedPage, markdown: mergeOcrWithSelectableText(page.markdown, recognizedPage.markdown), ocrConfidence: recognizedPage.confidence }
+          ? {
+            ...page,
+            ...recognizedPage,
+            markdown: mergeOcrWithSelectableText(page.markdown, recognizedPage.markdown),
+            rawMarkdown: mergeOcrWithSelectableText(page.markdown, recognizedPage.rawMarkdown),
+            ocrConfidence: recognizedPage.confidence,
+          }
           : page;
       });
       const emptyPageNumbers = pages
@@ -117,6 +135,7 @@ export default function PdfContextDialog({ file, maxBytes, modeLabel, onAttach, 
       const nextSelectedPages = new Set([...selectedPages, ...successfulPages]);
       const nextResult = { ...result, pages, emptyPageNumbers, ocrCandidatePageNumbers, needsOcr: ocrCandidatePageNumbers.length > 0, fullyScanned: emptyPageNumbers.length === pages.length };
       setResult(nextResult);
+      setShowOriginalOcr(false);
       setSelectedPages(nextSelectedPages);
       setOcrSelection(new Set(ocrCandidatePageNumbers.slice(0, MAX_OCR_PAGES_PER_RUN)));
       setSelectingOcrPages(false);
@@ -141,7 +160,7 @@ export default function PdfContextDialog({ file, maxBytes, modeLabel, onAttach, 
             <div className="flex items-center gap-2"><ScanText className="h-5 w-5 shrink-0 text-cyan-700" /><h3 id="pdf-context-title" className="text-base font-semibold text-[#17333b]">Extract PDF text</h3></div>
             <p className="mt-1 truncate text-xs text-slate-500">{file.name}</p>
           </div>
-          <button type="button" data-autofocus onClick={close} title="Close" aria-label="Close PDF import" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100"><X className="h-4 w-4" /></button>
+          <button type="button" data-autofocus onClick={close} title="Close" aria-label="Close PDF import" className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100"><X className="h-4 w-4" /></button>
         </header>
 
         {status === 'extracting' && (
@@ -151,7 +170,7 @@ export default function PdfContextDialog({ file, maxBytes, modeLabel, onAttach, 
             <p className="mt-1 text-xs text-slate-500">{progress.phase === 'reconstructing' ? 'Removing repeated page text and rebuilding headings and tables...' : progress.totalPages ? `Reading page ${progress.pageNumber} of ${progress.totalPages}` : 'Opening PDF...'}</p>
             {progress.totalPages > 0 && <div className="mt-4 h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-slate-200"><div className="h-full bg-cyan-600 transition-[width]" style={{ width: `${Math.round((progress.pageNumber / progress.totalPages) * 100)}%` }} /></div>}
             <p className="mt-5 max-w-md text-xs leading-5 text-slate-500">The PDF is processed in memory and is not uploaded or saved.</p>
-            <button type="button" onClick={close} className="mt-5 inline-flex h-9 items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 text-xs font-semibold text-red-700 hover:bg-red-100"><Square className="h-3.5 w-3.5" />Cancel extraction</button>
+            <button type="button" onClick={close} className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 text-xs font-semibold text-red-700 hover:bg-red-100"><Square className="h-3.5 w-3.5" />Cancel extraction</button>
           </div>
         )}
 
@@ -162,7 +181,7 @@ export default function PdfContextDialog({ file, maxBytes, modeLabel, onAttach, 
             <p className="mt-1 text-xs text-slate-500">{progress.phase === 'loading-engine' ? 'Preparing the OCR language files...' : progress.pageNumber ? `Reading page ${progress.pageNumber} (${progress.pageIndex || 1} of ${progress.totalPages})` : 'Preparing scanned pages...'}</p>
             <div className="mt-4 h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-slate-200"><div className="h-full bg-cyan-600 transition-[width]" style={{ width: `${Math.max(4, Math.round((((progress.pageIndex || 1) - 1 + (progress.progress || 0)) / Math.max(1, progress.totalPages)) * 100))}%` }} /></div>
             <p className="mt-3 max-w-md text-xs leading-5 text-slate-500">The first run may take longer while the selected language is prepared. It is cached by the browser for later use.</p>
-            <button type="button" onClick={() => controllerRef.current?.abort()} className="mt-5 inline-flex h-9 items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 text-xs font-semibold text-red-700 hover:bg-red-100"><Square className="h-3.5 w-3.5" />Cancel OCR</button>
+            <button type="button" onClick={() => controllerRef.current?.abort()} className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 text-xs font-semibold text-red-700 hover:bg-red-100"><Square className="h-3.5 w-3.5" />Cancel OCR</button>
           </div>
         )}
 
@@ -171,7 +190,7 @@ export default function PdfContextDialog({ file, maxBytes, modeLabel, onAttach, 
             <ScanText className="h-8 w-8 text-slate-300" />
             <p className="mt-4 max-w-lg text-sm font-semibold text-red-800">{error}</p>
             <p className="mt-2 max-w-lg text-xs leading-5 text-slate-500">The file could not be read as a text or scanned PDF. The original file has not been stored.</p>
-            <button type="button" onClick={close} className="mt-5 h-9 rounded-md border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-700 hover:bg-slate-50">Close</button>
+            <button type="button" onClick={close} className="mt-5 min-h-11 rounded-md border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-700 hover:bg-slate-50">Close</button>
           </div>
         )}
 
@@ -186,13 +205,14 @@ export default function PdfContextDialog({ file, maxBytes, modeLabel, onAttach, 
                       const ocrCandidate = result.ocrCandidatePageNumbers.includes(page.pageNumber);
                       const choosingOcr = selectingOcrPages || ocrCandidate;
                       const checked = choosingOcr ? ocrSelection.has(page.pageNumber) : selectedPages.has(page.pageNumber);
-                      return <label key={page.pageNumber} title={choosingOcr ? `Select page ${page.pageNumber} for OCR` : `Include page ${page.pageNumber}`} className={`flex min-h-10 cursor-pointer items-center justify-center gap-1 rounded border text-xs ${choosingOcr ? checked ? 'border-amber-400 bg-amber-50 font-semibold text-amber-950' : 'border-amber-200 bg-white text-amber-800 hover:bg-amber-50' : checked ? 'border-cyan-300 bg-cyan-50 font-semibold text-cyan-900' : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-100'}`}><input type="checkbox" className="sr-only" checked={checked} onChange={(event) => choosingOcr ? toggleOcrPage(page.pageNumber, event.target.checked) : togglePage(page.pageNumber, event.target.checked)} />{checked && (choosingOcr ? <ScanText className="h-3 w-3" /> : <Check className="h-3 w-3" />)}{page.pageNumber}</label>;
+                      return <label key={page.pageNumber} title={choosingOcr ? `Select page ${page.pageNumber} for OCR` : `Include page ${page.pageNumber}`} className={`flex min-h-11 cursor-pointer items-center justify-center gap-1 rounded border text-xs ${choosingOcr ? checked ? 'border-amber-400 bg-amber-50 font-semibold text-amber-950' : 'border-amber-200 bg-white text-amber-800 hover:bg-amber-50' : checked ? 'border-cyan-300 bg-cyan-50 font-semibold text-cyan-900' : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-100'}`}><input type="checkbox" className="sr-only" checked={checked} onChange={(event) => choosingOcr ? toggleOcrPage(page.pageNumber, event.target.checked) : togglePage(page.pageNumber, event.target.checked)} />{checked && (choosingOcr ? <ScanText className="h-3 w-3" /> : <Check className="h-3 w-3" />)}{page.pageNumber}</label>;
                     })}
                   </div>
                   {!selectingOcrPages && <div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={() => updateSelection(new Set(result.pages.filter((page) => !result.emptyPageNumbers.includes(page.pageNumber)).map((page) => page.pageNumber)))} className="text-xs font-semibold text-cyan-800 hover:underline">Select text pages</button><span className="text-slate-300">|</span><button type="button" onClick={() => updateSelection(new Set())} className="text-xs font-semibold text-slate-600 hover:underline">Clear</button><span className="text-slate-300">|</span><button type="button" onClick={() => { setSelectingOcrPages(true); setError(''); }} className="text-xs font-semibold text-amber-800 hover:underline">Choose pages for OCR</button></div>}
-                  {(result.ocrCandidatePageNumbers.length > 0 || selectingOcrPages) && <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2.5"><p className="text-xs font-semibold text-amber-950">{result.ocrCandidatePageNumbers.length > 0 ? 'Scanned or image-based pages detected' : 'Read selected pages with OCR'}</p><p className="mt-1 text-xs leading-5 text-amber-900">{selectingOcrPages ? 'Select any page numbers above whose image text is missing from the preview.' : 'Sparse selectable text may be only a file number or header. Amber pages will be read in full.'}</p><label className="mt-2 block"><span className="mb-1 block text-[11px] font-semibold text-amber-950">Document language</span><select value={ocrLanguage} onChange={(event) => setOcrLanguage(event.target.value)} className="h-9 w-full rounded-md border border-amber-300 bg-white px-2 text-xs text-slate-700">{OCR_LANGUAGE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><button type="button" disabled={!ocrSelection.size} onClick={runOcr} className="mt-2 inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-md bg-amber-700 px-3 text-xs font-semibold text-white hover:bg-amber-800 disabled:cursor-not-allowed disabled:bg-slate-300"><ScanText className="h-4 w-4" />Read {ocrSelection.size || ''} page{ocrSelection.size === 1 ? '' : 's'} with OCR</button>{selectingOcrPages && <button type="button" onClick={() => setSelectingOcrPages(false)} className="mt-2 w-full text-xs font-semibold text-amber-900 hover:underline">Back to page inclusion</button>}{result.ocrCandidatePageNumbers.length > MAX_OCR_PAGES_PER_RUN && <p className="mt-2 text-[11px] leading-4 text-amber-800">For device stability, OCR is limited to {MAX_OCR_PAGES_PER_RUN} pages per run. Remaining pages can be read in another batch.</p>}</div>}
+                  {(result.ocrCandidatePageNumbers.length > 0 || selectingOcrPages) && <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2.5"><p className="text-xs font-semibold text-amber-950">{result.ocrCandidatePageNumbers.length > 0 ? 'Scanned or image-based pages detected' : 'Read selected pages with OCR'}</p><p className="mt-1 text-xs leading-5 text-amber-900">{selectingOcrPages ? 'Select any page numbers above whose image text is missing from the preview.' : 'Sparse selectable text may be only a file number or header. Amber pages will be read in full.'}</p><label className="mt-2 block"><span className="mb-1 block text-[11px] font-semibold text-amber-950">Document language</span><select value={ocrLanguage} onChange={(event) => setOcrLanguage(event.target.value)} className="min-h-11 w-full rounded-md border border-amber-300 bg-white px-2 text-xs text-slate-700">{OCR_LANGUAGE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><button type="button" disabled={!ocrSelection.size} onClick={runOcr} className="mt-2 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-amber-700 px-3 text-xs font-semibold text-white hover:bg-amber-800 disabled:cursor-not-allowed disabled:bg-slate-300"><ScanText className="h-4 w-4" />Read {ocrSelection.size || ''} page{ocrSelection.size === 1 ? '' : 's'} with OCR</button>{selectingOcrPages && <button type="button" onClick={() => setSelectingOcrPages(false)} className="mt-2 min-h-11 w-full text-xs font-semibold text-amber-900 hover:underline">Back to page inclusion</button>}{result.ocrCandidatePageNumbers.length > MAX_OCR_PAGES_PER_RUN && <p className="mt-2 text-[11px] leading-4 text-amber-800">For device stability, OCR is limited to {MAX_OCR_PAGES_PER_RUN} pages per run. Remaining pages can be read in another batch.</p>}</div>}
                   {lowConfidencePages.length > 0 && <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs leading-5 text-amber-900">Review OCR wording carefully on page{lowConfidencePages.length === 1 ? '' : 's'} {lowConfidencePages.join(', ')}, where recognition confidence was lower.</p>}
                   {reconstructionItems.length > 0 && <div className="mt-3 rounded-md border border-cyan-200 bg-cyan-50 px-2.5 py-2"><p className="text-xs font-semibold text-cyan-950">Layout cleanup complete</p><ul className="mt-1 space-y-0.5 text-xs leading-5 text-cyan-900">{reconstructionItems.map((item) => <li key={item}>{item}</li>)}</ul></div>}
+                  {ocrCleanup?.pageCount > 0 && <div className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-2.5"><p className="text-xs font-semibold text-emerald-950">OCR cleanup applied</p><p className="mt-1 text-xs leading-5 text-emerald-900">{ocrCleanup.removedCharacterCount} noise character{ocrCleanup.removedCharacterCount === 1 ? '' : 's'} removed · {ocrCleanup.paragraphCount} paragraph{ocrCleanup.paragraphCount === 1 ? '' : 's'} · {ocrCleanup.headingCount} heading{ocrCleanup.headingCount === 1 ? '' : 's'} · {ocrCleanup.listItemCount} numbered or bullet item{ocrCleanup.listItemCount === 1 ? '' : 's'}</p><button type="button" onClick={() => { const next = !showOriginalOcr; setShowOriginalOcr(next); setContent(composePdfMarkdown(previewPages(result.pages, next), selectedPages)); }} className="mt-2 min-h-11 w-full rounded-md border border-emerald-300 bg-white px-3 text-xs font-semibold text-emerald-900 hover:bg-emerald-100">{showOriginalOcr ? 'Restore cleaned OCR' : 'Show original OCR'}</button><p className="mt-1 text-[11px] leading-4 text-emerald-800">Switching versions rebuilds the preview and replaces manual corrections made there.</p></div>}
                   <p className="mt-3 text-xs leading-5 text-slate-500">Changing page selection rebuilds the preview. Select pages before making manual corrections.</p>
                 </aside>
                 <div className="min-w-0 p-4 sm:p-5">
@@ -203,9 +223,9 @@ export default function PdfContextDialog({ file, maxBytes, modeLabel, onAttach, 
                 </div>
               </div>
             </div>
-            <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+            <footer className="sticky bottom-0 z-10 flex shrink-0 flex-col-reverse gap-2 border-t border-slate-200 bg-white px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:flex-row sm:items-center sm:justify-between sm:px-5">
               <p className="flex items-center gap-2 text-xs text-slate-500"><FileText className="h-4 w-4 text-cyan-700" />Only this reviewed text will be available to AI.</p>
-              <div className="grid grid-cols-2 gap-2"><button type="button" onClick={close} className="h-10 rounded-md border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-700 hover:bg-slate-50">Cancel</button><button type="button" disabled={!content.trim() || overLimit} onClick={() => onAttach({ name: markdownName(file.name), originalName: file.name, sourceType: 'pdf', content, size: extractedBytes, pageCount: selectedPages.size })} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-cyan-700 px-4 text-xs font-semibold text-white hover:bg-cyan-800 disabled:cursor-not-allowed disabled:bg-slate-300"><Check className="h-4 w-4" />Use as context</button></div>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2"><button type="button" onClick={close} className="min-h-11 rounded-md border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-700 hover:bg-slate-50">Cancel</button><button type="button" disabled={!content.trim() || overLimit} onClick={() => onAttach({ name: markdownName(file.name), originalName: file.name, sourceType: 'pdf', content, size: extractedBytes, pageCount: selectedPages.size })} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-cyan-700 px-4 text-xs font-semibold text-white hover:bg-cyan-800 disabled:cursor-not-allowed disabled:bg-slate-300"><Check className="h-4 w-4" />{attachLabel}</button></div>
             </footer>
           </>
         )}

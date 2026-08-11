@@ -10,24 +10,120 @@ export const OCR_LANGUAGE_OPTIONS = [
   { value: 'eng+hin', label: 'English and Hindi', languages: ['eng', 'hin'] },
 ];
 
-function normalizeOcrLine(value) {
+const OFFICIAL_PUNCTUATION = new Set(`.,;:!?"'()[]{}\/-–—%&@#₹$€£§+*=`);
+
+function normalizeRawOcrLine(value) {
   return String(value || '')
+    .normalize('NFC')
+    .replace(/[\u00a0\u2007\u202f]/g, ' ')
     .replace(/^[\u2022\u25cf\u25e6\u25aa\uf0b7]\s*/, '- ')
     .replace(/^(\d+)[.)]\s+/, '$1. ')
     .replace(/[ \t]+/g, ' ')
     .trim();
 }
 
-export function ocrTextToMarkdown(text, pageNumber) {
-  const body = String(text || '')
+function rawOcrLines(text) {
+  return String(text || '')
     .replace(/\u0000/g, '')
     .replace(/\r\n?/g, '\n')
     .split('\n')
-    .map(normalizeOcrLine)
-    .join('\n')
-    .replace(/\n{3,}/g, '\n\n')
+    .map(normalizeRawOcrLine);
+}
+
+function sanitizeOcrLine(value) {
+  const originalCharacterCount = [...value].length;
+  const normalized = value
+    .replace(/[\u200b-\u200f\u202a-\u202e\u2060\ufeff\ufffd]/g, '')
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .replace(/[‐‑‒]/g, '-')
+    .replace(/[~^`_=<>¦¬|\\]{2,}/g, ' ')
+    .replace(/([!?,.;:])\1{2,}/g, '$1');
+  let cleaned = '';
+  let removedCharacters = 0;
+  for (const character of normalized) {
+    if (/^[\p{L}\p{N}\p{M}\s]$/u.test(character) || OFFICIAL_PUNCTUATION.has(character)) cleaned += character;
+    else removedCharacters += 1;
+  }
+  cleaned = cleaned
+    .replace(/(^|\s)[~^`_=<>¦¬|\\]+(?=\s|$)/g, ' ')
+    .replace(/[ \t]+/g, ' ')
     .trim();
-  return body ? `## Page ${pageNumber} (OCR)\n\n${body}` : '';
+  if (cleaned && !/[\p{L}\p{N}]/u.test(cleaned) && cleaned !== '-') {
+    removedCharacters += cleaned.length;
+    cleaned = '';
+  }
+  removedCharacters = Math.max(removedCharacters, originalCharacterCount - [...cleaned].length);
+  return { text: cleaned, removedCharacters };
+}
+
+function looksLikeHeading(text) {
+  if (text.length < 4 || text.length > 90 || /^(- |\d+\. |\([a-z0-9ivx]+\)\s+)/i.test(text)) return false;
+  const letters = [...text].filter((character) => /\p{L}/u.test(character));
+  const casedLetters = letters.filter((character) => character.toLowerCase() !== character.toUpperCase());
+  if (!casedLetters.length) return false;
+  const uppercase = casedLetters.filter((character) => character === character.toUpperCase()).length / casedLetters.length;
+  return uppercase >= 0.85 && !/[.;]$/.test(text);
+}
+
+function structureOcrLines(lines) {
+  const blocks = [];
+  let paragraph = '';
+  let paragraphCount = 0;
+  let headingCount = 0;
+  let listItemCount = 0;
+  const flushParagraph = () => {
+    if (!paragraph) return;
+    blocks.push(paragraph);
+    paragraphCount += 1;
+    paragraph = '';
+  };
+  lines.forEach((line) => {
+    if (!line) {
+      flushParagraph();
+      return;
+    }
+    if (looksLikeHeading(line)) {
+      flushParagraph();
+      blocks.push(`### ${line}`);
+      headingCount += 1;
+      return;
+    }
+    if (/^(- |\d+\. |\([a-z0-9ivx]+\)\s+)/i.test(line)) {
+      flushParagraph();
+      blocks.push(line);
+      listItemCount += 1;
+      return;
+    }
+    paragraph = paragraph.endsWith('-')
+      ? `${paragraph.slice(0, -1)}${line}`
+      : `${paragraph}${paragraph ? ' ' : ''}${line}`;
+    if (paragraph.length >= 650 && /[.!?:;]$/.test(paragraph)) flushParagraph();
+  });
+  flushParagraph();
+  return { markdown: blocks.join('\n\n'), paragraphCount, headingCount, listItemCount };
+}
+
+export function prepareOcrText(text, pageNumber) {
+  const rawLines = rawOcrLines(text);
+  const sanitized = rawLines.map(sanitizeOcrLine);
+  const structured = structureOcrLines(sanitized.map((line) => line.text));
+  const rawBody = rawLines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  const heading = `## Page ${pageNumber} (OCR)`;
+  return {
+    markdown: structured.markdown ? `${heading}\n\n${structured.markdown}` : '',
+    rawMarkdown: rawBody ? `${heading}\n\n${rawBody}` : '',
+    cleanup: {
+      removedCharacterCount: sanitized.reduce((total, line) => total + line.removedCharacters, 0),
+      paragraphCount: structured.paragraphCount,
+      headingCount: structured.headingCount,
+      listItemCount: structured.listItemCount,
+    },
+  };
+}
+
+export function ocrTextToMarkdown(text, pageNumber) {
+  return prepareOcrText(text, pageNumber).markdown;
 }
 
 function pageBody(markdown) {
@@ -139,11 +235,13 @@ export async function recognizePdfPages(file, pageNumbers, {
       context.fillRect(0, 0, canvas.width, canvas.height);
       await page.render({ canvasContext: context, viewport }).promise;
       const recognition = await worker.recognize(canvas);
-      const markdown = ocrTextToMarkdown(recognition.data?.text, currentPage);
+      const prepared = prepareOcrText(recognition.data?.text, currentPage);
       pages.push({
         pageNumber: currentPage,
-        markdown,
-        characterCount: markdown.length,
+        markdown: prepared.markdown,
+        rawMarkdown: prepared.rawMarkdown,
+        cleanup: prepared.cleanup,
+        characterCount: prepared.markdown.length,
         confidence: Number(recognition.data?.confidence) || 0,
       });
       canvas.width = 1;

@@ -13,6 +13,7 @@ import ConfirmDialog from '../../components/common/ConfirmDialog';
 import AIModeControl from '../../components/ai/AIModeControl';
 import AdaptiveSelect from '../../components/common/AdaptiveSelect';
 import ModalFrame from '../../components/common/ModalFrame';
+import useDirtyStateReporter from '../../hooks/useDirtyStateReporter';
 import { handleTabListKeyDown } from '../../utils/tabKeyboardUtils';
 import {
   changeDraftDocumentTemplate,
@@ -157,11 +158,8 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
     return () => window.removeEventListener('beforeunload', warnBeforeUnload);
   }, [workingCopy]);
 
-  useEffect(() => {
-    const dirty = hasUnsavedWorkingCopy(workingCopy);
-    onDirtyChange?.(dirty);
-    return () => onDirtyChange?.(false);
-  }, [onDirtyChange, workingCopy]);
+  const workingCopyDirty = hasUnsavedWorkingCopy(workingCopy);
+  useDirtyStateReporter(workingCopyDirty, onDirtyChange);
 
   useEffect(() => {
     let active = true;

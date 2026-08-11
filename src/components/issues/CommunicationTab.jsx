@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { CheckCircle2, FileText, LoaderCircle, MessageSquarePlus, Pencil, Save, Trash2, X } from 'lucide-react';
 import { COMMUNICATION_TYPES, normalizeCommunication, validateCommunication } from '../../utils/communicationUtils';
 import { formatDisplayDate } from '../../utils/dateUtils';
 import AdaptiveSelect from '../common/AdaptiveSelect';
+import useDirtyStateReporter from '../../hooks/useDirtyStateReporter';
 
 export default function CommunicationTab({ issueId, communications, readOnly = false, onSave, onDelete, onDirtyChange }) {
   const [form, setForm] = useState(null);
@@ -77,10 +78,7 @@ function CommunicationForm({ issueId, initialCommunication, onSave, onComplete, 
     setDirty(true);
   };
 
-  useEffect(() => {
-    onDirtyChange?.(dirty);
-    return () => onDirtyChange?.(false);
-  }, [dirty, onDirtyChange]);
+  useDirtyStateReporter(dirty, onDirtyChange);
 
   const submit = async (event) => {
     event.preventDefault();

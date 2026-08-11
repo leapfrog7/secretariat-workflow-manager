@@ -29,6 +29,7 @@ import { useAuth } from '../auth/AuthContext';
 import AIModeControl from '../../components/ai/AIModeControl';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import ModalFrame from '../../components/common/ModalFrame';
+import useDirtyStateReporter from '../../hooks/useDirtyStateReporter';
 import { createDraftAIProvider } from '../drafting/ai/draftAIProviders';
 import { buildAIContext } from '../../utils/aiContextUtils';
 import { generateExaminationMap, generateOrRefineNote, noteModeTaskLevel, NOTE_ANALYTICAL_EMPHASES, NOTE_LENGTHS, NOTE_MODES, NOTE_PURPOSES, NOTE_STRUCTURES, rewriteNoteSelection } from './noteAI';
@@ -182,10 +183,7 @@ function NoteForm({ issueId, issue, summary, note, communications, references, a
       document.removeEventListener('keydown', closeMenu);
     };
   }, [aiMenuOpen]);
-  useEffect(() => {
-    onDirtyChange?.(dirty);
-    return () => onDirtyChange?.(false);
-  }, [dirty, onDirtyChange]);
+  useDirtyStateReporter(dirty, onDirtyChange);
   const updateRichText = (richText) => {
     setForm((current) => ({
       ...current,
@@ -443,10 +441,20 @@ function NoteForm({ issueId, issue, summary, note, communications, references, a
     setAIDialogOpen(true);
   };
 
-  const readSourceDocument = async (event) => {
+  const readSourceFile = async (event) => {
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
+    const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
+    if (isPdf) {
+      if (file.size > MAX_PDF_BYTES) {
+        setError('Keep the PDF below 20 MB.');
+        return;
+      }
+      setError('');
+      setPdfFile(file);
+      return;
+    }
     setSourceDocumentBusy(true);
     setError('');
     try {
@@ -461,27 +469,13 @@ function NoteForm({ issueId, issue, summary, note, communications, references, a
       }
       setMarkdownContext(contextFile);
       setError('');
+      setAIAction('prepare');
+      setAIDialogOpen(true);
     } catch (sourceError) {
       setError(sourceError.message || 'Unable to read this Word or text file.');
     } finally {
       setSourceDocumentBusy(false);
     }
-  };
-
-  const readPdf = (event) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) return;
-    if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
-      setError('Choose a PDF file ending in .pdf.');
-      return;
-    }
-    if (file.size > MAX_PDF_BYTES) {
-      setError('Keep the PDF below 20 MB.');
-      return;
-    }
-    setError('');
-    setPdfFile(file);
   };
 
   const currentAIAction = NOTE_AI_ACTIONS.find((action) => action.value === aiAction) || NOTE_AI_ACTIONS[0];
@@ -491,9 +485,7 @@ function NoteForm({ issueId, issue, summary, note, communications, references, a
     ? 'AI is rewriting the selected passage'
     : aiStatus.status === 'refining' ? 'AI is refining the note' : 'AI is preparing the note';
   const linkedSourceCount = form.linkedCommunicationIds.length + form.linkedReferenceIds.length;
-  const activeSourceCount = linkedSourceCount
-    + (includeRunningSummary && summary?.content ? 1 : 0)
-    + (markdownContext ? 1 : 0);
+  const additionalIssueSourceCount = linkedSourceCount + (includeRunningSummary && summary?.content ? 1 : 0);
   const sourceSummary = [
     includeRunningSummary && summary?.content ? 'running summary' : '',
     linkedSourceCount ? `${linkedSourceCount} linked record${linkedSourceCount === 1 ? '' : 's'}` : '',
@@ -516,11 +508,11 @@ function NoteForm({ issueId, issue, summary, note, communications, references, a
         <p className="mt-1 text-xs leading-5 text-slate-500">Record concise facts, examination and the proposed course of action. Saving an edit retains the earlier version.</p>
       </div>
       <div className="space-y-3 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs leading-5 text-slate-500">
             Record the facts, examination and proposed course of action.
           </p>
-          <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:justify-end">
           <button
             type="button"
             onPointerDown={() => {
@@ -537,17 +529,17 @@ function NoteForm({ issueId, issue, summary, note, communications, references, a
             onClick={() => rewriteSelection()}
             disabled={!aiConfig || aiBusy || saveStatus !== 'idle'}
             title={selectedWordCount ? `Rewrite the selected ${selectedWordCount} words with AI` : 'Select text in the note before using AI rewrite'}
-            className="inline-flex h-9 items-center gap-2 rounded-md border border-indigo-200 bg-white px-3 text-xs font-semibold text-indigo-800 hover:bg-indigo-50 disabled:opacity-50"
+            className="inline-flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-md border border-indigo-200 bg-white px-2 text-[11px] font-semibold text-indigo-800 hover:bg-indigo-50 disabled:opacity-50 sm:gap-2 sm:px-3 sm:text-xs"
           >
             {aiStatus.status === 'rewriting-selection' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
             {aiStatus.status === 'rewriting-selection' ? 'Rewriting...' : 'Rewrite selection'}
           </button>
-          <div ref={aiMenuRef} className="relative inline-flex">
+          <div ref={aiMenuRef} className="relative inline-flex min-w-0">
             <button
               type="button"
               onClick={() => openAIAssistance()}
               disabled={!aiConfig || aiBusy || saveStatus !== 'idle'}
-              className="inline-flex h-9 items-center gap-2 rounded-l-md border border-r-0 border-cyan-200 bg-cyan-50 px-3 text-xs font-semibold text-cyan-900 hover:bg-cyan-100 disabled:opacity-50"
+              className="inline-flex min-h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-l-md border border-r-0 border-cyan-200 bg-cyan-50 px-2 text-[11px] font-semibold text-cyan-900 hover:bg-cyan-100 disabled:opacity-50 sm:gap-2 sm:px-3 sm:text-xs"
             >
               {aiBusy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
               {aiBusy ? 'AI is working...' : 'Help me write'}
@@ -559,7 +551,7 @@ function NoteForm({ issueId, issue, summary, note, communications, references, a
               aria-expanded={aiMenuOpen}
               onClick={() => setAIMenuOpen((open) => !open)}
               disabled={!aiConfig || aiBusy || saveStatus !== 'idle'}
-              className="inline-flex h-9 w-9 items-center justify-center rounded-r-md border border-cyan-200 bg-cyan-50 text-cyan-900 hover:bg-cyan-100 disabled:opacity-50"
+              className="inline-flex min-h-11 w-11 items-center justify-center rounded-r-md border border-cyan-200 bg-cyan-50 text-cyan-900 hover:bg-cyan-100 disabled:opacity-50"
             >
               <ChevronDown className="h-4 w-4" />
             </button>
@@ -587,6 +579,26 @@ function NoteForm({ issueId, issue, summary, note, communications, references, a
           </div>
           </div>
         </div>
+        <div className={`rounded-md border p-3 sm:p-4 ${markdownContext ? 'border-cyan-200 bg-cyan-50/60' : 'border-indigo-200 bg-gradient-to-r from-indigo-50 to-cyan-50'}`}>
+          {markdownContext ? (
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex min-w-0 items-start gap-3">
+                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-white text-cyan-800 shadow-sm"><FileText className="h-5 w-5" /></span>
+                <div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-wide text-cyan-800">Document ready for AI</p><p className="mt-0.5 truncate text-sm font-semibold text-slate-900">{markdownContext.originalName || markdownContext.name}</p><p className="mt-1 text-xs leading-5 text-slate-600">{markdownContext.sourceType === 'pdf' ? `${markdownContext.pageCount} selected page${markdownContext.pageCount === 1 ? '' : 's'} · ` : ''}{Math.max(1, Math.ceil(markdownContext.size / 1024))} KB · approximately {Math.max(1, Math.ceil(markdownContext.content.length / 4)).toLocaleString()} input tokens</p></div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap lg:justify-end">
+                <label className={`inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-md border border-cyan-200 bg-white px-3 text-xs font-semibold text-cyan-900 hover:bg-cyan-50 ${sourceDocumentBusy || aiBusy ? 'pointer-events-none opacity-60' : ''}`}><Upload className="h-4 w-4" />Replace<input type="file" accept=".pdf,.doc,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown" disabled={sourceDocumentBusy || aiBusy} onChange={readSourceFile} className="sr-only" /></label>
+                <button type="button" onClick={() => { setMarkdownContext(null); setError(''); }} disabled={aiBusy} className="min-h-11 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">Remove</button>
+                <button type="button" onClick={() => openAIAssistance('prepare')} disabled={!aiConfig || aiBusy} className="col-span-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-cyan-700 px-4 text-sm font-semibold text-white hover:bg-cyan-800 disabled:opacity-50 sm:col-auto"><Sparkles className="h-4 w-4" />Prepare note from document</button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex min-w-0 items-start gap-3"><span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-white text-indigo-800 shadow-sm"><FileType2 className="h-5 w-5" /></span><div><p className="text-sm font-semibold text-indigo-950">Start from a source document</p><p className="mt-1 text-xs leading-5 text-slate-600">Attach a PDF, Word or text file, then let AI prepare an editable note. Scanned PDFs can be read with OCR.</p></div></div>
+              <label className={`inline-flex min-h-11 w-full shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md bg-indigo-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-indigo-800 sm:w-auto ${sourceDocumentBusy || aiBusy ? 'pointer-events-none opacity-60' : ''}`}>{sourceDocumentBusy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}{sourceDocumentBusy ? 'Reading document…' : 'Attach document'}<input type="file" accept=".pdf,.doc,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown" disabled={sourceDocumentBusy || aiBusy} onChange={readSourceFile} className="sr-only" /></label>
+            </div>
+          )}
+        </div>
         <Suspense fallback={<div className="min-h-52 animate-pulse rounded-md bg-slate-100" />}>
           <NoteEditor ref={noteEditorRef} value={form.richText} onChange={updateRichText} onSelectionChange={setNoteSelection} />
         </Suspense>
@@ -611,8 +623,8 @@ function NoteForm({ issueId, issue, summary, note, communications, references, a
             <span className="flex min-w-0 items-center gap-2">
               <Paperclip className="h-4 w-4 shrink-0 text-indigo-700" />
               <span>
-                <span className="block text-sm font-semibold text-indigo-950">Source material</span>
-                <span className="block truncate text-[11px] text-slate-500">{activeSourceCount ? `${activeSourceCount} source${activeSourceCount === 1 ? '' : 's'} selected for AI` : 'Add Issue records or a document when needed'}</span>
+                <span className="block text-sm font-semibold text-indigo-950">Additional Issue sources</span>
+                <span className="block truncate text-[11px] text-slate-500">{additionalIssueSourceCount ? `${additionalIssueSourceCount} Issue source${additionalIssueSourceCount === 1 ? '' : 's'} selected for AI` : 'Optionally add the running summary or linked records'}</span>
               </span>
             </span>
             <ChevronDown className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${sourceMaterialOpen ? 'rotate-180' : ''}`} />
@@ -639,17 +651,6 @@ function NoteForm({ issueId, issue, summary, note, communications, references, a
               <LinkedMaterial title="Link communications" items={communications} type="communication" selectedIds={form.linkedCommunicationIds} onChange={(ids) => { setForm((current) => ({ ...current, linkedCommunicationIds: ids })); setDirty(true); }} />
               <LinkedMaterial title="Link references" items={references} type="reference" selectedIds={form.linkedReferenceIds} onChange={(ids) => { setForm((current) => ({ ...current, linkedReferenceIds: ids })); setDirty(true); }} />
             </div>
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div><p className="text-xs font-semibold text-slate-700">Attach a source document</p><p className="mt-0.5 text-[11px] text-slate-500">Used for this AI request only. The file is not stored.</p></div>
-                <div className="flex flex-wrap gap-2">
-                  <label className={`inline-flex h-9 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 ${sourceDocumentBusy ? 'cursor-wait opacity-70' : 'cursor-pointer hover:bg-slate-50'}`}>{sourceDocumentBusy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}{sourceDocumentBusy ? 'Reading...' : 'Word or text'}<input type="file" accept=".doc,.docx,.txt,.md,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown" disabled={sourceDocumentBusy || aiBusy} onChange={readSourceDocument} className="sr-only" /></label>
-                  <label className={`inline-flex h-9 items-center gap-2 rounded-md border border-cyan-200 bg-cyan-50 px-3 text-xs font-semibold text-cyan-900 ${sourceDocumentBusy || aiBusy ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-cyan-100'}`}><FileType2 className="h-4 w-4" />PDF<input type="file" accept=".pdf,application/pdf" disabled={sourceDocumentBusy || aiBusy} onChange={readPdf} className="sr-only" /></label>
-                </div>
-              </div>
-              <p className="mt-2 text-[11px] leading-5 text-slate-500">Cloud AI accepts up to 200 KB of extracted text; Local LLM accepts up to 1 MB.</p>
-              {markdownContext && <div className="mt-3 flex items-center justify-between gap-2 rounded bg-slate-50 px-2.5 py-2 text-xs text-slate-700"><span className="flex min-w-0 items-center gap-2"><FileText className="h-4 w-4 shrink-0 text-cyan-700" /><span className="min-w-0"><span className="block truncate">{markdownContext.sourceType === 'pdf' ? markdownContext.originalName : markdownContext.name}</span><span className="block text-[11px] text-slate-500">{markdownContext.sourceType === 'pdf' ? `${markdownContext.pageCount} page${markdownContext.pageCount === 1 ? '' : 's'} | ` : ''}{Math.max(1, Math.ceil(markdownContext.size / 1024))} KB | approximately {Math.max(1, Math.ceil(markdownContext.content.length / 4)).toLocaleString()} input tokens</span></span></span><button type="button" onClick={() => { setMarkdownContext(null); setError(''); }} aria-label="Remove source context" className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded text-slate-500 hover:bg-white"><X className="h-4 w-4" /></button></div>}
-            </div>
             <div className="border-t border-indigo-100 pt-3">
               <p className="text-xs font-semibold text-slate-700">Saved with the note</p>
               <p className="mt-0.5 text-[11px] leading-5 text-slate-500">Appendix text remains part of the note record but is kept outside the main examination.</p>
@@ -670,16 +671,16 @@ function NoteForm({ issueId, issue, summary, note, communications, references, a
       </div>
     </form>
     {aiDialogOpen && (
-      <ModalFrame open labelledBy="note-ai-title" busy={aiBusy} onClose={() => setAIDialogOpen(false)} maxWidth="max-w-2xl">
-          <header className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-4 sm:px-5">
+      <ModalFrame open labelledBy="note-ai-title" busy={aiBusy} onClose={() => setAIDialogOpen(false)} maxWidth="max-w-6xl" className="flex flex-col overflow-hidden border border-slate-200">
+          <header className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 px-4 py-4 sm:px-6">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wide text-cyan-700">Help me write</p>
               <h3 id="note-ai-title" className="mt-1 text-base font-semibold text-[#17333b]">{currentAIAction.label}</h3>
               <p className="mt-1 text-xs leading-5 text-slate-500">{currentAIAction.description} The result remains editable and is never saved automatically.</p>
             </div>
-            <button type="button" onClick={() => setAIDialogOpen(false)} disabled={aiBusy} aria-label="Close AI assistance" className="inline-flex h-9 w-9 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100"><X className="h-4 w-4" /></button>
+            <button type="button" onClick={() => setAIDialogOpen(false)} disabled={aiBusy} aria-label="Close AI assistance" className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100"><X className="h-4 w-4" /></button>
           </header>
-          <div className="space-y-4 px-4 py-4 sm:px-5">
+          <div className="space-y-4 overflow-y-auto px-4 py-4 sm:px-6 lg:px-8">
             {aiBusy && (
               <div role="status" aria-live="polite" className="rounded-md border border-cyan-200 bg-cyan-50 px-3 py-3">
                 <div className="flex items-center gap-3"><LoaderCircle className="h-5 w-5 shrink-0 animate-spin text-cyan-700" /><div><p className="text-sm font-semibold text-cyan-950">{aiStatus.status === 'refining' ? 'Refining your note...' : 'Preparing the note...'}</p><p className="mt-0.5 text-xs leading-5 text-cyan-800">The selected context is being examined. Keep this window open; the result will appear in the editor for review.</p></div></div>
@@ -703,12 +704,18 @@ function NoteForm({ issueId, issue, summary, note, communications, references, a
             {aiAction === 'custom' && (
               <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-700">Instruction</span><textarea rows={3} disabled={aiBusy} value={aiInstruction} onChange={(event) => setAIInstruction(event.target.value)} placeholder="Example: focus on the applicable rule and end with a clear proposal" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm leading-6 disabled:bg-slate-100" /></label>
             )}
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-slate-50 px-3 py-2.5">
+            <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 <p className="text-xs font-semibold text-slate-700">Information used</p>
                 <p className="mt-0.5 truncate text-[11px] text-slate-500">{sourceSummary.length ? sourceSummary.join(', ') : 'Issue details and current position'}</p>
               </div>
-              <button type="button" onClick={() => { setAIDialogOpen(false); setSourceMaterialOpen(true); }} disabled={aiBusy} className="h-8 shrink-0 rounded-md px-2 text-xs font-semibold text-indigo-700 hover:bg-indigo-50">Change sources</button>
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+                <label className={`inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-md border border-cyan-200 bg-white px-3 text-xs font-semibold text-cyan-900 hover:bg-cyan-50 ${sourceDocumentBusy || aiBusy ? 'pointer-events-none opacity-60' : ''}`}><Upload className="h-4 w-4" />{markdownContext ? 'Change document' : 'Add document'}<input type="file" accept=".pdf,.doc,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown" disabled={sourceDocumentBusy || aiBusy} onChange={readSourceFile} className="sr-only" /></label>
+                <button type="button" onClick={() => { setAIDialogOpen(false); setSourceMaterialOpen(true); }} disabled={aiBusy} className="min-h-11 rounded-md border border-indigo-200 bg-white px-3 text-xs font-semibold text-indigo-700 hover:bg-indigo-50 disabled:opacity-50">Issue sources</button>
+              </div>
+              </div>
+              <p className="mt-2 text-[11px] leading-5 text-slate-500">Documents are processed in this browser and are not stored. Cloud AI receives only the reviewed extracted text after confirmation.</p>
             </div>
             <details className="rounded-md border border-slate-200 bg-white">
               <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-3 text-xs font-semibold text-slate-700">
@@ -722,12 +729,12 @@ function NoteForm({ issueId, issue, summary, note, communications, references, a
             </details>
             {error && <p className="text-xs font-medium text-red-700">{error}</p>}
           </div>
-          <footer className="flex flex-col-reverse gap-2 border-t border-slate-200 px-4 py-4 sm:flex-row sm:justify-end sm:px-5">
-            <button type="button" onClick={() => setAIDialogOpen(false)} disabled={aiBusy} className="h-10 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700">Cancel</button>
+          <footer className="sticky bottom-0 z-10 flex flex-col-reverse gap-2 border-t border-slate-200 bg-white px-4 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:flex-row sm:justify-end sm:px-6">
+            <button type="button" onClick={() => setAIDialogOpen(false)} disabled={aiBusy} className="min-h-11 w-full rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 sm:w-auto">Cancel</button>
             {aiBusy ? (
-              <div className="flex gap-2"><button type="button" disabled className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-md bg-cyan-700 px-4 text-sm font-semibold text-white"><LoaderCircle className="h-4 w-4 animate-spin" />Working...</button><button type="button" onClick={() => aiController.current?.abort()} aria-label="Stop AI" className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-red-200 text-red-700"><Square className="h-4 w-4" /></button></div>
+              <div className="flex w-full gap-2 sm:w-auto"><button type="button" disabled className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md bg-cyan-700 px-4 text-sm font-semibold text-white"><LoaderCircle className="h-4 w-4 animate-spin" />Working...</button><button type="button" onClick={() => aiController.current?.abort()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-red-200 px-4 text-sm font-semibold text-red-700"><Square className="h-4 w-4" />Stop</button></div>
             ) : (
-              <button type="button" onClick={() => runAI()} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-cyan-700 px-4 text-sm font-semibold text-white hover:bg-cyan-800"><Sparkles className="h-4 w-4" />{aiSubmitLabel}</button>
+              <button type="button" onClick={() => runAI()} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-cyan-700 px-4 text-sm font-semibold text-white hover:bg-cyan-800 sm:w-auto"><Sparkles className="h-4 w-4" />{aiSubmitLabel}</button>
             )}
           </footer>
       </ModalFrame>
@@ -770,6 +777,8 @@ function NoteForm({ issueId, issue, summary, note, communications, references, a
             setMarkdownContext(contextFile);
             setPdfFile(null);
             setError('');
+            setAIAction('prepare');
+            setAIDialogOpen(true);
           }}
         />
       </Suspense>
