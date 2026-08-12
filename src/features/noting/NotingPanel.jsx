@@ -3,6 +3,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
+  ClipboardPaste,
   FilePenLine,
   FileText,
   FileType2,
@@ -144,6 +145,10 @@ function NoteForm({ issueId, issue, summary, note, communications, references, a
   const [markdownContext, setMarkdownContext] = useState(null);
   const [sourceDocumentBusy, setSourceDocumentBusy] = useState(false);
   const [pdfFile, setPdfFile] = useState(null);
+  const [sourcePickerOpen, setSourcePickerOpen] = useState(false);
+  const [pasteDialogOpen, setPasteDialogOpen] = useState(false);
+  const [pastedSourceTitle, setPastedSourceTitle] = useState('Pasted source text');
+  const [pastedSourceText, setPastedSourceText] = useState('');
   const [includeRunningSummary, setIncludeRunningSummary] = useState(Boolean(summary?.content));
   const [sourceMaterialOpen, setSourceMaterialOpen] = useState(false);
   const [noteSelection, setNoteSelection] = useState({ from: 0, to: 0, text: '' });
@@ -445,6 +450,7 @@ function NoteForm({ issueId, issue, summary, note, communications, references, a
     const file = event.target.files?.[0];
     event.target.value = '';
     if (!file) return;
+    setSourcePickerOpen(false);
     const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
     if (isPdf) {
       if (file.size > MAX_PDF_BYTES) {
@@ -476,6 +482,28 @@ function NoteForm({ issueId, issue, summary, note, communications, references, a
     } finally {
       setSourceDocumentBusy(false);
     }
+  };
+
+  const openPasteDialog = () => {
+    setSourcePickerOpen(false);
+    setPastedSourceTitle(markdownContext?.sourceType === 'pasted' ? markdownContext.originalName : 'Pasted source text');
+    setPastedSourceText(markdownContext?.sourceType === 'pasted' ? markdownContext.content : '');
+    setPasteDialogOpen(true);
+    setError('');
+  };
+
+  const usePastedSource = () => {
+    const content = pastedSourceText.replace(/\r\n?/g, '\n').trim();
+    if (!content) return;
+    const size = new TextEncoder().encode(content).byteLength;
+    const maxBytes = aiConfig?.preferences.mode === 'cloud' ? CLOUD_MARKDOWN_MAX_BYTES : LOCAL_MARKDOWN_MAX_BYTES;
+    if (size > maxBytes) return;
+    const name = pastedSourceTitle.trim() || 'Pasted source text';
+    setMarkdownContext({ name, originalName: name, sourceType: 'pasted', content, size });
+    setPasteDialogOpen(false);
+    setAIAction('prepare');
+    setAIDialogOpen(true);
+    setError('');
   };
 
   const currentAIAction = NOTE_AI_ACTIONS.find((action) => action.value === aiAction) || NOTE_AI_ACTIONS[0];
@@ -579,23 +607,24 @@ function NoteForm({ issueId, issue, summary, note, communications, references, a
           </div>
           </div>
         </div>
-        <div className={`rounded-md border p-3 sm:p-4 ${markdownContext ? 'border-cyan-200 bg-cyan-50/60' : 'border-indigo-200 bg-gradient-to-r from-indigo-50 to-cyan-50'}`}>
+        <div className={`rounded-md border p-2.5 sm:p-4 ${markdownContext ? 'border-cyan-200 bg-cyan-50/60' : 'border-indigo-200 bg-indigo-50/60'}`}>
           {markdownContext ? (
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex min-w-0 items-start gap-3">
                 <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-white text-cyan-800 shadow-sm"><FileText className="h-5 w-5" /></span>
-                <div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-wide text-cyan-800">Document ready for AI</p><p className="mt-0.5 truncate text-sm font-semibold text-slate-900">{markdownContext.originalName || markdownContext.name}</p><p className="mt-1 text-xs leading-5 text-slate-600">{markdownContext.sourceType === 'pdf' ? `${markdownContext.pageCount} selected page${markdownContext.pageCount === 1 ? '' : 's'} · ` : ''}{Math.max(1, Math.ceil(markdownContext.size / 1024))} KB · approximately {Math.max(1, Math.ceil(markdownContext.content.length / 4)).toLocaleString()} input tokens</p></div>
+                <div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-wide text-cyan-800">Source ready for AI</p><p className="mt-0.5 truncate text-sm font-semibold text-slate-900">{markdownContext.originalName || markdownContext.name}</p><p className="mt-1 text-xs leading-5 text-slate-600">{markdownContext.sourceType === 'pdf' ? `${markdownContext.pageCount} selected page${markdownContext.pageCount === 1 ? '' : 's'} · ` : markdownContext.sourceType === 'pasted' ? 'Pasted text · ' : ''}{Math.max(1, Math.ceil(markdownContext.size / 1024))} KB · approximately {Math.max(1, Math.ceil(markdownContext.content.length / 4)).toLocaleString()} input tokens</p></div>
               </div>
               <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap lg:justify-end">
                 <label className={`inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-md border border-cyan-200 bg-white px-3 text-xs font-semibold text-cyan-900 hover:bg-cyan-50 ${sourceDocumentBusy || aiBusy ? 'pointer-events-none opacity-60' : ''}`}><Upload className="h-4 w-4" />Replace<input type="file" accept=".pdf,.doc,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown" disabled={sourceDocumentBusy || aiBusy} onChange={readSourceFile} className="sr-only" /></label>
+                <button type="button" onClick={openPasteDialog} disabled={aiBusy} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-cyan-200 bg-white px-3 text-xs font-semibold text-cyan-900 hover:bg-cyan-50 disabled:opacity-50"><ClipboardPaste className="h-4 w-4" />Paste text</button>
                 <button type="button" onClick={() => { setMarkdownContext(null); setError(''); }} disabled={aiBusy} className="min-h-11 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">Remove</button>
-                <button type="button" onClick={() => openAIAssistance('prepare')} disabled={!aiConfig || aiBusy} className="col-span-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-cyan-700 px-4 text-sm font-semibold text-white hover:bg-cyan-800 disabled:opacity-50 sm:col-auto"><Sparkles className="h-4 w-4" />Prepare note from document</button>
+                <button type="button" onClick={() => openAIAssistance('prepare')} disabled={!aiConfig || aiBusy} className="col-span-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-cyan-700 px-4 text-sm font-semibold text-white hover:bg-cyan-800 disabled:opacity-50 sm:col-auto"><Sparkles className="h-4 w-4" />Prepare note from source</button>
               </div>
             </div>
           ) : (
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex min-w-0 items-start gap-3"><span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-white text-indigo-800 shadow-sm"><FileType2 className="h-5 w-5" /></span><div><p className="text-sm font-semibold text-indigo-950">Start from a source document</p><p className="mt-1 text-xs leading-5 text-slate-600">Attach a PDF, Word or text file, then let AI prepare an editable note. Scanned PDFs can be read with OCR.</p></div></div>
-              <label className={`inline-flex min-h-11 w-full shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md bg-indigo-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-indigo-800 sm:w-auto ${sourceDocumentBusy || aiBusy ? 'pointer-events-none opacity-60' : ''}`}>{sourceDocumentBusy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}{sourceDocumentBusy ? 'Reading document…' : 'Attach document'}<input type="file" accept=".pdf,.doc,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown" disabled={sourceDocumentBusy || aiBusy} onChange={readSourceFile} className="sr-only" /></label>
+              <div className="flex min-w-0 items-start gap-2.5"><span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-white text-indigo-800 shadow-sm"><FileType2 className="h-4 w-4" /></span><div><p className="ui-section-title text-indigo-950">Start from source material</p><p className="mt-0.5 text-[11px] leading-4 text-slate-600 sm:text-xs sm:leading-5">PDF with OCR, Word, text, pasted content or Issue records.</p></div></div>
+              <button type="button" onClick={() => setSourcePickerOpen(true)} disabled={sourceDocumentBusy || aiBusy} className="inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-2 rounded-md bg-indigo-700 px-4 text-xs font-semibold text-white shadow-sm hover:bg-indigo-800 disabled:opacity-50 sm:w-auto sm:text-sm"><Plus className="h-4 w-4" />Add source</button>
             </div>
           )}
         </div>
@@ -662,9 +691,10 @@ function NoteForm({ issueId, issue, summary, note, communications, references, a
           </div>}
         </div>
       </div>
-      <div className="flex justify-end gap-2 border-t border-indigo-100 bg-indigo-50/50 px-4 py-3">
-        <button type="button" onClick={onCancel} disabled={saveStatus !== 'idle'} className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700"><X className="h-4 w-4" />Cancel</button>
-        <button type="submit" disabled={saveStatus !== 'idle'} className={`inline-flex h-10 min-w-28 items-center justify-center gap-2 rounded-md px-3 text-sm font-semibold text-white shadow-sm ${saveStatus === 'saved' ? 'bg-emerald-700' : 'bg-indigo-700 hover:bg-indigo-800 disabled:bg-slate-400'}`}>
+      <div className="sticky z-20 grid grid-cols-[auto_1fr_1fr] gap-2 border-t border-indigo-100 bg-white/95 px-3 py-2 backdrop-blur sm:static sm:flex sm:justify-end sm:bg-indigo-50/50 sm:px-4 sm:py-3" style={{ bottom: 'var(--app-mobile-nav-clearance)' }}>
+        <button type="button" onClick={onCancel} disabled={saveStatus !== 'idle'} aria-label="Cancel note" title="Cancel" className="inline-flex min-h-11 w-11 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 sm:h-10 sm:w-auto sm:gap-2 sm:px-3 sm:text-sm"><X className="h-4 w-4" /><span className="hidden sm:inline">Cancel</span></button>
+        <button type="button" onClick={() => openAIAssistance()} disabled={!aiConfig || aiBusy || saveStatus !== 'idle'} className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-md border border-cyan-200 bg-cyan-50 px-2 text-xs font-semibold text-cyan-900 hover:bg-cyan-100 disabled:opacity-50 sm:h-10 sm:px-3 sm:text-sm"><Sparkles className="h-4 w-4" />Help me write</button>
+        <button type="submit" disabled={saveStatus !== 'idle'} className={`inline-flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-md px-2 text-xs font-semibold text-white shadow-sm sm:h-10 sm:min-w-28 sm:px-3 sm:text-sm ${saveStatus === 'saved' ? 'bg-emerald-700' : 'bg-indigo-700 hover:bg-indigo-800 disabled:bg-slate-400'}`}>
           {saveStatus === 'saving' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : saveStatus === 'saved' ? <CheckCircle2 className="h-4 w-4" /> : <Save className="h-4 w-4" />}
           {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved' : 'Save note'}
         </button>
@@ -695,10 +725,15 @@ function NoteForm({ issueId, issue, summary, note, communications, references, a
                   <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-700">Structure</span><select value={noteStructure} disabled={aiBusy} onChange={(event) => setNoteStructure(event.target.value)} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm disabled:bg-slate-100">{NOTE_STRUCTURES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
                 </div>
                 <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-700">Length expectation</span><select value={noteLength} disabled={aiBusy} onChange={(event) => setNoteLength(event.target.value)} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm disabled:bg-slate-100">{NOTE_LENGTHS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-                {noteMode !== 'routine' && <fieldset disabled={aiBusy}><legend className="text-xs font-semibold text-slate-700">Analytical emphasis <span className="font-normal text-slate-500">(choose any)</span></legend><div className="mt-2 grid gap-2 sm:grid-cols-2">{NOTE_ANALYTICAL_EMPHASES.map((option) => <label key={option.value} className="flex items-center gap-2 rounded-md border border-slate-200 px-2.5 py-2 text-xs text-slate-700"><input type="checkbox" checked={analyticalEmphasis.includes(option.value)} onChange={(event) => setAnalyticalEmphasis((current) => event.target.checked ? [...current, option.value] : current.filter((value) => value !== option.value))} className="accent-cyan-700" />{option.label}</label>)}</div></fieldset>}
                 <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-700">Goal of this note <span className="text-red-600">*</span></span><textarea rows={2} disabled={aiBusy} value={aiGoal} onChange={(event) => setAIGoal(event.target.value)} placeholder="Example: enable a decision on whether comments should be called for from the attached office" className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm leading-6 disabled:bg-slate-100" /><span className="mt-1 block text-xs leading-5 text-slate-500">What decision, approval or understanding should the note enable?</span></label>
-                <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-700">Proposed course or direction <span className="font-normal text-slate-500">(optional)</span></span><textarea rows={2} disabled={aiBusy} value={aiProposedDirection} onChange={(event) => setAIProposedDirection(event.target.value)} placeholder="Example: propose seeking the report within ten days; keep the view tentative pending receipt" className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm leading-6 disabled:bg-slate-100" /><span className="mt-1 block text-xs leading-5 text-slate-500">Give the intended proposal when known. AI must not invent one when it is not supplied or supported by the record.</span></label>
-                {['detailed_examination', 'full_background_analysis'].includes(noteMode) && <div className="rounded-md border border-indigo-200 bg-indigo-50/50 p-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-semibold text-indigo-950">Examination map first <span className="font-normal text-indigo-700">(optional)</span></p><p className="mt-1 text-xs leading-5 text-indigo-800">Generate a working map, edit it, then use it to prepare the final note.</p></div><button type="button" disabled={aiBusy} onClick={() => prepareExaminationMap()} className="h-9 rounded-md border border-indigo-300 bg-white px-3 text-xs font-semibold text-indigo-800 hover:bg-indigo-50 disabled:opacity-50">{aiStatus.status === 'mapping' ? 'Mapping…' : examinationMap ? 'Regenerate map' : 'Generate map'}</button></div>{examinationMap && <textarea rows={10} value={examinationMap} disabled={aiBusy} onChange={(event) => setExaminationMap(event.target.value)} aria-label="Editable examination map" className="mt-3 w-full rounded-md border border-indigo-200 bg-white px-3 py-2 text-xs leading-5 disabled:bg-slate-100" />}</div>}
+                <details className="rounded-md border border-slate-200 bg-slate-50/70">
+                  <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between px-3 text-xs font-semibold text-slate-700"><span>More guidance <span className="font-normal text-slate-500">(optional)</span></span><ChevronDown className="h-4 w-4 text-slate-500" /></summary>
+                  <div className="space-y-3 border-t border-slate-200 p-3">
+                    {noteMode !== 'routine' && <fieldset disabled={aiBusy}><legend className="text-xs font-semibold text-slate-700">Analytical emphasis <span className="font-normal text-slate-500">(choose any)</span></legend><div className="mt-2 grid gap-2 sm:grid-cols-2">{NOTE_ANALYTICAL_EMPHASES.map((option) => <label key={option.value} className="flex items-center gap-2 rounded-md border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-700"><input type="checkbox" checked={analyticalEmphasis.includes(option.value)} onChange={(event) => setAnalyticalEmphasis((current) => event.target.checked ? [...current, option.value] : current.filter((value) => value !== option.value))} className="accent-cyan-700" />{option.label}</label>)}</div></fieldset>}
+                    <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-700">Proposed course or direction</span><textarea rows={2} disabled={aiBusy} value={aiProposedDirection} onChange={(event) => setAIProposedDirection(event.target.value)} placeholder="Example: propose seeking the report within ten days" className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm leading-6 disabled:bg-slate-100" /></label>
+                    {['detailed_examination', 'full_background_analysis'].includes(noteMode) && <div className="rounded-md border border-indigo-200 bg-indigo-50/50 p-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-xs font-semibold text-indigo-950">Examination map first</p><p className="mt-1 text-xs leading-5 text-indigo-800">Generate and edit a working map before the final note.</p></div><button type="button" disabled={aiBusy} onClick={() => prepareExaminationMap()} className="min-h-11 rounded-md border border-indigo-300 bg-white px-3 text-xs font-semibold text-indigo-800 hover:bg-indigo-50 disabled:opacity-50">{aiStatus.status === 'mapping' ? 'Mapping…' : examinationMap ? 'Regenerate map' : 'Generate map'}</button></div>{examinationMap && <textarea rows={10} value={examinationMap} disabled={aiBusy} onChange={(event) => setExaminationMap(event.target.value)} aria-label="Editable examination map" className="mt-3 w-full rounded-md border border-indigo-200 bg-white px-3 py-2 text-xs leading-5 disabled:bg-slate-100" />}</div>}
+                  </div>
+                </details>
               </div>
             )}
             {aiAction === 'custom' && (
@@ -739,6 +774,26 @@ function NoteForm({ issueId, issue, summary, note, communications, references, a
           </footer>
       </ModalFrame>
     )}
+    {sourcePickerOpen && (
+      <ModalFrame open labelledBy="source-picker-title" onClose={() => setSourcePickerOpen(false)} maxWidth="max-w-md" className="border border-slate-200">
+        <header className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3"><div><h3 id="source-picker-title" className="ui-section-title text-[#17333b]">Add source</h3><p className="mt-0.5 text-[11px] leading-4 text-slate-500">Choose how you want to provide the material.</p></div><button type="button" onClick={() => setSourcePickerOpen(false)} aria-label="Close source options" className="inline-flex h-11 w-11 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100"><X className="h-4 w-4" /></button></header>
+        <div className="grid gap-2 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          <label className="flex min-h-14 cursor-pointer items-center gap-3 rounded-md border border-slate-200 px-3 py-2.5 text-left hover:bg-slate-50"><span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-indigo-50 text-indigo-700"><Upload className="h-4 w-4" /></span><span><span className="block text-sm font-semibold text-slate-800">Choose a file</span><span className="block text-[11px] leading-4 text-slate-500">PDF, Word, Markdown or text. Scanned PDFs support OCR.</span></span><input type="file" accept=".pdf,.doc,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown" disabled={sourceDocumentBusy || aiBusy} onChange={readSourceFile} className="sr-only" /></label>
+          <button type="button" onClick={openPasteDialog} className="flex min-h-14 items-center gap-3 rounded-md border border-slate-200 px-3 py-2.5 text-left hover:bg-slate-50"><span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-cyan-50 text-cyan-700"><ClipboardPaste className="h-4 w-4" /></span><span><span className="block text-sm font-semibold text-slate-800">Paste text</span><span className="block text-[11px] leading-4 text-slate-500">Email, office note, extract or other copied material.</span></span></button>
+          <button type="button" onClick={() => { setSourcePickerOpen(false); setSourceMaterialOpen(true); }} className="flex min-h-14 items-center gap-3 rounded-md border border-slate-200 px-3 py-2.5 text-left hover:bg-slate-50"><span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-700"><Paperclip className="h-4 w-4" /></span><span><span className="block text-sm font-semibold text-slate-800">Use Issue records</span><span className="block text-[11px] leading-4 text-slate-500">Running summary, communications, references or appendix.</span></span></button>
+        </div>
+      </ModalFrame>
+    )}
+    {pasteDialogOpen && (() => {
+      const pastedBytes = new TextEncoder().encode(pastedSourceText.trim()).byteLength;
+      const pasteLimit = aiConfig?.preferences.mode === 'cloud' ? CLOUD_MARKDOWN_MAX_BYTES : LOCAL_MARKDOWN_MAX_BYTES;
+      const pasteOverLimit = pastedBytes > pasteLimit;
+      return <ModalFrame open labelledBy="paste-source-title" onClose={() => setPasteDialogOpen(false)} maxWidth="max-w-3xl" className="flex flex-col overflow-hidden border border-slate-200">
+        <header className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-4 sm:px-5"><div><h3 id="paste-source-title" className="text-base font-semibold text-[#17333b]">Paste source text</h3><p className="mt-1 text-xs leading-5 text-slate-500">Paste an email, office note, extract or other material. It remains temporary and is not saved with the Issue.</p></div><button type="button" onClick={() => setPasteDialogOpen(false)} aria-label="Close pasted text dialog" className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100"><X className="h-4 w-4" /></button></header>
+        <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5"><label className="block"><span className="mb-1 block text-xs font-semibold text-slate-700">Source label <span className="font-normal text-slate-500">(optional)</span></span><input value={pastedSourceTitle} onChange={(event) => setPastedSourceTitle(event.target.value)} maxLength={120} placeholder="For example: Email from Finance Division" className="h-11 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900" /></label><label className="mt-4 block"><span className="mb-1 block text-xs font-semibold text-slate-700">Source text</span><textarea data-autofocus value={pastedSourceText} onChange={(event) => setPastedSourceText(event.target.value)} rows={14} placeholder="Paste the source content here…" className="min-h-[42vh] w-full resize-y rounded-md border border-slate-300 bg-white px-3 py-3 text-sm leading-6 text-slate-900" /></label><div className="mt-2 flex items-start justify-between gap-3 text-xs"><p className="leading-5 text-slate-500">Review and remove anything AI does not need.</p><p className={`shrink-0 tabular-nums ${pasteOverLimit ? 'font-semibold text-red-700' : 'text-slate-500'}`}>{Math.max(1, Math.ceil(pastedBytes / 1024))} KB / {Math.round(pasteLimit / 1024)} KB</p></div>{pasteOverLimit && <p className="mt-2 text-xs font-medium text-red-700">Shorten the pasted text to fit the selected AI mode.</p>}</div>
+        <footer className="grid grid-cols-2 gap-2 border-t border-slate-200 bg-white px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:flex sm:justify-end sm:px-5"><button type="button" onClick={() => setPasteDialogOpen(false)} className="min-h-11 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50">Cancel</button><button type="button" onClick={usePastedSource} disabled={!pastedSourceText.trim() || pasteOverLimit} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-indigo-700 px-4 text-sm font-semibold text-white hover:bg-indigo-800 disabled:cursor-not-allowed disabled:bg-slate-300"><ClipboardPaste className="h-4 w-4" />Use this text</button></footer>
+      </ModalFrame>;
+    })()}
     <ConfirmDialog
       open={Boolean(cloudConsent)}
       title="Send Issue context to Cloud AI?"

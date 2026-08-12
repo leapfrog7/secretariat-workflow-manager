@@ -36,6 +36,13 @@ body,
   min-height: 100%;
 }
 
+/* Shared density primitives keep compact work surfaces consistent. */
+.ui-page-title { font-size: 1.125rem; line-height: 1.35; font-weight: 650; }
+.ui-section-title { font-size: 0.9375rem; line-height: 1.4; font-weight: 650; }
+.ui-body-copy { font-size: 0.875rem; line-height: 1.5; }
+.ui-supporting-copy { font-size: 0.75rem; line-height: 1.45; }
+.ui-compact-card { padding: 0.75rem; }
+
 html {
   scrollbar-gutter: stable;
   scroll-padding-bottom: var(--app-mobile-nav-clearance);
@@ -427,6 +434,24 @@ textarea:focus {
 }
 
 @media (max-width: 639px) {
+  :root[data-text-size="small"] { font-size: 14px; }
+  :root:not([data-text-size]),
+  :root[data-text-size="normal"] { font-size: 15px; }
+  :root[data-text-size="large"] { font-size: 17px; }
+
+  /* Prevent iOS form zoom while allowing surrounding interface text to be denser. */
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  .ui-page-title { font-size: 1.0625rem; }
+  .ui-section-title { font-size: 0.9375rem; }
+  .ui-body-copy { font-size: 0.8125rem; }
+  .ui-supporting-copy { font-size: 0.733rem; }
+  .ui-compact-card { padding: 0.625rem; }
+
   .surface {
     box-shadow: 0 1px 2px rgb(15 49 56 / 0.035);
   }

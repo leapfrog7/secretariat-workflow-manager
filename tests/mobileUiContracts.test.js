@@ -34,6 +34,15 @@ test('mobile navigation keeps the five primary destinations in the intended orde
   const reports = navigation.indexOf("label: 'Reports'");
   assert.ok(issues >= 0 && issues < casework && casework < create && create < reports);
   assert.match(navigation, /<span>More<\/span>/);
+  assert.match(navigation, /item\.to === '\/issues\/new'/);
+  assert.match(navigation, /text-\[10px\]/);
+});
+
+test('mobile typography is compact without triggering form-field zoom', () => {
+  const css = source('src/index.css');
+  assert.match(css, /:root\[data-text-size="normal"\][\s\S]*font-size:\s*15px/);
+  assert.match(css, /input,[\s\S]*select,[\s\S]*textarea[\s\S]*font-size:\s*16px/);
+  assert.match(source('src/components/common/PageHeader.jsx'), /ui-page-title/);
 });
 
 test('header popovers and PWA installation remain mobile-safe', () => {

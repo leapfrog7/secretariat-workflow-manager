@@ -65,10 +65,10 @@ export default function CaseworkModule({
   return (
     <div className="space-y-4">
       <section className={`surface overflow-hidden rounded-md border-t-4 ${view === 'notes' ? 'border-t-indigo-600' : 'border-t-teal-600'}`}>
-        <div className="flex flex-col gap-4 border-b border-slate-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <div className="flex flex-col gap-2.5 border-b border-slate-200 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5 sm:py-4">
           <div>
             <h2 className="text-base font-semibold text-[#17333b]">Casework</h2>
-            <p className="mt-1 text-sm text-slate-600">Examine the matter, record the internal view and prepare the communication.</p>
+            <p className="mt-0.5 text-[12px] leading-4 text-slate-600 sm:mt-1 sm:text-sm sm:leading-5">Examine the matter, record the internal view and prepare the communication.</p>
           </div>
           <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-400" aria-label={`Casework progress: ${issued ? 'communication issued' : view === 'drafting' ? 'preparing communication' : 'examination'}`}>
             <span className={view === 'notes' ? 'text-indigo-700' : 'text-slate-500'}>Examination</span>

@@ -6,13 +6,20 @@ function source(path) {
   return readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 }
 
-test('document-first note preparation is visible before the editor', () => {
+test('source-first note preparation is visible before the editor', () => {
   const noting = source('src/features/noting/NotingPanel.jsx');
-  const entry = noting.indexOf('Start from a source document');
+  const entry = noting.indexOf('Start from source material');
   const editor = noting.indexOf('<NoteEditor');
   assert.ok(entry >= 0 && editor > entry);
-  assert.match(noting, /Attach document/);
-  assert.match(noting, /Prepare note from document/);
+  assert.match(noting, /Choose a file/);
+  assert.match(noting, /Paste source text/);
+  assert.match(noting, /Add source/);
+  assert.match(noting, /Use Issue records/);
+  assert.match(noting, /Use this text/);
+  assert.match(noting, /sourceType: 'pasted'/);
+  assert.match(noting, /It remains temporary and is not saved with the Issue/);
+  assert.match(noting, /Prepare note from source/);
+  assert.match(noting, /More guidance/);
   assert.match(noting, /\.pdf,.doc,.docx,.txt,.md/);
   assert.doesNotMatch(noting, /const readPdf =/);
   assert.doesNotMatch(noting, /const readSourceDocument =/);

@@ -88,11 +88,11 @@ export default function MobileNavigation() {
               to={item.to}
               aria-current={isActive ? 'page' : undefined}
               aria-busy={isPending || undefined}
-              className={`flex min-h-[52px] min-w-0 flex-col items-center justify-center gap-0.5 border-t-2 px-1 py-1 text-[11px] font-medium transition-colors ${
-                  isActive ? 'border-teal-600 bg-teal-50/70 text-teal-800' : 'border-transparent text-slate-500 hover:bg-slate-50'
+              className={`flex min-h-[52px] min-w-0 flex-col items-center justify-center gap-0.5 border-t-2 px-1 py-1 text-[10px] font-medium transition-colors ${
+                  item.to === '/issues/new' ? 'border-transparent text-teal-800' : isActive ? 'border-teal-600 bg-teal-50/70 text-teal-800' : 'border-transparent text-slate-500 hover:bg-slate-50'
                 }`}
             >
-              {isPending ? <LoaderCircle className="h-[18px] w-[18px] animate-spin" aria-hidden="true" /> : <Icon className={`h-[18px] w-[18px] transition-transform ${isActive ? 'scale-105' : ''}`} aria-hidden="true" />}
+              {isPending ? <LoaderCircle className="h-[18px] w-[18px] animate-spin" aria-hidden="true" /> : item.to === '/issues/new' ? <span className="-mt-3 inline-flex h-8 w-8 items-center justify-center rounded-full bg-teal-700 text-white shadow-md"><Icon className="h-[17px] w-[17px]" aria-hidden="true" /></span> : <Icon className={`h-[18px] w-[18px] transition-transform ${isActive ? 'scale-105' : ''}`} aria-hidden="true" />}
               <span className="max-w-full truncate">{isPending ? 'Opening' : item.mobileLabel || item.label}</span>
             </Link>
           );
@@ -104,7 +104,7 @@ export default function MobileNavigation() {
           aria-expanded={menuOpen}
           aria-haspopup="menu"
           onClick={() => setMenuOpen((current) => !current)}
-          className={`flex min-h-[52px] min-w-0 flex-col items-center justify-center gap-0.5 border-t-2 px-1 py-1 text-[11px] font-medium transition-colors ${
+          className={`flex min-h-[52px] min-w-0 flex-col items-center justify-center gap-0.5 border-t-2 px-1 py-1 text-[10px] font-medium transition-colors ${
             menuOpen || moreActive ? 'border-teal-600 bg-teal-50/70 text-teal-800' : 'border-transparent text-slate-500 hover:bg-slate-50'
           }`}
         >

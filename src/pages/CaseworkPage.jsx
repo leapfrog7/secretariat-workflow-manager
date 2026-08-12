@@ -191,7 +191,7 @@ export default function CaseworkPage() {
         ) : null}
       />
 
-      <section className="surface mb-4 border-l-4 border-l-indigo-600 p-4 sm:p-5">
+      <section className="surface mb-3 border-l-4 border-l-indigo-600 p-3 sm:mb-4 sm:p-5">
         <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
           <CaseworkIssuePicker issues={issues} selectedId={issueId} auth={auth} onSelect={(value) => navigate(`/casework/${value}`)} />
           {auth.canEdit && (
@@ -253,7 +253,7 @@ function CaseworkQueues({ activity, awaitingIssues }) {
   const [queue, setQueue] = useState(activity.length ? 'recent' : 'awaiting');
   return (
     <section className="surface overflow-hidden">
-      <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+      <div className="flex flex-col gap-2.5 border-b border-slate-200 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-4">
         <div><h2 className="text-base font-semibold text-[#17333b]">Casework queues</h2><p className="mt-1 text-sm text-slate-600">Return to recent work or matters waiting for follow-up.</p></div>
         <div className="grid grid-cols-2 gap-1 rounded-md bg-slate-100 p-1" role="tablist" aria-label="Casework queues">
           <button type="button" role="tab" aria-selected={queue === 'recent'} onClick={() => setQueue('recent')} className={`min-h-9 rounded px-3 text-xs font-semibold ${queue === 'recent' ? 'bg-white text-indigo-800 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}>Recent ({activity.length})</button>
@@ -262,7 +262,7 @@ function CaseworkQueues({ activity, awaitingIssues }) {
       </div>
       {queue === 'recent' && <div className="divide-y divide-slate-200">
         {activity.map((item) => (
-          <article key={item.issue.id} className="grid gap-3 px-4 py-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-5">
+          <article key={item.issue.id} className="grid gap-2.5 px-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-5 sm:py-4">
             <div className="min-w-0">
               <Link to={`/casework/${item.issue.id}`} className="block truncate text-sm font-semibold text-slate-900 hover:text-indigo-800 hover:underline">{item.issue.shortTitle}</Link>
               <p className="mt-1 text-xs text-slate-500">Last worked {formatDateTime(item.activityAt)} · {item.activityKind === 'draft' ? 'Draft updated' : 'Note updated'}</p>
@@ -285,7 +285,7 @@ function CaseworkQueues({ activity, awaitingIssues }) {
       </div>}
       {queue === 'awaiting' && <div className="divide-y divide-slate-200">
         {awaitingIssues.map((issue) => (
-          <article key={issue.id} className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+          <article key={issue.id} className="flex flex-col gap-2.5 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-4">
             <div className="min-w-0"><Link to={`/casework/${issue.id}`} className="block truncate text-sm font-semibold text-slate-900 hover:text-indigo-800 hover:underline">{issue.shortTitle}</Link><div className="mt-1.5"><StatusBadge status={issue.status} /></div></div>
             <Link to={`/casework/${issue.id}`} className="inline-flex h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-800">Open Casework</Link>
           </article>
