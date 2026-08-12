@@ -120,6 +120,7 @@ cloudAIClient
 | `package-lock.json` | Reproducible npm dependency graph used by CI. |
 | `index.html` | Vite HTML entry, PWA metadata and root mounting element for `main.jsx`. |
 | `vite.config.js` | React/Tailwind build, GitHub Pages base path, LM Studio proxy, PDF.js optimization exclusion, and copying/serving OCR/PDF WASM assets. |
+| `playwright.config.js` | Mobile browser-test configuration, phone viewport projects, failure artifacts and the local Vite test server. |
 | `vercel.json` | Legacy/rollback Vercel configuration and cron declaration; protected production API authority is now Cloud Run. |
 | `.env.example` | Documents browser-visible `VITE_` values and server-only secrets. |
 | `.nvmrc` | Local Node major selection. |
@@ -427,10 +428,11 @@ Migrations are append-only and applied by filename order. Browser UI must not as
 | `scripts/generate-vapid-keys.js` | Generates Web Push VAPID key pair; private key remains server-only. |
 | `.github/workflows/ci.yml` | Pull-request database migration, verification, tests and production build. |
 | `.github/workflows/deploy-pages.yml` | On `main`: migration checks, all tests, release verification, build and GitHub Pages deployment. |
+| `.github/workflows/mobile-e2e.yml` | On pull requests and `main`: installs Chromium and verifies critical mobile Issue/Casework flows in Playwright. |
 
 ## 18. Tests: what each file protects
 
-Tests use Node's built-in runner. Many are pure domain tests; UI contract tests intentionally inspect source where a browser DOM is unnecessary.
+Most tests use Node's built-in runner. UI contract tests intentionally inspect source where a browser DOM is unnecessary; `tests/e2e` uses Playwright for real-browser mobile workflows.
 
 | Test file | Protected behavior |
 | --- | --- |
@@ -456,6 +458,7 @@ Tests use Node's built-in runner. Many are pure domain tests; UI contract tests 
 | `lmStudioClient.test.js` | Local model selection, errors and context limits. |
 | `localWorkspaceScope.test.js` | User/workspace cache isolation. |
 | `mobileUiContracts.test.js` | Safe areas, dialogs, navigation, density, PWA and mobile layout. |
+| `e2e/mobile-casework.spec.js` | Real Chromium checks for phone navigation, Issue creation and viewport-safe Casework source/paste dialogs. |
 | `noteAI.test.js`, `noteUtils.test.js` | Noting prompts/modes/selection rewrite and rich/revision data. |
 | `officerUtils.test.js` | Officer identity and remapping. |
 | `paragraphBank.test.js` | Scope, validation, placeholders, search and admin rights. |

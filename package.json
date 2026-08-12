@@ -12,6 +12,7 @@
     "dev:web": "vite",
     "build": "vite build",
     "test": "node --test",
+    "test:e2e:mobile": "playwright test --project=small-android --project=modern-iphone",
     "test:collaboration": "node --test tests/integration/collaborationDatabase.test.js",
     "preview": "vite preview",
     "api:dev": "node --env-file-if-exists=.env.local --env-file-if-exists=.env.vercel.local scripts/local-api-server.js",
@@ -54,6 +55,7 @@
     "web-push": "^3.6.7"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "jszip": "^3.10.1"
   }
 }

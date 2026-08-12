@@ -5,6 +5,8 @@ dist
 npm-debug.log*
 .dev-server.*.log
 .tmp
+playwright-report/
+test-results/
 
 .vercel
 .env*
