@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { BookOpenCheck, ClipboardList, Ellipsis, FilePenLine, FilePlus2, FileText, LoaderCircle, Settings, UserRoundCog } from 'lucide-react';
+import { BookMarked, BookOpenCheck, ClipboardList, Ellipsis, FilePenLine, FilePlus2, FileText, LoaderCircle, Settings, UserRoundCog } from 'lucide-react';
 import { useAuth } from '../../features/auth/AuthContext';
 import { useNavigationFeedback } from '../common/NavigationFeedback';
 
@@ -21,6 +21,7 @@ export default function MobileNavigation() {
   const [menuOpen, setMenuOpen] = useState(false);
   const permittedItems = auth.canEdit ? primaryItems : primaryItems.filter((item) => item.to !== '/issues/new');
   const secondaryItems = [
+    { label: 'Reference Library', to: '/references', icon: BookMarked },
     { label: 'How to use', to: '/help', icon: BookOpenCheck },
     { label: 'Settings', to: '/settings', icon: Settings },
     ...(auth.isAdmin || auth.isWorkspaceAdmin ? [{ label: 'Administration', to: '/admin', icon: UserRoundCog }] : []),
@@ -51,9 +52,9 @@ export default function MobileNavigation() {
   }, [menuOpen]);
 
   return (
-    <nav ref={containerRef} className="app-mobile-navigation fixed inset-x-0 bottom-0 z-40 border-t border-[#d2dfdc] bg-white/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_18px_rgb(15_49_56_/_0.06)] backdrop-blur" aria-label="Mobile navigation">
+    <nav ref={containerRef} className="app-mobile-navigation fixed inset-x-0 bottom-0 z-40 border-t border-[#d2dfdc] bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_18px_rgb(15_49_56_/_0.06)]" aria-label="Mobile navigation">
       {menuOpen && (
-        <div role="menu" aria-label="More navigation" className="absolute inset-x-3 bottom-[calc(100%+0.5rem)] z-50 ml-auto max-w-xs overflow-hidden rounded-md border border-slate-200 bg-white p-1.5 shadow-xl">
+        <div role="menu" aria-label="More navigation" className="absolute inset-x-3 bottom-[calc(100%+0.5rem)] z-50 overflow-hidden rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
           {secondaryItems.map((item, index) => {
             const Icon = item.icon;
             const isActive = pathname === item.to;
@@ -66,7 +67,7 @@ export default function MobileNavigation() {
                 to={item.to}
                 aria-current={isActive ? 'page' : undefined}
                 aria-busy={isPending || undefined}
-                className={`flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-semibold transition-colors ${isActive ? 'bg-teal-50 text-teal-900' : 'text-slate-700 hover:bg-slate-50'}`}
+                className={`flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-semibold transition-colors ${isActive ? 'bg-teal-50 text-teal-900' : 'text-slate-700 hover:bg-slate-50'}`}
               >
                 {isPending ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Icon className="h-4 w-4 text-teal-700" aria-hidden="true" />}
                 <span>{isPending ? `Opening ${item.label}` : item.label}</span>
@@ -88,11 +89,11 @@ export default function MobileNavigation() {
               to={item.to}
               aria-current={isActive ? 'page' : undefined}
               aria-busy={isPending || undefined}
-              className={`flex min-h-[52px] min-w-0 flex-col items-center justify-center gap-0.5 border-t-2 px-1 py-1 text-[10px] font-medium transition-colors ${
-                  item.to === '/issues/new' ? 'border-transparent text-teal-800' : isActive ? 'border-teal-600 bg-teal-50/70 text-teal-800' : 'border-transparent text-slate-500 hover:bg-slate-50'
+              className={`m-1 flex min-h-[48px] min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1 text-[10px] font-medium transition-colors ${
+                  isActive ? 'bg-teal-50 text-teal-800' : item.to === '/issues/new' ? 'text-teal-700 hover:bg-teal-50' : 'text-slate-500 hover:bg-slate-50'
                 }`}
             >
-              {isPending ? <LoaderCircle className="h-[18px] w-[18px] animate-spin" aria-hidden="true" /> : item.to === '/issues/new' ? <span className="-mt-3 inline-flex h-8 w-8 items-center justify-center rounded-full bg-teal-700 text-white shadow-md"><Icon className="h-[17px] w-[17px]" aria-hidden="true" /></span> : <Icon className={`h-[18px] w-[18px] transition-transform ${isActive ? 'scale-105' : ''}`} aria-hidden="true" />}
+              {isPending ? <LoaderCircle className="h-[18px] w-[18px] animate-spin" aria-hidden="true" /> : <Icon className="h-[18px] w-[18px]" aria-hidden="true" />}
               <span className="max-w-full truncate">{isPending ? 'Opening' : item.mobileLabel || item.label}</span>
             </Link>
           );
@@ -104,8 +105,8 @@ export default function MobileNavigation() {
           aria-expanded={menuOpen}
           aria-haspopup="menu"
           onClick={() => setMenuOpen((current) => !current)}
-          className={`flex min-h-[52px] min-w-0 flex-col items-center justify-center gap-0.5 border-t-2 px-1 py-1 text-[10px] font-medium transition-colors ${
-            menuOpen || moreActive ? 'border-teal-600 bg-teal-50/70 text-teal-800' : 'border-transparent text-slate-500 hover:bg-slate-50'
+          className={`m-1 flex min-h-[48px] min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1 text-[10px] font-medium transition-colors ${
+            menuOpen || moreActive ? 'bg-teal-50 text-teal-800' : 'text-slate-500 hover:bg-slate-50'
           }`}
         >
           <Ellipsis className={`h-[18px] w-[18px] transition-transform ${menuOpen || moreActive ? 'scale-105' : ''}`} aria-hidden="true" />

@@ -691,9 +691,8 @@ function NoteForm({ issueId, issue, summary, note, communications, references, a
           </div>}
         </div>
       </div>
-      <div className="sticky z-20 grid grid-cols-[auto_1fr_1fr] gap-2 border-t border-indigo-100 bg-white/95 px-3 py-2 backdrop-blur sm:static sm:flex sm:justify-end sm:bg-indigo-50/50 sm:px-4 sm:py-3" style={{ bottom: 'var(--app-mobile-nav-clearance)' }}>
+      <div className="sticky z-20 grid grid-cols-[auto_1fr] gap-2 border-t border-indigo-100 bg-white/95 px-3 py-2 backdrop-blur sm:static sm:flex sm:justify-end sm:bg-indigo-50/50 sm:px-4 sm:py-3" style={{ bottom: 'var(--app-mobile-nav-clearance)' }}>
         <button type="button" onClick={onCancel} disabled={saveStatus !== 'idle'} aria-label="Cancel note" title="Cancel" className="inline-flex min-h-11 w-11 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 sm:h-10 sm:w-auto sm:gap-2 sm:px-3 sm:text-sm"><X className="h-4 w-4" /><span className="hidden sm:inline">Cancel</span></button>
-        <button type="button" onClick={() => openAIAssistance()} disabled={!aiConfig || aiBusy || saveStatus !== 'idle'} className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-md border border-cyan-200 bg-cyan-50 px-2 text-xs font-semibold text-cyan-900 hover:bg-cyan-100 disabled:opacity-50 sm:h-10 sm:px-3 sm:text-sm"><Sparkles className="h-4 w-4" />Help me write</button>
         <button type="submit" disabled={saveStatus !== 'idle'} className={`inline-flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-md px-2 text-xs font-semibold text-white shadow-sm sm:h-10 sm:min-w-28 sm:px-3 sm:text-sm ${saveStatus === 'saved' ? 'bg-emerald-700' : 'bg-indigo-700 hover:bg-indigo-800 disabled:bg-slate-400'}`}>
           {saveStatus === 'saving' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : saveStatus === 'saved' ? <CheckCircle2 className="h-4 w-4" /> : <Save className="h-4 w-4" />}
           {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved' : 'Save note'}

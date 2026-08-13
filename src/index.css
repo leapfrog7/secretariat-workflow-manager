@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root {
-  --app-mobile-nav-height: 52px;
+  --app-mobile-nav-height: 56px;
   --app-mobile-nav-gap: 1.25rem;
   --app-mobile-nav-clearance: calc(
     var(--app-mobile-nav-height) + env(safe-area-inset-bottom, 0px) + var(--app-mobile-nav-gap)
@@ -42,6 +42,10 @@ body,
 .ui-body-copy { font-size: 0.875rem; line-height: 1.5; }
 .ui-supporting-copy { font-size: 0.75rem; line-height: 1.45; }
 .ui-compact-card { padding: 0.75rem; }
+
+@media (min-width: 640px) {
+  .ui-page-title { font-size: 1.5rem; line-height: 1.333; }
+}
 
 html {
   scrollbar-gutter: stable;
@@ -93,8 +97,7 @@ button:disabled {
 
 .app-sidebar,
 .issue-register-table,
-.issue-tabs-desktop,
-.app-brand-desktop {
+.issue-tabs-desktop {
   display: none;
 }
 
@@ -127,14 +130,12 @@ button:disabled {
     display: flex;
   }
 
-  .app-brand-desktop {
-    display: inline;
-  }
-
   .app-mobile-navigation,
   .issue-register-cards,
   .issue-tabs-mobile,
-  .app-brand-mobile {
+  .app-brand-mobile,
+  .app-mobile-brand-icon,
+  .app-mobile-brand-text {
     display: none;
   }
 

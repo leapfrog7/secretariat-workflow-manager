@@ -8,6 +8,8 @@ const SHARED_TABLES = [
   'actions',
   'communications',
   'references',
+  'workspaceReferences',
+  'issueReferenceLinks',
   'issueMilestones',
   'issueSummaries',
   'notes',

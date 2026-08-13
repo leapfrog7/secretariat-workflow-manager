@@ -1,6 +1,5 @@
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
-import { APP_NAME } from '../constants/issueConstants';
 import Sidebar from '../components/layout/Sidebar';
 import MobileNavigation from '../components/layout/MobileNavigation';
 import { ClipboardCheck, LogOut, RefreshCw, ShieldCheck } from 'lucide-react';
@@ -46,14 +45,14 @@ export default function AppShell() {
       <div className="flex min-h-screen">
         <Sidebar />
         <div className="min-w-0 flex-1">
-          <header className="app-header sticky top-0 z-30 flex h-14 items-center justify-between border-b border-[#d5e2df] bg-white/95 px-3 shadow-[0_1px_8px_rgb(15_49_56_/_0.04)] backdrop-blur sm:px-4">
+          <header className="app-header sticky top-0 z-30 flex h-14 items-center justify-between border-b border-[#d5e2df] bg-white px-3 shadow-[0_1px_8px_rgb(15_49_56_/_0.04)] sm:px-4">
             <div className="flex min-w-0 items-center gap-2.5">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-[#17333b] text-white shadow-sm">
+              <div className="app-mobile-brand-icon flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#17333b] text-white shadow-sm">
                 <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
               </div>
               <div className="min-w-0">
-                <div className="truncate text-sm font-semibold leading-4 text-[#17333b]"><span className="app-brand-mobile">SWM</span><span className="app-brand-desktop">{APP_NAME}</span></div>
-                <div className="mt-0.5 max-w-40 truncate text-xs leading-4 text-slate-500 sm:max-w-56">{auth.workspace?.name || 'Issue tracking workspace'}</div>
+                <div className="app-mobile-brand-text truncate text-sm font-semibold leading-4 text-[#17333b]">SWM</div>
+                <div className="max-w-40 truncate text-xs leading-4 text-slate-500 sm:max-w-56 sm:text-sm sm:font-medium sm:text-slate-700">{auth.workspace?.name || 'Issue tracking workspace'}</div>
               </div>
             </div>
             <div className="flex min-w-0 items-center gap-2">

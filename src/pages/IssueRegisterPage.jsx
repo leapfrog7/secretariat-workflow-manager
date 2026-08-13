@@ -411,7 +411,7 @@ export default function IssueRegisterPage() {
       )}
       <div className="space-y-4">
         <section
-          className="surface grid grid-cols-2 divide-x divide-y divide-slate-200 overflow-hidden rounded-md sm:grid-cols-5 sm:divide-y-0"
+          className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-slate-200 bg-slate-200 shadow-[0_1px_2px_rgb(15_49_56_/_0.04),0_5px_16px_rgb(15_49_56_/_0.025)] sm:grid-cols-5"
           aria-label="Issue summary"
         >
           <Metric
@@ -452,8 +452,8 @@ export default function IssueRegisterPage() {
           />
         </section>
 
-        <section className="surface rounded-md p-3 sm:p-4">
-          <div className="border-b border-slate-200 pb-2.5 sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-3 sm:pb-3">
+        <section className="surface rounded-xl p-3 sm:p-4">
+          <div className="grid grid-cols-[minmax(0,1fr)_44px] gap-2 sm:grid-cols-[auto_minmax(280px,1fr)_44px] sm:items-center sm:gap-3">
             <ArchiveViewSwitch
               value={filters.archiveMode}
               currentCount={summary.total}
@@ -472,16 +472,7 @@ export default function IssueRegisterPage() {
                 }))
               }
             />
-            <FilterButton
-              className="hidden sm:flex"
-              open={showFilters}
-              active={advancedFiltersActive}
-              onClick={() => setShowFilters((current) => !current)}
-            />
-          </div>
-          <div className="mt-3">
-            <div className="flex w-full items-end gap-2">
-              <div className="min-w-0 flex-1">
+            <div className="col-start-1 row-start-2 min-w-0 sm:col-start-2 sm:row-start-1">
                 <SearchInput
                   value={filters.query}
                   onChange={(query) =>
@@ -492,15 +483,15 @@ export default function IssueRegisterPage() {
                   }
                   placeholder="Search issues, eReceipts or source documents"
                 />
-              </div>
-
-              <FilterButton
-                className="flex h-10 w-10 shrink-0 items-center justify-center sm:hidden"
-                open={showFilters}
-                active={advancedFiltersActive}
-                onClick={() => setShowFilters((current) => !current)}
-              />
             </div>
+            <FilterButton
+              className="col-start-2 row-start-2 flex sm:col-start-3 sm:row-start-1"
+              open={showFilters}
+              active={advancedFiltersActive}
+              onClick={() => setShowFilters((current) => !current)}
+            />
+          </div>
+          <div>
             {showFilters && (
               <div className="mt-3 border-t border-slate-200 pt-3">
                 <FilterBar
@@ -523,11 +514,11 @@ export default function IssueRegisterPage() {
           </div>
         </section>
         <div className="flex items-center justify-between gap-3">
-          <div className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+          <div className="text-sm font-medium text-slate-600" aria-live="polite">
             {filters.archiveMode === "Archived" && filtered.length
-              ? `Showing ${archivedRangeStart}-${archivedRangeEnd} of `
+              ? `Showing ${archivedRangeStart}–${archivedRangeEnd} of `
               : ""}
-            {filtered.length} Issue{filtered.length === 1 ? "" : "s"}
+            {filtered.length} issue{filtered.length === 1 ? "" : "s"}
             {filters.query && sourceMatchCount > 0
               ? ` - ${sourceMatchCount} source match${sourceMatchCount === 1 ? "" : "es"}`
               : ""}
@@ -705,34 +696,38 @@ function PaginationButton({ label, disabled, onClick, icon: Icon }) {
 }
 
 const metricTones = {
-  teal: "border-t-teal-600 bg-teal-50 text-teal-800",
-  slate: "border-t-slate-500 bg-slate-50 text-slate-700",
-  red: "border-t-red-600 bg-red-50 text-red-800",
-  cyan: "border-t-cyan-600 bg-cyan-50 text-cyan-800",
-  violet: "border-t-violet-600 bg-violet-50 text-violet-800",
+  teal: "text-teal-700",
+  slate: "text-slate-600",
+  red: "text-red-600",
+  cyan: "text-cyan-700",
+  violet: "text-violet-700",
 };
 
 function Metric({ label, value, detail, icon: Icon, tone, className = "" }) {
   return (
     <div
-      className={`min-h-[72px] border-t-[3px] p-2.5 sm:min-h-24 sm:border-t-4 sm:p-3.5 ${metricTones[tone]} ${className}`}
+      className={`relative min-w-0 bg-white px-3 py-3 sm:px-4 sm:py-4 ${className}`}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-lg font-semibold tabular-nums text-[#17333b] sm:text-2xl">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className={`text-xl font-semibold tabular-nums tracking-tight sm:text-2xl ${tone === "red" ? "text-red-700" : "text-[#17333b]"}`}>
             {value}
           </div>
-          <div className="mt-0.5 text-xs font-semibold leading-4 sm:mt-1 sm:text-sm">
+
+          <div className="mt-0.5 line-clamp-2 text-xs font-semibold leading-4 text-slate-700 sm:text-sm">
             {label}
           </div>
-          <div className="mt-1 hidden text-xs opacity-75 sm:block">
+
+          <div className="mt-1 hidden text-xs text-slate-500 sm:block">
             {detail}
           </div>
         </div>
-        <Icon
-          className="h-4 w-4 shrink-0 opacity-80 sm:h-5 sm:w-5"
-          aria-hidden="true"
-        />
+
+        <div
+          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-50 ${metricTones[tone]}`}
+        >
+          <Icon className="h-4 w-4" aria-hidden="true" />
+        </div>
       </div>
     </div>
   );
@@ -752,7 +747,7 @@ function ArchiveViewSwitch({
   ];
   return (
     <div
-      className="inline-flex max-w-full overflow-x-auto rounded-md bg-slate-100 p-1"
+      className="col-span-2 grid w-full grid-cols-3 rounded-lg bg-slate-100 p-[4px] sm:col-span-1 sm:inline-flex sm:w-auto"
       role="group"
       aria-label="Register view"
     >
@@ -761,12 +756,12 @@ function ArchiveViewSwitch({
           key={option.label}
           type="button"
           onClick={() => onChange(option.label)}
-          className={`inline-flex h-9 shrink-0 items-center gap-2 rounded px-3 text-sm font-semibold transition-colors ${value === option.label ? "bg-[#17333b] text-white" : "text-slate-600 hover:bg-slate-100"}`}
+          className={`inline-flex h-[36px] min-w-0 items-center justify-center gap-1.5 rounded-md px-2 text-xs font-semibold transition-colors sm:gap-2 sm:px-3 sm:text-sm ${value === option.label ? "bg-white text-[#17333b] shadow-sm ring-1 ring-inset ring-slate-200" : "text-slate-600 hover:bg-white/60"}`}
         >
           {option.icon && <option.icon className="h-3.5 w-3.5" />}
           {option.label}
           <span
-            className={`rounded-full px-1.5 py-0.5 text-xs tabular-nums ${value === option.label ? "bg-white/15 text-white" : "bg-slate-100 text-slate-600"}`}
+            className={`rounded-md px-1.5 py-0.5 text-[11px] tabular-nums ${value === option.label ? "bg-slate-100 text-slate-700" : "bg-slate-200/70 text-slate-600"}`}
           >
             {option.count}
           </span>
@@ -784,7 +779,7 @@ function FilterButton({ className = "", open, active, onClick }) {
       aria-label="Filter and sort"
       aria-expanded={open}
       onClick={onClick}
-      className={`relative h-11 w-11 items-center justify-center rounded-md border sm:h-10 sm:w-10 ${open || active ? "border-teal-300 bg-teal-50 text-teal-800" : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"} ${className}`}
+      className={`relative h-[44px] w-[44px] items-center justify-center rounded-lg border ${open || active ? "border-teal-300 bg-teal-50 text-teal-800" : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"} ${className}`}
     >
       <SlidersHorizontal className="h-4 w-4" />
       {active && (

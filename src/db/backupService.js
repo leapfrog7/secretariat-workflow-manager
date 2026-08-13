@@ -5,7 +5,7 @@ import { APP_NAME, DB_NAME, DB_VERSION } from '../constants/issueConstants';
 
 export { createExportFilename, exportDatabase, importDatabase };
 
-const CURRENT_TABLES = ['issues', 'records', 'actions', 'communications', 'references', 'issueMilestones', 'issueSummaries', 'notes', 'drafts', 'paragraphBank', 'officers', 'chronology', 'settings'];
+const CURRENT_TABLES = ['issues', 'records', 'actions', 'communications', 'references', 'workspaceReferences', 'issueReferenceLinks', 'issueMilestones', 'issueSummaries', 'notes', 'drafts', 'paragraphBank', 'officers', 'chronology', 'settings'];
 
 export async function validateBackupPayload(payload) {
   if (!payload || typeof payload !== 'object') throw new Error('Invalid backup file.');
@@ -27,6 +27,7 @@ export async function validateBackupPayload(payload) {
     if (schemaVersion < 11 && table === 'drafts') return false;
     if (schemaVersion < 14 && table === 'paragraphBank') return false;
     if (schemaVersion < 15 && table === 'notes') return false;
+    if (schemaVersion < 16 && ['workspaceReferences', 'issueReferenceLinks'].includes(table)) return false;
     return true;
   });
   for (const table of requiredTables) {

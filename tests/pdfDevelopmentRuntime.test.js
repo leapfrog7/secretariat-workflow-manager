@@ -24,4 +24,5 @@ test('mobile note AI actions share one row', () => {
   assert.match(noting, /grid w-full grid-cols-2 gap-2 sm:flex/);
   assert.match(noting, /relative inline-flex min-w-0/);
   assert.match(noting, /text-\[11px\][\s\S]*sm:text-xs/);
+  assert.equal(noting.match(/onClick=\{\(\) => openAIAssistance\(\)\}/g)?.length, 1);
 });

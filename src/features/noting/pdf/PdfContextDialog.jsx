@@ -9,7 +9,7 @@ function markdownName(fileName) {
   return String(fileName || 'source.pdf').replace(/\.pdf$/i, '') + '.md';
 }
 
-export default function PdfContextDialog({ file, maxBytes, modeLabel, attachLabel = 'Use and prepare note', onAttach, onClose }) {
+export default function PdfContextDialog({ file, maxBytes, modeLabel, attachLabel = 'Use and prepare note', selectionActions = false, onAttach, onClose }) {
   const [status, setStatus] = useState('extracting');
   const [progress, setProgress] = useState({ pageNumber: 0, totalPages: 0 });
   const [result, setResult] = useState(null);
@@ -21,6 +21,8 @@ export default function PdfContextDialog({ file, maxBytes, modeLabel, attachLabe
   const [showOriginalOcr, setShowOriginalOcr] = useState(false);
   const [error, setError] = useState('');
   const controllerRef = useRef(null);
+  const previewRef = useRef(null);
+  const [highlightedRange, setHighlightedRange] = useState({ start: 0, end: 0 });
 
   useEffect(() => {
     const controller = new AbortController();
@@ -153,6 +155,33 @@ export default function PdfContextDialog({ file, maxBytes, modeLabel, attachLabe
     onClose();
   };
 
+  const attachContent = (selectedContent) => {
+    const retainedContent = String(selectedContent || '').trim();
+    if (!retainedContent) {
+      setError('Highlight the passage you want to retain in the editable text preview.');
+      return;
+    }
+    if (byteLength(retainedContent) > maxBytes) {
+      setError(`The retained text exceeds the ${modeLabel} limit of ${Math.round(maxBytes / 1024)} KB. Retain a shorter passage.`);
+      return;
+    }
+    onAttach({
+      name: markdownName(file.name),
+      originalName: file.name,
+      sourceType: 'pdf',
+      content: retainedContent,
+      size: byteLength(retainedContent),
+      pageCount: selectedPages.size,
+    });
+  };
+
+  const retainHighlightedText = () => {
+    const textarea = previewRef.current;
+    const start = textarea?.selectionStart ?? highlightedRange.start;
+    const end = textarea?.selectionEnd ?? highlightedRange.end;
+    attachContent(content.slice(start, end));
+  };
+
   return (
     <ModalFrame open labelledBy="pdf-context-title" busy={['extracting', 'ocr'].includes(status)} onClose={close} maxWidth="max-w-5xl" className="flex flex-col overflow-hidden border border-slate-200">
         <header className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 px-4 py-4 sm:px-5">
@@ -218,14 +247,18 @@ export default function PdfContextDialog({ file, maxBytes, modeLabel, attachLabe
                 <div className="min-w-0 p-4 sm:p-5">
                   <div className="flex flex-wrap items-end justify-between gap-2"><div><p className="text-sm font-semibold text-slate-800">Editable text preview</p><p className="mt-0.5 text-xs text-slate-500">Correct recognition errors or remove material AI does not need.</p></div><p className={`text-xs tabular-nums ${overLimit ? 'font-semibold text-red-700' : 'text-slate-500'}`}>{Math.max(1, Math.ceil(extractedBytes / 1024)).toLocaleString()} KB | about {estimatedTokens.toLocaleString()} tokens</p></div>
                   {error && <p className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium leading-5 text-red-700">{error}</p>}
-                  <textarea value={content} onChange={(event) => setContent(event.target.value)} rows={18} aria-label="Extracted PDF Markdown" className="mt-3 min-h-[42vh] w-full resize-y rounded-md border border-slate-300 bg-white px-3 py-3 font-mono text-xs leading-5 text-slate-800 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100 sm:min-h-[520px]" />
+                  <textarea ref={previewRef} value={content} onChange={(event) => setContent(event.target.value)} onSelect={(event) => setHighlightedRange({ start: event.currentTarget.selectionStart, end: event.currentTarget.selectionEnd })} rows={18} aria-label="Extracted PDF Markdown" className="mt-3 min-h-[42vh] w-full resize-y rounded-md border border-slate-300 bg-white px-3 py-3 font-mono text-xs leading-5 text-slate-800 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-100 sm:min-h-[520px]" />
                   {overLimit && <p className="mt-2 text-xs font-medium leading-5 text-red-700">The extracted text exceeds the {modeLabel} limit of {Math.round(maxBytes / 1024)} KB. Remove pages or shorten the preview before attaching it.</p>}
                 </div>
               </div>
             </div>
             <footer className="sticky bottom-0 z-10 flex shrink-0 flex-col-reverse gap-2 border-t border-slate-200 bg-white px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:flex-row sm:items-center sm:justify-between sm:px-5">
               <p className="flex items-center gap-2 text-xs text-slate-500"><FileText className="h-4 w-4 text-cyan-700" />Only this reviewed text will be available to AI.</p>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2"><button type="button" onClick={close} className="min-h-11 rounded-md border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-700 hover:bg-slate-50">Cancel</button><button type="button" disabled={!content.trim() || overLimit} onClick={() => onAttach({ name: markdownName(file.name), originalName: file.name, sourceType: 'pdf', content, size: extractedBytes, pageCount: selectedPages.size })} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-cyan-700 px-4 text-xs font-semibold text-white hover:bg-cyan-800 disabled:cursor-not-allowed disabled:bg-slate-300"><Check className="h-4 w-4" />{attachLabel}</button></div>
+              <div className={`grid grid-cols-1 gap-2 ${selectionActions ? 'sm:grid-cols-3' : 'sm:grid-cols-2'}`}>
+                <button type="button" onClick={close} className="min-h-11 rounded-md border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-700 hover:bg-slate-50">Cancel</button>
+                {selectionActions && <button type="button" disabled={highlightedRange.end <= highlightedRange.start} onMouseDown={(event) => event.preventDefault()} onClick={retainHighlightedText} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-cyan-300 bg-cyan-50 px-4 text-xs font-semibold text-cyan-900 hover:bg-cyan-100 disabled:cursor-not-allowed disabled:opacity-50"><Check className="h-4 w-4" />Retain highlighted text</button>}
+                <button type="button" disabled={!content.trim() || overLimit} onClick={() => attachContent(content)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-cyan-700 px-4 text-xs font-semibold text-white hover:bg-cyan-800 disabled:cursor-not-allowed disabled:bg-slate-300"><Check className="h-4 w-4" />{selectionActions ? 'Retain all preview text' : attachLabel}</button>
+              </div>
             </footer>
           </>
         )}

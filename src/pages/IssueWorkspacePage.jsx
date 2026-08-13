@@ -338,7 +338,7 @@ export default function IssueWorkspacePage() {
       if (target.kind === 'communication') await deleteCommunication(target.item.id);
       else if (target.kind === 'reference') await deleteReference(target.item.id);
       else await deleteSummaryVersion(target.item.id);
-      showToast(target.kind === 'communication' ? 'Communication deleted.' : target.kind === 'reference' ? 'Reference deleted.' : `Summary version ${target.item.version} deleted.`);
+      showToast(target.kind === 'communication' ? 'Communication deleted.' : target.kind === 'reference' ? 'Reference detached from this Issue.' : `Summary version ${target.item.version} deleted.`);
       setState((current) => ({ ...current, deleteTarget: null }));
       if (target.kind === 'summary') {
         await loadCore();
@@ -490,7 +490,7 @@ export default function IssueWorkspacePage() {
       )}
       {state.activeTab === 'References' && (
         <SectionGate status={state.sectionStatus.references} error={state.sectionErrors.references} label="references" onRetry={() => loadSection('references', { force: true })}>
-          <ReferenceTab issueId={issueId} references={state.references} readOnly={!canEditIssue} onSave={saveReferenceEntry} onDelete={(item) => setState((current) => ({ ...current, deleteTarget: { kind: 'reference', item } }))} onDirtyChange={setReferencesDirty} />
+          <ReferenceTab issueId={issueId} references={state.references} readOnly={!canEditIssue} onSave={saveReferenceEntry} onChanged={() => refreshRecordSection('references')} onDelete={(item) => setState((current) => ({ ...current, deleteTarget: { kind: 'reference', item } }))} onDirtyChange={setReferencesDirty} />
         </SectionGate>
       )}
       {state.activeTab === 'Share & Access' && <IssueAccessPanel auth={auth} issue={issue} canEdit={canEditIssue} onUpdateIssue={saveAccessPolicy} />}
@@ -513,9 +513,9 @@ export default function IssueWorkspacePage() {
       <ConfirmDialog open={state.confirmArchive} title={issue.isArchived ? 'Restore Issue?' : 'Archive Issue?'} message={issue.isArchived ? 'The Issue will return to the current register.' : 'The Issue will be hidden from the current register but retained in the database.'} confirmLabel={issue.isArchived ? 'Restore' : 'Archive'} onCancel={() => setState((current) => ({ ...current, confirmArchive: false }))} onConfirm={toggleArchiveIssue} />
       <ConfirmDialog
         open={Boolean(state.deleteTarget)}
-        title={state.deleteTarget?.kind === 'communication' ? 'Delete communication?' : state.deleteTarget?.kind === 'reference' ? 'Delete reference?' : `Delete summary version ${state.deleteTarget?.item?.version || ''}?`}
-        message={state.deleteTarget?.kind === 'summary' ? 'This saved version will be permanently removed. If it is the latest version, the preceding version will become the current running summary.' : 'This entry will be permanently removed from the Issue.'}
-        confirmLabel="Delete"
+        title={state.deleteTarget?.kind === 'communication' ? 'Delete communication?' : state.deleteTarget?.kind === 'reference' ? 'Detach reference?' : `Delete summary version ${state.deleteTarget?.item?.version || ''}?`}
+        message={state.deleteTarget?.kind === 'summary' ? 'This saved version will be permanently removed. If it is the latest version, the preceding version will become the current running summary.' : state.deleteTarget?.kind === 'reference' ? 'The shared reference will remain in the Reference Library and on any other Issues.' : 'This entry will be permanently removed from the Issue.'}
+        confirmLabel={state.deleteTarget?.kind === 'reference' ? 'Detach' : 'Delete'}
         destructive
         onCancel={() => setState((current) => ({ ...current, deleteTarget: null }))}
         onConfirm={confirmDelete}

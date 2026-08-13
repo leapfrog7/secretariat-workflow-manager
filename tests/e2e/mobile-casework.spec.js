@@ -56,6 +56,17 @@ test('Casework source and paste sheets remain inside the viewport', async ({ pag
   await expect(pasteDialog.getByRole('button', { name: 'Use this text' })).toBeEnabled();
 });
 
+test('Reference Library opens from mobile navigation and accepts retained text', async ({ page }) => {
+  await page.getByRole('button', { name: 'More navigation' }).click();
+  await page.getByRole('menuitem', { name: 'Reference Library' }).click();
+  await expect(page.getByRole('heading', { name: 'Reference Library', level: 1 })).toBeVisible();
+  await page.getByRole('button', { name: 'Create reference' }).click();
+  await page.getByLabel('Title').fill('Mobile reference test');
+  await page.getByLabel('Retained relevant text').fill('Rule 12 applies to the present case.');
+  await expect(page.getByRole('button', { name: 'Save reference' })).toBeVisible();
+  expect(await page.evaluate(() => document.body.scrollWidth)).toBeLessThanOrEqual(page.viewportSize().width);
+});
+
 async function expectDialogInsideViewport(page, dialog) {
   const box = await dialog.boundingBox();
   const viewport = page.viewportSize();

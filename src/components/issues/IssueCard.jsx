@@ -24,7 +24,7 @@ export default function IssueCard({ issue, officers = [], working = false, canEd
     navigate(`/issues/${issue.id}`);
   };
   return (
-    <article tabIndex={0} aria-label={`Open Issue: ${issue.shortTitle}`} onClick={openIssue} onKeyDown={openIssueFromKeyboard} className={`surface cursor-pointer rounded-md border-l-[3px] p-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 ${issue.isArchived ? 'border-l-slate-400' : scheduled ? 'border-l-cyan-600' : 'border-l-teal-600'}`}>
+    <article tabIndex={0} aria-label={`Open Issue: ${issue.shortTitle}`} onClick={openIssue} onKeyDown={openIssueFromKeyboard} className={`surface cursor-pointer rounded-xl border-l-[3px] p-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-600 ${issue.isArchived ? 'border-l-slate-400' : scheduled ? 'border-l-cyan-600' : 'border-l-teal-600'}`}>
       <Link to={`/issues/${issue.id}`} className="line-clamp-2 text-sm font-semibold leading-5 text-[#17333b] hover:text-teal-800 hover:underline" title={issue.shortTitle}>
         {issue.shortTitle}
       </Link>
@@ -34,8 +34,8 @@ export default function IssueCard({ issue, officers = [], working = false, canEd
         </div>
         <div className="flex shrink-0 items-center gap-1">
           {showDivision && <span title={issue.divisionName ? `Owning division: ${issue.divisionName}` : 'No owning division assigned'} className={`inline-flex max-w-28 truncate rounded px-1.5 py-0.5 text-xs font-semibold ${issue.divisionName ? 'bg-teal-50 text-teal-800 ring-1 ring-inset ring-teal-200' : 'bg-slate-100 text-slate-500 ring-1 ring-inset ring-slate-200'}`}>{issue.divisionName || 'Unassigned'}</span>}
-          {issue.isArchived && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">Archived</span>}
-          {scheduled && <span className="rounded-full bg-cyan-100 px-2 py-0.5 text-xs font-semibold text-cyan-800">Scheduled</span>}
+          {issue.isArchived && <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">Archived</span>}
+          {scheduled && <span className="rounded-md bg-cyan-100 px-2 py-0.5 text-xs font-semibold text-cyan-800">Scheduled</span>}
         </div>
       </div>
       <SourceSearchMatch match={issue.searchMatch} />

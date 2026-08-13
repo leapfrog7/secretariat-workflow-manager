@@ -148,6 +148,7 @@ cloudAIClient
 | `src/pages/IssueWorkspacePage.jsx` | One Issue's details and child-resource workspace. Loads lightweight counts first and deferred tabs on demand; connects milestones, summaries, communications, references, access, Notes and Casework deep links. |
 | `src/pages/CaseworkPage.jsx` | Top-level Casework surface and `/casework/:issueId` deep link. Loads authorized Issue context and renders the shared `CaseworkModule`; also provides Recent/Awaiting discovery. |
 | `src/pages/ReportsPage.jsx` | Report selection, period controls, preview, CSV/DOCX export and optional Cloud/Local AI refinement. Uses report utilities and `ReportAIRefinement`. |
+| `src/pages/ReferencesPage.jsx` | Workspace Reference Library: search, metadata, selective PDF/OCR or document-text retention, reusable extracts and archive controls. |
 | `src/pages/AdminPage.jsx` | Platform/workspace administration: approvals, workspace assignment/provisioning, directory, divisions, policy and Cloud AI usage. Calls auth, workspace, access and AI admin APIs. |
 | `src/pages/SettingsPage.jsx` | Personal/workspace settings, officer directory, office profile, appearance, Local/Cloud AI, reminders, push consent and backup/restore. Uses settings sync, repositories and notification APIs. |
 | `src/pages/DashboardPage.jsx` | Legacy/auxiliary operational dashboard summaries. Not currently a primary route. |
@@ -202,7 +203,7 @@ cloudAIClient
 | `QuickPositionDialog.jsx` | Compact position update workflow. |
 | `RunningSummaryPanel.jsx` | Versioned Markdown summaries, Brief/Standard/Detailed AI, temporary PDF/OCR/Word/text sources, Local/Cloud generation and undo. |
 | `CommunicationTab.jsx` | Communication list/edit UI, source metadata and dirty reporting. Uses `communicationRepository`. |
-| `ReferenceTab.jsx` | Reference/rule list/edit UI and dirty reporting. Uses `referenceRepository`. |
+| `ReferenceTab.jsx` | Issue-facing library picker; attaches shared references and stores Issue-specific relevance and selected AI extracts. |
 | `SourceSearchMatch.jsx` | Highlights source-search results in Issue/Casework lists. |
 | `src/components/actions/ActionForm.jsx` | Legacy/auxiliary action assignment form. |
 | `ActionIndicators.jsx` | Compact action-state indicators. |
@@ -253,6 +254,7 @@ cloudAIClient
 | `paragraphBank/paragraphBankRepository.js` | Local Dexie CRUD/outbox behavior for paragraph entries. |
 | `paragraphBank/paragraphBankApi.js` | Neon Data API calls for paragraph resources. |
 | `paragraphBank/paragraphBankSync.js` | Reconciles scoped personal/shared paragraph entries and revisions. |
+| `src/features/cloud/referenceLibraryApi.js`, `referenceLibrarySync.js` | RLS-backed shared-reference and Issue-link synchronization with revision-checked saves. |
 
 ## 10. Local repositories and IndexedDB
 
@@ -263,7 +265,7 @@ cloudAIClient
 | `milestoneRepository.js` | Position/stage history CRUD and cloud item queueing. |
 | `summaryRepository.js` | Append/list/delete running-summary versions and cloud synchronization. |
 | `communicationRepository.js` | Communication CRUD, normalization, tombstones and sync. |
-| `referenceRepository.js` | Reference CRUD, normalization, tombstones and sync. |
+| `referenceRepository.js` | Workspace Reference Library and Issue-link CRUD; supplies a compatibility Issue-reference view to Noting and Drafting. |
 | `noteRepository.js` | Note CRUD; editing first stores an immutable revision snapshot, then syncs the current Note. |
 | `draftRepository.js` | Mutable working drafts, immutable snapshots, five-record retention and sync behavior. |
 | `officerRepository.js` | Officer directory CRUD and cloud sync. |
@@ -411,6 +413,7 @@ Migrations are append-only and applied by filename order. Browser UI must not as
 | `025_casework_scale_and_telemetry.sql` | Access-checked paged Casework search and content-free failure events. |
 | `026_workspace_configuration_hardening.sql` | Restricts officer/profile settings and adds revision checks. |
 | `027_web_push_deadline_notifications.sql` | Scoped push subscriptions and deadline notification delivery. |
+| `028_workspace_reference_library.sql` | Reusable workspace references, Issue links, RLS, revision saves and legacy-reference migration. |
 
 ## 17. Operational scripts and CI
 
@@ -468,6 +471,7 @@ Most tests use Node's built-in runner. UI contract tests intentionally inspect s
 | `positionUpdateUtils.test.js` | Present-position/milestone correction. |
 | `pushNotifications.test.js` | Subscription security, daily delivery and service-worker handling. |
 | `reportAIUtils.test.js`, `reportUtils.test.js` | Report prompts, periods, datasets and Word/CSV exports. |
+| `referenceLibrary.test.js` | Reference/link separation, retained-text limits, routing, OCR integration and RLS migration contracts. |
 | `runningSummaryAI.test.js` | Summary complexity prompts and output budgets. |
 | `runningSummarySourceDocument.test.js` | Running Summary source/OCR reuse and temporary material safeguards. |
 | `settingsUtils.test.js` | Personal/workspace/device settings timestamp ownership. |

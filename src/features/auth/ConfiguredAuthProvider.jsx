@@ -7,6 +7,7 @@ import { configureCloudOfficerSync, syncWorkspaceOfficers } from '../cloud/cloud
 import { configureCloudIssueItemSync, syncWorkspaceIssueItems } from '../cloud/cloudIssueItemSync';
 import { configureCloudSettingsSync, syncWorkspaceSettings } from '../cloud/cloudSettingsSync';
 import { configureParagraphBankSync, syncParagraphBank } from '../drafting/paragraphBank/paragraphBankSync';
+import { configureReferenceLibrarySync, syncReferenceLibrary } from '../cloud/referenceLibrarySync';
 import { ensurePlatformWorkspace, listMyWorkspaces } from '../cloud/workspaceApi';
 import { commitLocalWorkspaceScope, prepareLocalWorkspaceScope } from '../cloud/localWorkspaceScope';
 import { canEditWorkspace } from '../../utils/accessUtils';
@@ -19,6 +20,7 @@ async function synchronizeWorkspace(configuration) {
   const items = await syncWorkspaceIssueItems(linkedConfiguration);
   const settings = await syncWorkspaceSettings(linkedConfiguration);
   let paragraphBank;
+  let referenceLibrary;
   try {
     paragraphBank = await syncParagraphBank(linkedConfiguration);
   } catch (error) {
@@ -27,7 +29,8 @@ async function synchronizeWorkspace(configuration) {
       error: error.message || 'Paragraph Bank synchronization is temporarily unavailable.',
     };
   }
-  const result = { officers, issues, items, settings, paragraphBank, syncedAt: new Date().toISOString() };
+  try { referenceLibrary = await syncReferenceLibrary(linkedConfiguration); } catch (error) { referenceLibrary = { available: false, error: error.message || 'Reference Library synchronization is unavailable.' }; }
+  const result = { officers, issues, items, settings, paragraphBank, referenceLibrary, syncedAt: new Date().toISOString() };
   commitLocalWorkspaceScope(configuration);
   if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('swm:workspace-synced', { detail: result }));
   return result;
@@ -75,6 +78,7 @@ export default function ConfiguredAuthProvider({ children }) {
       configureCloudIssueItemSync(null);
       configureCloudSettingsSync(null);
       configureParagraphBankSync(null);
+      configureReferenceLibrarySync(null);
       setWorkspaceState({ userId: '', workspaces: [], workspace: null, loading: false, error: '', syncState: { status: 'idle', error: '', syncedAt: '' } });
       return undefined;
     }
@@ -114,6 +118,7 @@ export default function ConfiguredAuthProvider({ children }) {
       configureCloudIssueItemSync(null);
       configureCloudSettingsSync(null);
       configureParagraphBankSync(null);
+      configureReferenceLibrarySync(null);
     };
   }, [profileState.profile, profileState.userId, userId]);
 
@@ -184,6 +189,7 @@ export default function ConfiguredAuthProvider({ children }) {
       configureCloudIssueItemSync(configuration);
       configureCloudSettingsSync(configuration);
       configureParagraphBankSync(configuration);
+      configureReferenceLibrarySync(configuration);
     }
     return workspaces;
   }

@@ -52,7 +52,7 @@ export default function AdaptiveSelect({
           disabled={disabled}
           required={required}
           aria-label={ariaLabel || (!label ? placeholder : undefined)}
-          className={`${controlClassName} w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-100`}
+          className={`${controlClassName} w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-100`}
         >
           {includeBlank && <option value="">{placeholder}</option>}
           {items.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -83,7 +83,7 @@ export default function AdaptiveSelect({
           else if (!nextQuery) onChange('');
         }}
         onBlur={() => setQuery(items.find((item) => item.value === String(value || ''))?.label || '')}
-        className={`${controlClassName} w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-100`}
+        className={`${controlClassName} w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-100`}
       />
       <datalist id={listId}>
         {items.map((option) => <option key={option.value} value={option.label} />)}

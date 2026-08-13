@@ -116,6 +116,10 @@ Current implementation status:
   enabling per-device Web Push for approaching, due and overdue Issue deadlines.
   Push subscription endpoints and keys are user/workspace-scoped credentials;
   the VAPID private key remains server-only.
+- Migration `028_workspace_reference_library.sql` must be applied before shared
+  Reference Library synchronization is enabled. References belong to the
+  workspace; Issue links carry relevance notes and selected extracts without
+  duplicating the retained source text.
 - Division enforcement remains off until a workspace administrator creates
   divisions, assigns active members and Issues, passes the readiness report, and
   explicitly enables it.

@@ -12,6 +12,7 @@ const IssueFormPage = lazy(getRouteImport('/issues/new'));
 const IssueWorkspacePage = lazy(getRouteImport('/issues/example'));
 const CaseworkPage = lazy(getRouteImport('/casework'));
 const ReportsPage = lazy(getRouteImport('/reports'));
+const ReferencesPage = lazy(getRouteImport('/references'));
 const SettingsPage = lazy(getRouteImport('/settings'));
 const HelpPage = lazy(getRouteImport('/help'));
 const NotFoundPage = lazy(getRouteImport('/not-found'));
@@ -31,6 +32,7 @@ const router = createHashRouter([
       { path: 'casework', element: <CaseworkPage /> },
       { path: 'casework/:issueId', element: <CaseworkPage /> },
       { path: 'reports', element: <ReportsPage /> },
+      { path: 'references', element: <ReferencesPage /> },
       { path: 'review', element: <Navigate to="/issues" replace /> },
       { path: 'tasks', element: <Navigate to="/issues" replace /> },
       { path: 'settings', element: <SettingsPage /> },

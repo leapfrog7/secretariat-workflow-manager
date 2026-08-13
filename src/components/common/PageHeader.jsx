@@ -1,12 +1,25 @@
 export default function PageHeader({ title, description, actions }) {
   return (
-    <div className="mb-3 flex flex-col gap-2.5 border-b border-[#d7e3e1] pb-3 sm:mb-5 sm:flex-row sm:items-end sm:justify-between sm:gap-4 sm:pb-5">
-      <div className="min-w-0">
-        <div className="mb-1 h-1 w-7 rounded-full bg-teal-600 sm:mb-2 sm:w-9" aria-hidden="true" />
-        <h1 className="ui-page-title break-words tracking-normal text-[#17333b] sm:text-2xl">{title}</h1>
-        {description && <p className="mt-1 max-w-3xl text-[13px] leading-[1.45] text-slate-600 sm:mt-1.5 sm:text-sm sm:leading-6">{description}</p>}
+    <header className="mb-4 sm:mb-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+        <div className="min-w-0">
+          <h1 className="ui-page-title tracking-tight text-[#17333b]">
+            {title}
+          </h1>
+
+          {description && (
+            <p className="mt-1 max-w-3xl text-sm leading-5 text-slate-600 sm:leading-6">
+              {description}
+            </p>
+          )}
+        </div>
+
+        {actions && (
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:justify-end">
+            {actions}
+          </div>
+        )}
       </div>
-      {actions && <div className="flex w-full flex-wrap gap-2 [&>*]:flex-1 sm:w-auto sm:[&>*]:flex-none">{actions}</div>}
-    </div>
+    </header>
   );
 }

@@ -1,87 +1,48 @@
-import { useState } from 'react';
-import { BookOpen, CheckCircle2, LoaderCircle, Pencil, Plus, Save, Trash2, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { BookOpen, Link2, Plus, Search, Unlink, X } from 'lucide-react';
 import { formatDisplayDate } from '../../utils/dateUtils';
-import { normalizeReference, validateReference } from '../../utils/referenceUtils';
+import { attachReferenceToIssue, getWorkspaceReferences, saveWorkspaceReference, updateIssueReferenceLink } from '../../db/referenceRepository';
+import { useAuth } from '../../features/auth/AuthContext';
 import useDirtyStateReporter from '../../hooks/useDirtyStateReporter';
 
-export default function ReferenceTab({ issueId, references, readOnly = false, onSave, onDelete, onDirtyChange }) {
-  const [form, setForm] = useState(null);
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-base font-semibold text-[#17333b]">References</h2>
-          <p className="mt-1 text-sm text-slate-600">Capture the rules, orders and authorities relevant to this Issue.</p>
-        </div>
-        {!readOnly && !form && <button type="button" onClick={() => setForm({ id: null })} className="inline-flex h-10 items-center gap-2 rounded-md bg-teal-700 px-3 text-sm font-semibold text-white shadow-sm hover:bg-teal-800"><Plus className="h-4 w-4" />Add reference</button>}
-      </div>
-
-      {form && <ReferenceForm issueId={issueId} initialReference={form.id ? references.find((item) => item.id === form.id) : null} onSave={onSave} onComplete={() => setForm(null)} onCancel={() => setForm(null)} onDirtyChange={onDirtyChange} />}
-
-      <div className="grid gap-3 lg:grid-cols-2">
-        {references.map((reference) => (
-          <article key={reference.id} className="surface rounded-md border-l-4 border-l-amber-500 p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h3 className="break-words text-sm font-semibold text-[#17333b]">{reference.citation}</h3>
-                {reference.referenceDate && <p className="mt-1 text-xs font-medium text-slate-500">Dated {formatDisplayDate(reference.referenceDate)}</p>}
-              </div>
-              {!readOnly && <div className="flex shrink-0 gap-1">
-                <IconButton label="Edit reference" onClick={() => setForm({ id: reference.id })}><Pencil className="h-4 w-4" /></IconButton>
-                <IconButton label="Delete reference" danger onClick={() => onDelete(reference)}><Trash2 className="h-4 w-4" /></IconButton>
-              </div>}
-            </div>
-            {reference.notes && <p className="mt-3 whitespace-pre-wrap border-t border-[#e3ebe9] pt-3 text-sm leading-6 text-slate-700">{reference.notes}</p>}
-          </article>
-        ))}
-      </div>
-      {!references.length && <div className="surface rounded-md px-4 py-10 text-center"><BookOpen className="mx-auto h-7 w-7 text-slate-400" /><p className="mt-2 text-sm font-medium text-slate-700">No references recorded</p><p className="mt-1 text-xs text-slate-500">Add the first rule, order or authoritative reference.</p></div>}
-    </div>
-  );
-}
-
-function ReferenceForm({ issueId, initialReference, onSave, onComplete, onCancel, onDirtyChange }) {
-  const [reference, setReference] = useState(normalizeReference({ ...initialReference, issueId }));
-  const [errors, setErrors] = useState({});
-  const [saveStatus, setSaveStatus] = useState('idle');
-  const [dirty, setDirty] = useState(false);
-  const update = (field, value) => {
-    setReference((current) => ({ ...current, [field]: value }));
-    setDirty(true);
-  };
-  useDirtyStateReporter(dirty, onDirtyChange);
-  const submit = async (event) => {
-    event.preventDefault();
-    const nextErrors = validateReference(reference);
-    setErrors(nextErrors);
-    if (Object.keys(nextErrors).length) return;
-    setSaveStatus('saving');
+export default function ReferenceTab({ issueId, references, readOnly = false, onDelete, onDirtyChange, onChanged }) {
+  const auth = useAuth();
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [library, setLibrary] = useState([]);
+  const [query, setQuery] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const loadLibrary = async () => setLibrary(await getWorkspaceReferences());
+  useEffect(() => { if (pickerOpen) loadLibrary(); }, [pickerOpen]);
+  const attachedIds = new Set(references.map((item) => item.libraryReferenceId));
+  const available = useMemo(() => library.filter((item) => !attachedIds.has(item.id) && [item.title, item.citation, item.authority, item.tags.join(' ')].join(' ').toLowerCase().includes(query.trim().toLowerCase())), [library, query, references]);
+  const attach = async (referenceId) => {
+    setBusy(true);
     try {
-      await onSave(reference);
-      setDirty(false);
-      setSaveStatus('saved');
-      await new Promise((resolve) => window.setTimeout(resolve, 500));
-      onComplete();
-    } catch {
-      setSaveStatus('idle');
+      await attachReferenceToIssue({ issueId, referenceId });
+      setPickerOpen(false);
+      await onChanged?.();
+    } finally {
+      setBusy(false);
     }
   };
-  return (
-    <form onSubmit={submit} className="surface rounded-md border-t-4 border-t-amber-500 p-4">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field className="sm:col-span-2" label="Reference" error={errors.citation}><input value={reference.citation} onChange={(event) => update('citation', event.target.value)} placeholder="Example: GFR Rule 157 or DoPT OM No..." className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm" /></Field>
-        <Field label="Reference date (optional)"><input type="date" value={reference.referenceDate} onChange={(event) => update('referenceDate', event.target.value)} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm" /></Field>
-        <Field className="sm:col-span-2" label="Relevant provision / notes"><textarea value={reference.notes} onChange={(event) => update('notes', event.target.value)} rows={4} placeholder="Record the relevant rule position, extract or interpretation." className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm leading-6" /></Field>
-      </div>
-      <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:justify-end">
-        <button type="button" onClick={onCancel} disabled={saveStatus !== 'idle'} className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 sm:h-10"><X className="h-4 w-4" />Cancel</button>
-        <button type="submit" disabled={saveStatus !== 'idle'} className={`inline-flex h-11 min-w-28 items-center justify-center gap-2 rounded-md px-3 text-sm font-semibold text-white sm:h-10 ${saveStatus === 'saved' ? 'bg-emerald-700' : 'bg-teal-700 hover:bg-teal-800 disabled:bg-slate-400'}`}>
-          {saveStatus === 'saving' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : saveStatus === 'saved' ? <CheckCircle2 className="h-4 w-4" /> : <Save className="h-4 w-4" />}{saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved' : 'Save'}
-        </button>
-      </div>
-    </form>
-  );
+  return <div className="space-y-4">
+    <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-base font-semibold text-[#17333b]">References</h2><p className="mt-1 text-sm text-slate-600">Attach reusable authorities from the workspace library and record why they matter to this Issue.</p></div>{!readOnly && <button type="button" onClick={() => setPickerOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-md bg-teal-700 px-3 text-sm font-semibold text-white"><Link2 className="h-4 w-4" />Attach reference</button>}</div>
+    {pickerOpen && <div className="surface rounded-md border-t-4 border-t-amber-500 p-4"><div className="flex items-center justify-between"><h3 className="text-sm font-semibold">Attach from Reference Library</h3><button type="button" onClick={() => setPickerOpen(false)} aria-label="Close reference picker" className="h-10 w-10"><X className="mx-auto h-4 w-4" /></button></div>{creating ? <QuickReferenceForm ownerUserId={auth.user?.id || ''} onCancel={() => setCreating(false)} onCreated={async (item) => { await loadLibrary(); await attach(item.id); }} /> : <><div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]"><label className="relative"><Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" /><span className="sr-only">Search Reference Library</span><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search the shared library" className="h-10 w-full rounded-md border border-slate-300 pl-9 pr-3 text-sm" /></label><button type="button" onClick={() => setCreating(true)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-teal-200 px-3 text-xs font-semibold text-teal-800"><Plus className="h-4 w-4" />Create new</button></div><div className="mt-3 max-h-72 space-y-2 overflow-y-auto">{available.map((item) => <button key={item.id} type="button" disabled={busy} onClick={() => attach(item.id)} className="flex min-h-14 w-full items-center justify-between gap-3 rounded-md border border-slate-200 px-3 py-2 text-left hover:bg-amber-50"><span><span className="block text-sm font-semibold text-slate-800">{item.title}</span><span className="mt-0.5 block text-xs text-slate-500">{[item.citation, item.authority, `${item.extracts.length} extracts`].filter(Boolean).join(' · ')}</span></span><span className="text-xs font-semibold text-teal-700">Attach</span></button>)}{!available.length && <p className="py-6 text-center text-xs text-slate-500">No unattached matching references.</p>}</div></>}</div>}
+    <div className="grid gap-3 lg:grid-cols-2">{references.map((item) => <IssueReferenceCard key={item.id} item={item} readOnly={readOnly} onDelete={onDelete} onDirtyChange={onDirtyChange} onChanged={onChanged} />)}</div>
+    {!references.length && <div className="surface rounded-md px-4 py-10 text-center"><BookOpen className="mx-auto h-7 w-7 text-slate-400" /><p className="mt-2 text-sm font-medium text-slate-700">No references attached</p><p className="mt-1 text-xs text-slate-500">Attach an existing workspace reference or create one here.</p></div>}
+  </div>;
 }
 
-function Field({ label, error, className = '', children }) { return <label className={`block ${className}`}><span className="mb-1 block text-sm font-medium text-slate-700">{label}</span>{children}{error && <span className="mt-1 block text-xs text-red-700">{error}</span>}</label>; }
-function IconButton({ label, danger = false, onClick, children }) { return <button type="button" title={label} aria-label={label} onClick={onClick} className={`rounded-md border p-2 ${danger ? 'border-transparent text-slate-400 hover:border-red-200 hover:bg-red-50 hover:text-red-700' : 'border-transparent text-slate-500 hover:border-teal-200 hover:bg-teal-50 hover:text-teal-800'}`}>{children}</button>; }
+function IssueReferenceCard({ item, readOnly, onDelete, onDirtyChange, onChanged }) {
+  const [editing, setEditing] = useState(false); const [note, setNote] = useState(item.link?.relevanceNote || ''); const [extractIds, setExtractIds] = useState(item.link?.extractIds || []); const [includeFullText, setIncludeFullText] = useState(Boolean(item.link?.includeFullText)); const [dirty, setDirty] = useState(false);
+  useDirtyStateReporter(dirty, onDirtyChange);
+  const save = async () => { await updateIssueReferenceLink({ ...item.link, relevanceNote: note, extractIds, includeFullText }); setDirty(false); setEditing(false); await onChanged?.(); };
+  const change = (setter, value) => { setter(value); setDirty(true); };
+  return <article className="surface rounded-md border-l-4 border-l-amber-500 p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><h3 className="break-words text-sm font-semibold text-[#17333b]">{item.reference?.title || item.citation}</h3><p className="mt-1 text-xs text-slate-500">{[item.citation, item.referenceDate && formatDisplayDate(item.referenceDate)].filter(Boolean).join(' · ')}</p></div>{!readOnly && <div className="flex gap-1"><button type="button" onClick={() => setEditing((x) => !x)} className="min-h-10 rounded-md border border-slate-200 px-3 text-xs font-semibold">{editing ? 'Close' : 'Relevance'}</button><button type="button" aria-label="Detach reference" title="Detach from Issue" onClick={() => onDelete(item)} className="inline-flex h-10 w-10 items-center justify-center text-slate-500 hover:text-red-700"><Unlink className="h-4 w-4" /></button></div>}</div>
+    {!editing && item.notes && <p className="mt-3 line-clamp-6 whitespace-pre-wrap border-t border-slate-100 pt-3 text-sm leading-6 text-slate-700">{item.notes}</p>}
+    {editing && <div className="mt-3 space-y-3 border-t border-slate-100 pt-3"><label className="block"><span className="text-xs font-semibold text-slate-700">Why this reference matters to this Issue</span><textarea value={note} onChange={(e) => change(setNote, e.target.value)} rows={3} className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm" /></label>{item.reference?.retainedText && <label className="flex items-start gap-2 text-xs"><input type="checkbox" checked={includeFullText} onChange={(e) => change(setIncludeFullText, e.target.checked)} />Use the full retained text in AI context</label>}{item.reference?.extracts.map((extract) => <label key={extract.id} className="flex items-start gap-2 rounded-md border border-slate-200 p-2 text-xs"><input type="checkbox" checked={extractIds.includes(extract.id)} onChange={(e) => change(setExtractIds, e.target.checked ? [...extractIds, extract.id] : extractIds.filter((id) => id !== extract.id))} /><span><span className="font-semibold">{extract.title}</span><span className="mt-1 block line-clamp-2 text-slate-500">{extract.content}</span></span></label>)}<button type="button" onClick={save} className="min-h-10 w-full rounded-md bg-teal-700 px-3 text-sm font-semibold text-white sm:w-auto">Save relevance</button></div>}
+  </article>;
+}
+
+function QuickReferenceForm({ ownerUserId, onCancel, onCreated }) { const [title, setTitle] = useState(''); const [citation, setCitation] = useState(''); const submit = async (e) => { e.preventDefault(); const item = await saveWorkspaceReference({ title, citation, scope: 'workspace' }, ownerUserId); await onCreated(item); }; return <form onSubmit={submit} className="mt-3 grid gap-3"><label><span className="text-xs font-semibold">Title</span><input value={title} onChange={(e) => setTitle(e.target.value)} required className="mt-1 h-10 w-full rounded-md border border-slate-300 px-3 text-sm" /></label><label><span className="text-xs font-semibold">Citation / number</span><input value={citation} onChange={(e) => setCitation(e.target.value)} className="mt-1 h-10 w-full rounded-md border border-slate-300 px-3 text-sm" /></label><div className="grid grid-cols-2 gap-2"><button type="button" onClick={onCancel} className="min-h-11 rounded-md border">Cancel</button><button className="min-h-11 rounded-md bg-teal-700 text-sm font-semibold text-white">Create and attach</button></div></form>; }

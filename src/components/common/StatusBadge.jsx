@@ -10,7 +10,7 @@ const styles = {
 
 export default function StatusBadge({ status }) {
   return (
-    <span className={`inline-flex max-w-full items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${styles[status] || styles.Pending}`}>
+    <span className={`inline-flex max-w-full items-center rounded-md border px-2.5 py-1 text-xs font-semibold ${styles[status] || styles.Pending}`}>
       <span className="truncate">{status || 'Not set'}</span>
     </span>
   );

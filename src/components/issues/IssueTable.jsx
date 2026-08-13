@@ -10,7 +10,7 @@ import { getIssuePositionPreview } from '../../utils/issueUtils';
 export default function IssueTable({ issues, officers = [], registerMode = 'Current', workingId = '', canEdit = true, showDivision = false, onQuickPosition, onRestore, onBringBack, onArchive, onDelete }) {
   const showReturnDate = ['Scheduled', 'All'].includes(registerMode);
   return (
-    <div className="issue-register-table surface overflow-hidden rounded-md">
+    <div className="issue-register-table surface overflow-hidden rounded-xl">
       <div className="overflow-x-auto">
         <table className="w-full min-w-[1120px] table-fixed divide-y divide-[#dce6e4] text-sm">
           <thead className="bg-[#edf4f2] text-left text-xs font-semibold uppercase tracking-wide text-[#526b70]">
@@ -52,7 +52,7 @@ function IssueRow({ issue, officers, showReturnDate, showDivision, working, show
     navigate(`/issues/${issue.id}`);
   };
   return (
-    <tr tabIndex={0} aria-label={`Open Issue: ${issue.shortTitle}`} onClick={openIssue} onKeyDown={openIssueFromKeyboard} className="cursor-pointer transition-colors hover:bg-[#f5faf8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-teal-600">
+    <tr tabIndex={0} aria-label={`Open Issue: ${issue.shortTitle}`} onClick={openIssue} onKeyDown={openIssueFromKeyboard} className="cursor-pointer transition-colors hover:bg-[#f7faf9] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-teal-600">
                 <td className="max-w-[520px] px-4 py-3.5">
                   <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                     <Link to={`/issues/${issue.id}`} className="min-w-0 max-w-full font-semibold text-[#174f5b] hover:text-teal-800 hover:underline" title={issue.subject}>
@@ -61,8 +61,8 @@ function IssueRow({ issue, officers, showReturnDate, showDivision, working, show
                     {showDivision && <DivisionTag name={issue.divisionName} />}
                   </div>
                   {issue.eFileNumber && <div className="mt-1 truncate text-xs font-medium tabular-nums text-slate-500" title={`eFile no. ${issue.eFileNumber}`}>eFile {issue.eFileNumber}</div>}
-                  {issue.isArchived && <span className="mt-1 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">Archived</span>}
-                  {scheduled && <span className="mt-1 inline-flex rounded-full bg-cyan-100 px-2 py-0.5 text-xs font-semibold text-cyan-800">Scheduled</span>}
+                  {issue.isArchived && <span className="mt-1 inline-flex rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">Archived</span>}
+                  {scheduled && <span className="mt-1 inline-flex rounded-md bg-cyan-100 px-2 py-0.5 text-xs font-semibold text-cyan-800">Scheduled</span>}
                   <SourceSearchMatch match={issue.searchMatch} />
                 </td>
                 <td className="px-4 py-3.5 align-top">

@@ -289,6 +289,46 @@ db.version(15).stores({
   settings: 'id',
 });
 
+db.version(16).stores({
+  issues: 'id, eFileNumber, subjectType, assignedOfficerId, organisation, category, priority, status, nextDeadline, nextAppearanceDate, dateOpened, isArchived, isDemo, createdAt, updatedAt',
+  records: 'id, issueId, recordNumber, recordType, direction, organisation, recordDate, receivedDate, isArchived, createdAt, updatedAt',
+  actions: 'id, issueId, recordId, assignedOfficerId, assignedByOfficerId, reviewStatus, status, priority, assignedTo, pendingWith, dueDate, reminderDate, escalationDate, isArchived, completedAt, assignedOn, submittedOn, lastProgressUpdatedAt, createdAt, updatedAt',
+  communications: 'id, issueId, communicationDate, communicationType, createdAt, updatedAt',
+  references: 'id, issueId, referenceDate, createdAt, updatedAt',
+  workspaceReferences: 'id, scope, ownerUserId, status, referenceDate, updatedAt',
+  issueReferenceLinks: 'id, issueId, referenceId, [issueId+referenceId], updatedAt',
+  issueMilestones: 'id, issueId, recordedAt, createdAt',
+  issueSummaries: 'id, issueId, version, createdAt',
+  notes: 'id, issueId, sequence, createdAt, updatedAt',
+  drafts: 'id, issueId, version, communicationType, status, createdAt, updatedAt',
+  paragraphBank: 'id, scope, ownerUserId, category, status, updatedAt',
+  syncTombstones: 'id, entityType, itemId, deletedAt',
+  syncConflicts: 'id, issueId, entityType, itemId, detectedAt',
+  syncMutations: 'id, entityType, itemId, issueId, operation, createdAt',
+  officers: 'id, name, designation, section, role, isActive, createdAt, updatedAt',
+  chronology: 'id, issueId, recordId, actionId, eventType, eventDate, createdAt',
+  settings: 'id',
+}).upgrade(async (transaction) => {
+  const legacy = await transaction.table('references').toArray();
+  if (!legacy.length) return;
+  const workspaceReferences = legacy.map((item) => ({
+    id: item.id,
+    title: item.citation || 'Untitled reference',
+    citation: item.citation || '',
+    referenceDate: item.referenceDate || '',
+    authority: '', referenceType: 'Other', tags: [], sourceName: '', sourceType: '', retainedText: '', extracts: [],
+    scope: 'workspace', ownerUserId: '', status: 'active',
+    createdAt: item.createdAt, updatedAt: item.updatedAt, cloudRevision: 0, cloudPending: true,
+  }));
+  const links = legacy.map((item) => ({
+    id: crypto.randomUUID(), issueId: item.issueId, referenceId: item.id,
+    extractIds: [], relevanceNote: item.notes || '', includeFullText: false,
+    createdAt: item.createdAt, updatedAt: item.updatedAt, cloudRevision: 0, cloudPending: true,
+  }));
+  await transaction.table('workspaceReferences').bulkPut(workspaceReferences);
+  await transaction.table('issueReferenceLinks').bulkPut(links);
+});
+
 export async function getSettings() {
   const settings = await db.settings.get(SETTINGS_ID);
   if (settings) return {

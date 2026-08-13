@@ -4,6 +4,7 @@ const routeImports = {
   issueWorkspace: () => import('../pages/IssueWorkspacePage'),
   casework: () => import('../pages/CaseworkPage'),
   reports: () => import('../pages/ReportsPage'),
+  references: () => import('../pages/ReferencesPage'),
   settings: () => import('../pages/SettingsPage'),
   help: () => import('../pages/HelpPage'),
   admin: () => import('../pages/AdminPage'),
@@ -17,6 +18,7 @@ export function getRouteImport(pathname) {
   if (pathname.startsWith('/issues/')) return routeImports.issueWorkspace;
   if (pathname === '/casework' || pathname.startsWith('/casework/')) return routeImports.casework;
   if (pathname === '/reports') return routeImports.reports;
+  if (pathname === '/references') return routeImports.references;
   if (pathname === '/settings') return routeImports.settings;
   if (pathname === '/help') return routeImports.help;
   if (pathname === '/admin') return routeImports.admin;
