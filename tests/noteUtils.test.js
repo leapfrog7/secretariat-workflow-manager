@@ -100,3 +100,78 @@ test('AI note subject is normalized as one bold sentence-case label', () => {
   assert.deepEqual(richText.content[0].content[0].marks, [{ type: 'bold' }]);
   assert.equal(richText.content[1].content[0].text, 'The matter may be examined.');
 });
+
+test('notes retain safe paragraph presets and government numbering styles', () => {
+  const note = normalizeNote({
+    richText: {
+      type: 'doc',
+      content: [
+        { type: 'paragraph', attrs: { stylePreset: 'recommendation' }, content: [{ type: 'text', text: 'Approval may be accorded.' }] },
+        {
+          type: 'orderedList',
+          attrs: { start: 4, numberingStyle: 'lowerRoman' },
+          content: [{ type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'First consideration.' }] }] }],
+        },
+      ],
+    },
+  });
+
+  assert.equal(note.richText.content[0].attrs.stylePreset, 'recommendation');
+  assert.deepEqual(note.richText.content[1].attrs, { start: 4, numberingStyle: 'lowerRoman' });
+});
+
+test('notes retain page boundaries and nested official numbering', () => {
+  const note = normalizeNote({
+    richText: {
+      type: 'doc',
+      content: [{
+        type: 'orderedList',
+        attrs: { numberingStyle: 'decimal' },
+        content: [{
+          type: 'listItem',
+          content: [
+            { type: 'paragraph', attrs: { pageBreakBefore: true }, content: [{ type: 'text', text: 'Main point' }] },
+            {
+              type: 'orderedList',
+              attrs: { numberingStyle: 'lowerAlpha' },
+              content: [{ type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Supporting point' }] }] }],
+            },
+          ],
+        }],
+      }],
+    },
+  });
+
+  assert.equal(note.richText.content[0].content[0].content[0].attrs.pageBreakBefore, true);
+  assert.equal(note.richText.content[0].content[0].content[1].attrs.numberingStyle, 'lowerAlpha');
+  assert.match(note.content, /1\. Main point/);
+  assert.match(note.content, /\s\s\(a\) Supporting point/);
+});
+
+test('AI numbered paragraphs remain one continuous ordered list across blank lines', () => {
+  const richText = plainTextToNoteRichText('1. First finding.\n\n2. Second finding.\n\n3. Proposed course.');
+
+  assert.equal(richText.content.length, 1);
+  assert.equal(richText.content[0].type, 'orderedList');
+  assert.equal(richText.content[0].content.length, 3);
+  assert.deepEqual(richText.content[0].content.map((item) => item.content[0].content[0].text), [
+    'First finding.',
+    'Second finding.',
+    'Proposed course.',
+  ]);
+});
+
+test('notes retain ruler-controlled first-line, hanging and right indents', () => {
+  const note = normalizeNote({
+    richText: {
+      type: 'doc',
+      content: [{
+        type: 'paragraph',
+        attrs: { indent: 2, firstLineIndent: -1, rightIndent: 2 },
+        content: [{ type: 'text', text: 'Indented examination.' }],
+      }],
+    },
+  });
+
+  assert.deepEqual(note.richText.content[0].attrs, { indent: 2, firstLineIndent: -1, rightIndent: 2 });
+});

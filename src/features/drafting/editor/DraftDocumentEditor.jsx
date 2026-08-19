@@ -37,7 +37,25 @@ import { buildGovernmentCommunicationBlocks } from '../../../utils/governmentDra
 import { normalizeDraftDocument, validateDraftDocument } from '../domain/draftDocument';
 import { normalizeDraftRichText } from '../domain/draftRichText';
 import { COMMUNICATION_TYPES, getDraftTemplate } from '../templates/templateRegistry';
-import { ParagraphIndent } from '../../../components/editor/RichTextFormatting';
+import {
+  GOVERNMENT_NUMBERING_STYLES,
+  GovernmentNumbering,
+  PageBreakBefore,
+  ParagraphIndent,
+} from '../../../components/editor/RichTextFormatting';
+import {
+  EditorFindReplace,
+  EditorStatusBar,
+  DesktopDocumentRuler,
+  FormatPainterControls,
+  MobileEditorMoreSheet,
+  MobileEditorToolbar,
+  MoreToolsLabel,
+  PageBreakControl,
+  SelectionFormattingMenu,
+  decreaseEditorIndent,
+  increaseEditorIndent,
+} from '../../../components/editor/EditorEnhancements';
 import {
   PARAGRAPH_BANK_CATEGORIES,
   searchParagraphBank,
@@ -381,6 +399,9 @@ const DraftDocumentEditor = forwardRef(function DraftDocumentEditor({
   const document = useMemo(() => normalizeDraftDocument(input), [input]);
   const [toolbarRevision, setToolbarRevision] = useState(0);
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
+  const [mobileFormattingOpen, setMobileFormattingOpen] = useState(false);
+  const [findOpen, setFindOpen] = useState(false);
+  const [copiedFormat, setCopiedFormat] = useState(null);
   const nextChangeSource = useRef('user');
   const richText = useMemo(
     () => normalizeDraftRichText(document.bodyRichText, document.blocks),
@@ -406,8 +427,15 @@ const DraftDocumentEditor = forwardRef(function DraftDocumentEditor({
       }),
       TextAlign.configure({ types: ['paragraph'], alignments: ['left', 'center', 'right', 'justify'] }),
       ParagraphIndent,
+      GovernmentNumbering,
+      PageBreakBefore,
     ],
     content: richText,
+    editorProps: {
+      transformPastedHTML: (html) => html
+        .replace(/<(meta|link|style)[^>]*>[\s\S]*?<\/\1>/gi, '')
+        .replace(/\s(?:class|style|lang|dir)=(?:"[^"]*"|'[^']*')/gi, ''),
+    },
     onUpdate: ({ editor: current }) => {
       setToolbarRevision((value) => value + 1);
       onChange?.(current.getJSON(), nextChangeSource.current);
@@ -495,7 +523,8 @@ const DraftDocumentEditor = forwardRef(function DraftDocumentEditor({
     <div className="rounded-md border border-slate-300 bg-slate-100 shadow-sm">
       {!readOnly && (
         <div className="rounded-t-md border-b border-slate-200 bg-white">
-          <div className="overflow-x-auto px-2 py-2">
+          <MobileEditorToolbar editor={editor} onOpenMore={() => setMobileFormattingOpen(true)} onOpenFind={() => setFindOpen((open) => !open)} />
+          <div className="hidden overflow-x-auto px-2 py-2 sm:block">
             <div className="flex min-w-max items-center gap-0.5">
               <div className="flex items-center gap-0.5 border-r border-slate-200 pr-1.5">
                 <ToolbarButton label="Undo" disabled={!editor.can().chain().focus().undo().run()} onClick={() => editor.chain().focus().undo().run()}><Undo2 className="h-4 w-4" /></ToolbarButton>
@@ -513,8 +542,8 @@ const DraftDocumentEditor = forwardRef(function DraftDocumentEditor({
               <div className="flex items-center gap-0.5 border-r border-slate-200 px-1.5">
                 <ToolbarButton label="Bulleted list" active={editor.isActive('bulletList')} onClick={() => editor.chain().focus().toggleBulletList().run()}><List className="h-4 w-4" /></ToolbarButton>
                 <ToolbarButton label="Numbered list" active={editor.isActive('orderedList')} onClick={() => editor.chain().focus().toggleOrderedList().run()}><ListOrdered className="h-4 w-4" /></ToolbarButton>
-                <ToolbarButton label="Decrease paragraph indent (Shift+Tab)" disabled={!Number(editor.getAttributes('paragraph').indent)} onClick={() => editor.chain().focus().decreaseParagraphIndent().run()}><IndentDecrease className="h-4 w-4" /></ToolbarButton>
-                <ToolbarButton label="Increase paragraph indent (Tab)" onClick={() => editor.chain().focus().increaseParagraphIndent().run()}><IndentIncrease className="h-4 w-4" /></ToolbarButton>
+                <ToolbarButton label="Decrease paragraph or list level (Shift+Tab)" disabled={!editor.isActive('listItem') && !Number(editor.getAttributes('paragraph').indent)} onClick={() => decreaseEditorIndent(editor)}><IndentDecrease className="h-4 w-4" /></ToolbarButton>
+                <ToolbarButton label="Increase paragraph or list level (Tab)" onClick={() => increaseEditorIndent(editor)}><IndentIncrease className="h-4 w-4" /></ToolbarButton>
               </div>
               <div className="flex items-center gap-0.5 border-r border-slate-200 px-1.5">
                 <ToolbarButton label="Insert 3 by 3 table" onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}><Table2 className="h-4 w-4" /></ToolbarButton>
@@ -536,20 +565,27 @@ const DraftDocumentEditor = forwardRef(function DraftDocumentEditor({
               </div>
               <div className="pl-1.5">
                 <ToolbarButton label="Clear formatting" onClick={() => editor.chain().focus().unsetAllMarks().clearNodes().run()}><Eraser className="h-4 w-4" /></ToolbarButton>
+                <ToolbarButton label="Find and replace" active={findOpen} onClick={() => setFindOpen((open) => !open)}><Search className="h-4 w-4" /></ToolbarButton>
+                <FormatPainterControls editor={editor} compact value={copiedFormat} onChange={setCopiedFormat} />
+                <PageBreakControl editor={editor} compact />
               </div>
             </div>
           </div>
         </div>
       )}
+      {!readOnly && <EditorFindReplace editor={editor} open={findOpen} onClose={() => setFindOpen(false)} />}
 
-      <div className={`p-0 sm:p-4 ${!readOnly ? 'lg:grid lg:grid-cols-[minmax(0,794px)_288px] lg:items-start lg:justify-center lg:gap-4' : ''}`}>
+      <div className={`p-0 sm:p-4 ${!readOnly ? 'lg:grid lg:grid-cols-[minmax(0,1fr)_288px] lg:items-start lg:justify-center lg:gap-4 xl:grid-cols-[minmax(0,900px)_288px]' : ''}`}>
+      <div className="mx-auto w-full max-w-[900px]">
+      {!readOnly && <DesktopDocumentRuler editor={editor} marginPreset={style.margins || 'standard'} indentUnitCm={1.27} onMarginChange={(margins) => onStyleChange?.({ margins })} />}
       <div
-        className={`mx-auto min-h-[620px] w-full max-w-[794px] bg-white text-slate-950 sm:min-h-[1123px] sm:shadow-sm ${
+        className={`draft-document-page min-h-[620px] w-full bg-white text-slate-950 sm:min-h-[1123px] sm:shadow-sm ${
           style.margins === 'narrow'
-            ? 'px-4 py-6 sm:px-12 sm:py-12'
-            : 'px-5 py-8 sm:px-24 sm:py-24'
+            ? 'px-4 py-6 sm:py-12'
+            : 'px-5 py-8 sm:py-24'
         }`}
         style={{
+          '--draft-page-margin': style.margins === 'narrow' ? '6.05%' : '12.1%',
           fontFamily: style.fontFamily,
           fontSize: `${style.fontSize}pt`,
           lineHeight: Number(style.lineSpacing || 1.15),
@@ -563,7 +599,7 @@ const DraftDocumentEditor = forwardRef(function DraftDocumentEditor({
               <EditorContent
                 key="editable-body"
                 editor={editor}
-                className={`draft-rich-editor my-4 rounded-sm transition-shadow focus-within:ring-1 focus-within:ring-slate-200 ${readOnly ? 'pointer-events-none' : ''} [&_.ProseMirror]:min-h-32 [&_.ProseMirror]:outline-none [&_.ProseMirror_p]:my-0 [&_.ProseMirror_p]:min-h-5 [&_.ProseMirror_ul]:my-2 [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-7 [&_.ProseMirror_ol]:my-2 [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-7 [&_.ProseMirror_li>p]:my-0 [&_.ProseMirror_table]:my-3 [&_.ProseMirror_table]:w-full [&_.ProseMirror_table]:table-fixed [&_.ProseMirror_table]:border-collapse [&_.ProseMirror_td]:border [&_.ProseMirror_td]:border-slate-400 [&_.ProseMirror_td]:p-1.5 [&_.ProseMirror_th]:border [&_.ProseMirror_th]:border-slate-500 [&_.ProseMirror_th]:bg-slate-100 [&_.ProseMirror_th]:p-1.5 [&_.ProseMirror_th]:font-semibold`}
+                className={`official-rich-editor draft-rich-editor my-4 rounded-sm transition-shadow focus-within:ring-1 focus-within:ring-slate-200 ${readOnly ? 'pointer-events-none' : ''} [&_.ProseMirror]:min-h-32 [&_.ProseMirror]:outline-none [&_.ProseMirror_p]:my-0 [&_.ProseMirror_p]:min-h-5 [&_.ProseMirror_ul]:my-2 [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-7 [&_.ProseMirror_ol]:my-2 [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-7 [&_.ProseMirror_li>p]:my-0 [&_.ProseMirror_table]:my-3 [&_.ProseMirror_table]:w-full [&_.ProseMirror_table]:table-fixed [&_.ProseMirror_table]:border-collapse [&_.ProseMirror_td]:border [&_.ProseMirror_td]:border-slate-400 [&_.ProseMirror_td]:p-1.5 [&_.ProseMirror_th]:border [&_.ProseMirror_th]:border-slate-500 [&_.ProseMirror_th]:bg-slate-100 [&_.ProseMirror_th]:p-1.5 [&_.ProseMirror_th]:font-semibold`}
                 style={{ marginBottom: `${style.paragraphSpacing || 0}pt` }}
               />
             );
@@ -592,6 +628,7 @@ const DraftDocumentEditor = forwardRef(function DraftDocumentEditor({
           );
         })}
       </div>
+      </div>
       {!readOnly && (
         <div className="sticky top-20 hidden self-start lg:block">
           <DraftSideRail
@@ -611,7 +648,55 @@ const DraftDocumentEditor = forwardRef(function DraftDocumentEditor({
         </div>
       )}
       </div>
+      <EditorStatusBar editor={editor} hint={readOnly ? 'Saved communication' : 'Only the substantive body is editable; official template fields remain protected.'} />
     </div>
+    {!readOnly && <SelectionFormattingMenu editor={editor} />}
+    {!readOnly && (
+      <MobileEditorMoreSheet open={mobileFormattingOpen} onClose={() => setMobileFormattingOpen(false)} title="Draft formatting">
+        <div>
+          <MoreToolsLabel>Text</MoreToolsLabel>
+          <div className="flex flex-wrap gap-1">
+            <ToolbarButton label="Bold" active={editor.isActive('bold')} onClick={() => editor.chain().focus().toggleBold().run()}><Bold className="h-4 w-4" /></ToolbarButton>
+            <ToolbarButton label="Italic" active={editor.isActive('italic')} onClick={() => editor.chain().focus().toggleItalic().run()}><Italic className="h-4 w-4" /></ToolbarButton>
+            <ToolbarButton label="Underline" active={editor.isActive('underline')} onClick={() => editor.chain().focus().toggleUnderline().run()}><Underline className="h-4 w-4" /></ToolbarButton>
+            <ToolbarButton label="Bulleted list" active={editor.isActive('bulletList')} onClick={() => editor.chain().focus().toggleBulletList().run()}><List className="h-4 w-4" /></ToolbarButton>
+            <ToolbarButton label="Increase paragraph or list level" onClick={() => increaseEditorIndent(editor)}><IndentIncrease className="h-4 w-4" /></ToolbarButton>
+            <ToolbarButton label="Decrease paragraph or list level" disabled={!editor.isActive('listItem') && !Number(editor.getAttributes('paragraph').indent)} onClick={() => decreaseEditorIndent(editor)}><IndentDecrease className="h-4 w-4" /></ToolbarButton>
+          </div>
+          {editor.isActive('orderedList') && <div className="mt-3 grid grid-cols-[1fr_6rem] gap-2"><label><span className="mb-1 block text-[11px] font-semibold text-slate-600">Numbering format</span><select value={editor.getAttributes('orderedList').numberingStyle || 'decimal'} onChange={(event) => editor.chain().focus().setNumberingStyle(event.target.value).run()} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm">{GOVERNMENT_NUMBERING_STYLES.map((numbering) => <option key={numbering.value} value={numbering.value}>{numbering.label}</option>)}</select></label><label><span className="mb-1 block text-[11px] font-semibold text-slate-600">Start at</span><input type="number" min="1" max="999" value={editor.getAttributes('orderedList').start || 1} onChange={(event) => editor.chain().focus().updateAttributes('orderedList', { start: Math.max(1, Number(event.target.value) || 1) }).run()} className="h-10 w-full rounded-md border border-slate-300 bg-white px-2 text-sm" /></label></div>}
+        </div>
+        <div className="mt-4">
+          <MoreToolsLabel>Alignment</MoreToolsLabel>
+          <div className="flex flex-wrap gap-1">
+            <ToolbarButton label="Align left" active={editor.isActive({ textAlign: 'left' })} onClick={() => editor.chain().focus().setTextAlign('left').run()}><AlignLeft className="h-4 w-4" /></ToolbarButton>
+            <ToolbarButton label="Align center" active={editor.isActive({ textAlign: 'center' })} onClick={() => editor.chain().focus().setTextAlign('center').run()}><AlignCenter className="h-4 w-4" /></ToolbarButton>
+            <ToolbarButton label="Align right" active={editor.isActive({ textAlign: 'right' })} onClick={() => editor.chain().focus().setTextAlign('right').run()}><AlignRight className="h-4 w-4" /></ToolbarButton>
+            <ToolbarButton label="Justify" active={editor.isActive({ textAlign: 'justify' })} onClick={() => editor.chain().focus().setTextAlign('justify').run()}><AlignJustify className="h-4 w-4" /></ToolbarButton>
+          </div>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <label><span className="mb-1 block text-[11px] font-semibold text-slate-600">Font</span><select value={style.fontFamily} onChange={(event) => onStyleChange?.({ fontFamily: event.target.value })} className="h-10 w-full rounded-md border border-slate-300 bg-white px-2 text-xs">{FONT_OPTIONS.map((font) => <option key={font}>{font}</option>)}</select></label>
+          <label><span className="mb-1 block text-[11px] font-semibold text-slate-600">Size</span><select value={Number(style.fontSize)} onChange={(event) => onStyleChange?.({ fontSize: Number(event.target.value) })} className="h-10 w-full rounded-md border border-slate-300 bg-white px-2 text-xs">{FONT_SIZES.map((size) => <option key={size} value={size}>{size} pt</option>)}</select></label>
+          <label><span className="mb-1 block text-[11px] font-semibold text-slate-600">Line spacing</span><select value={Number(style.lineSpacing)} onChange={(event) => onStyleChange?.({ lineSpacing: Number(event.target.value) })} className="h-10 w-full rounded-md border border-slate-300 bg-white px-2 text-xs">{LINE_SPACING.map((spacing) => <option key={spacing} value={spacing}>{spacing} lines</option>)}</select></label>
+          <label><span className="mb-1 block text-[11px] font-semibold text-slate-600">Margins</span><select value={style.margins || 'standard'} onChange={(event) => onStyleChange?.({ margins: event.target.value })} className="h-10 w-full rounded-md border border-slate-300 bg-white px-2 text-xs">{MARGIN_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+        </div>
+        <div className="mt-4">
+          <MoreToolsLabel>Table</MoreToolsLabel>
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <button type="button" onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()} className="h-10 rounded-md border border-slate-300 font-semibold">Insert table</button>
+            <button type="button" disabled={!editor.isActive('table')} onClick={() => editor.chain().focus().toggleHeaderRow().run()} className="h-10 rounded-md border border-slate-300 font-semibold disabled:opacity-40">Toggle header</button>
+            <button type="button" disabled={!editor.can().mergeCells()} onClick={() => editor.chain().focus().mergeCells().run()} className="h-10 rounded-md border border-slate-300 font-semibold disabled:opacity-40">Merge cells</button>
+            <button type="button" disabled={!editor.can().splitCell()} onClick={() => editor.chain().focus().splitCell().run()} className="h-10 rounded-md border border-slate-300 font-semibold disabled:opacity-40">Split cell</button>
+          </div>
+        </div>
+        <div className="mt-4">
+          <MoreToolsLabel>Document</MoreToolsLabel>
+          <FormatPainterControls editor={editor} value={copiedFormat} onChange={setCopiedFormat} />
+          <div className="mt-2"><PageBreakControl editor={editor} /></div>
+          <p className="mt-2 text-[11px] leading-4 text-slate-500">The break applies only inside the editable body and is preserved in Word export.</p>
+        </div>
+      </MobileEditorMoreSheet>
+    )}
     {!readOnly && (
       <button type="button" onClick={() => setMobileToolsOpen(true)} className="above-mobile-navigation fixed right-4 z-20 inline-flex h-11 items-center gap-2 rounded-full bg-[#17333b] px-4 text-xs font-semibold text-white shadow-lg transition active:scale-95 lg:hidden"><PanelRightOpen className="h-4 w-4" />Draft tools</button>
     )}

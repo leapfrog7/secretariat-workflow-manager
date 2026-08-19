@@ -22,6 +22,7 @@ import FilterBar from "../components/issues/FilterBar";
 import IssueTable from "../components/issues/IssueTable";
 import IssueCard from "../components/issues/IssueCard";
 import QuickPositionDialog from "../components/issues/QuickPositionDialog";
+import QuickStageDialog from "../components/issues/QuickStageDialog";
 import {
   archiveIssue,
   bringBackIssue,
@@ -69,6 +70,7 @@ export default function IssueRegisterPage() {
   const [workingId, setWorkingId] = useState("");
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [quickPosition, setQuickPosition] = useState(null);
+  const [quickStage, setQuickStage] = useState(null);
   const [archivedPage, setArchivedPage] = useState(1);
   const [archivedPageSize, setArchivedPageSize] = useState(
     ARCHIVED_PAGE_SIZES[0],
@@ -282,6 +284,46 @@ export default function IssueRegisterPage() {
           : current,
       );
       showToast(error.message || "Unable to save the position.", "error");
+    } finally {
+      setWorkingId("");
+    }
+  };
+
+  const openQuickStage = (issue) => {
+    setQuickStage({ issue, saveStatus: "idle", error: "" });
+  };
+
+  const saveQuickStage = async (status) => {
+    const target = quickStage?.issue;
+    if (!target || status === target.status) return;
+    setWorkingId(target.id);
+    setQuickStage((current) => ({ ...current, saveStatus: "saving", error: "" }));
+    try {
+      const saved = await updateIssuePosition(target.id, { status });
+      setData((current) => ({
+        ...current,
+        issues: current.issues.map((issue) =>
+          issue.id === saved.id ? { ...issue, ...saved } : issue,
+        ),
+      }));
+      setQuickStage((current) =>
+        current?.issue.id === target.id
+          ? { ...current, issue: { ...current.issue, ...saved }, saveStatus: "saved" }
+          : current,
+      );
+      showToast(`Stage updated to ${saved.status}.`);
+      window.setTimeout(() => {
+        setQuickStage((current) =>
+          current?.issue.id === target.id ? null : current,
+        );
+      }, 700);
+    } catch (error) {
+      setQuickStage((current) =>
+        current?.issue.id === target.id
+          ? { ...current, saveStatus: "idle", error: error.message || "Unable to update the stage." }
+          : current,
+      );
+      showToast(error.message || "Unable to update the stage.", "error");
     } finally {
       setWorkingId("");
     }
@@ -551,6 +593,7 @@ export default function IssueRegisterPage() {
               canEdit={auth.canEdit}
               showDivision={Boolean(auth.workspace?.id)}
               onQuickPosition={openQuickPosition}
+              onQuickStage={openQuickStage}
               onRestore={restore}
               onBringBack={bringBack}
               onArchive={archive}
@@ -567,6 +610,7 @@ export default function IssueRegisterPage() {
                   canEdit={auth.canEdit && issue.accessLevel !== "viewer"}
                   showDivision={Boolean(auth.workspace?.id)}
                   onQuickPosition={openQuickPosition}
+                  onQuickStage={openQuickStage}
                   onRestore={restore}
                   onBringBack={bringBack}
                   onArchive={archive}
@@ -606,6 +650,16 @@ export default function IssueRegisterPage() {
           error={quickPosition.error}
           onClose={() => setQuickPosition(null)}
           onSave={saveQuickPosition}
+        />
+      )}
+      {quickStage && (
+        <QuickStageDialog
+          key={quickStage.issue.id}
+          issue={quickStage.issue}
+          saveStatus={quickStage.saveStatus}
+          error={quickStage.error}
+          onClose={() => setQuickStage(null)}
+          onSave={saveQuickStage}
         />
       )}
     </>

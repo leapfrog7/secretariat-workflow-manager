@@ -312,6 +312,11 @@ span.route-progress {
   button[title] {
     min-width: 44px;
   }
+
+  .issue-register-cards .issue-card-action {
+    min-width: 32px;
+    min-height: 32px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -365,6 +370,100 @@ textarea:focus {
 
 .summary-markdown {
   line-height: 1.65;
+}
+
+.template-choice-card {
+  min-height: 10rem;
+  perspective: 900px;
+}
+
+.template-choice-card-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 10rem;
+  transform-style: preserve-3d;
+  transition: transform 360ms cubic-bezier(.2, .75, .25, 1);
+}
+
+.template-choice-card:hover .template-choice-card-inner,
+.template-choice-card:focus-within .template-choice-card-inner {
+  transform: rotateY(180deg);
+}
+
+.template-choice-card-face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid #dbe7e5;
+  border-radius: .75rem;
+  padding: .75rem;
+  text-align: center;
+  backface-visibility: hidden;
+}
+
+.template-choice-card-front {
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(15 49 56 / .05);
+}
+
+.template-choice-card-back {
+  background: #ecfeff;
+  border-color: #a5f3fc;
+  transform: rotateY(180deg);
+}
+
+@media (hover: none) {
+  .template-choice-card {
+    min-height: 0;
+  }
+
+  .template-choice-card-inner,
+  .template-choice-card:hover .template-choice-card-inner,
+  .template-choice-card:focus-within .template-choice-card-inner {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    min-height: 0;
+    transform: none;
+  }
+
+  .template-choice-card-face {
+    position: static;
+    backface-visibility: visible;
+  }
+
+  .template-choice-card-front {
+    min-height: 7.25rem;
+    justify-content: center;
+    border-radius: .75rem .75rem 0 0;
+    border-bottom: 0;
+  }
+
+  .template-choice-card-back {
+    justify-content: center;
+    border-radius: 0 0 .75rem .75rem;
+    padding-top: 0;
+    transform: none;
+  }
+
+  .template-choice-card-back > p {
+    display: none;
+  }
+
+  .template-choice-card-back > div {
+    margin-top: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .template-choice-card-inner {
+    transition: none;
+  }
 }
 
 .summary-markdown > *:first-child {
@@ -432,6 +531,134 @@ textarea:focus {
   background: #f1f5f4;
   color: #17333b;
   font-weight: 650;
+}
+
+.official-rich-editor .ProseMirror p[data-page-break-before="true"] {
+  position: relative;
+  margin-top: 3.25rem !important;
+  padding-top: 1.25rem;
+  border-top: 2px dashed #94a3b8;
+}
+
+.official-rich-editor .ProseMirror p[data-page-break-before="true"]::before {
+  position: absolute;
+  top: -1.65rem;
+  left: 50%;
+  padding: 0 0.5rem;
+  transform: translateX(-50%);
+  background: white;
+  color: #64748b;
+  content: "Page break";
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  font-size: 0.6875rem;
+  font-style: normal;
+  line-height: 1.25rem;
+  white-space: nowrap;
+}
+
+.note-ai-suggestion-removed {
+  border-radius: 0.2rem;
+  background: rgb(254 226 226 / 0.8);
+  color: rgb(153 27 27);
+  text-decoration: line-through;
+  text-decoration-color: rgb(248 113 113);
+}
+
+@media (min-width: 1024px) {
+  .note-rich-editor {
+    min-height: 760px;
+    padding-left: 9.05% !important;
+    padding-right: 9.05% !important;
+  }
+
+  .note-editor-placeholder {
+    left: 9.05% !important;
+  }
+}
+
+@media (min-width: 640px) {
+  .draft-document-page {
+    padding-left: var(--draft-page-margin);
+    padding-right: var(--draft-page-margin);
+  }
+}
+
+.note-rich-editor p[data-indent="1"] { margin-left: 0.635cm !important; }
+.note-rich-editor p[data-indent="2"] { margin-left: 1.27cm !important; }
+.note-rich-editor p[data-indent="3"] { margin-left: 1.905cm !important; }
+.note-rich-editor p[data-indent="4"] { margin-left: 2.54cm !important; }
+.note-rich-editor p[data-indent="5"] { margin-left: 3.175cm !important; }
+.note-rich-editor p[data-indent="6"] { margin-left: 3.81cm !important; }
+.draft-rich-editor p[data-indent="1"] { margin-left: 1.27cm !important; }
+.draft-rich-editor p[data-indent="2"] { margin-left: 2.54cm !important; }
+.draft-rich-editor p[data-indent="3"] { margin-left: 3.81cm !important; }
+.draft-rich-editor p[data-indent="4"] { margin-left: 5.08cm !important; }
+.draft-rich-editor p[data-indent="5"] { margin-left: 6.35cm !important; }
+.draft-rich-editor p[data-indent="6"] { margin-left: 7.62cm !important; }
+
+.note-ai-suggestion {
+  margin: 0.5rem 0 0.75rem;
+  border: 1px solid rgb(167 243 208);
+  border-left: 3px solid rgb(16 185 129);
+  border-radius: 0.5rem;
+  background: rgb(236 253 245 / 0.85);
+  padding: 0.65rem 0.75rem;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.06);
+}
+
+.note-ai-suggestion__heading {
+  color: rgb(6 95 70);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+}
+
+.note-ai-suggestion__wording p {
+  margin: 0.35rem 0 0;
+  color: rgb(6 78 59);
+  font-family: ui-serif, Georgia, serif;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  text-decoration: none;
+}
+
+.note-ai-suggestion__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  margin-top: 0.55rem;
+}
+
+.note-ai-suggestion-action {
+  min-height: 2rem;
+  border-radius: 0.375rem;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.note-ai-suggestion-action--reject { border: 1px solid rgb(203 213 225); background: white; color: rgb(71 85 105); }
+.note-ai-suggestion-action--accept { border: 1px solid rgb(5 150 105); background: rgb(5 150 105); color: white; }
+
+@media (max-width: 639px) {
+  .note-ai-suggestion { margin-left: -0.35rem; margin-right: -0.35rem; padding: 0.6rem; }
+  .note-ai-suggestion__actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .note-ai-suggestion-action { min-height: 2.5rem; }
+}
+
+@media print {
+  .official-rich-editor .ProseMirror p[data-page-break-before="true"] {
+    margin-top: 0 !important;
+    padding-top: 0;
+    border-top: 0;
+    break-before: page;
+  }
+
+  .official-rich-editor .ProseMirror p[data-page-break-before="true"]::before {
+    display: none;
+  }
 }
 
 @media (max-width: 639px) {

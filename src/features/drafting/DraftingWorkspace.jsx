@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BookOpen, Check, CheckCheck, Clipboard, Download, FileOutput, FilePenLine, GitBranch, History, LoaderCircle, MessageSquareText, MoreHorizontal, RotateCcw, Save, Settings2, ShieldCheck, Sparkles, Square, X } from 'lucide-react';
+import { BookOpen, Building2, Check, CheckCheck, CheckCircle2, ChevronDown, ChevronUp, Clipboard, Download, FileOutput, FilePenLine, FileText, GitBranch, History, LoaderCircle, Mail, MessageSquareText, MoreHorizontal, RotateCcw, Save, Scale, Settings2, ShieldCheck, Sparkles, Square, UserRound, X } from 'lucide-react';
 import { buildAIContext } from '../../utils/aiContextUtils';
 import { formatDisplayDate, todayISO } from '../../utils/dateUtils';
 import { getSettings } from '../../db/database';
@@ -39,13 +39,46 @@ import {
 import { recordCaseworkOperationalEvent } from '../casework/caseworkApi';
 
 const DraftDocumentEditor = lazy(() => import('./editor/DraftDocumentEditor'));
+const PRIMARY_DRAFT_TEMPLATES = [
+  { type: 'Letter', icon: Mail, description: 'Formal official correspondence' },
+  { type: 'Office Memorandum', icon: Building2, description: 'Inter-office policy or clarification' },
+  { type: 'Order', icon: Scale, description: 'Formal operative decision' },
+  { type: 'Office Order', icon: FileText, description: 'Internal administrative direction' },
+  { type: 'D.O. Letter', icon: UserRound, description: 'Personal official correspondence' },
+];
+
+function TemplateChoiceCard({ type, icon: Icon, description, onBlank, onAI }) {
+  return (
+    <div className="template-choice-card group" tabIndex={-1}>
+      <div className="template-choice-card-inner">
+        <div className="template-choice-card-face template-choice-card-front">
+          <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-teal-50 text-teal-700 sm:h-10 sm:w-10">
+            <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
+          </span>
+          <p className="mt-2 text-xs font-semibold leading-4 text-slate-800 sm:text-sm">{type}</p>
+          <p className="mt-1 text-[10px] leading-4 text-slate-500 sm:text-[11px]">{description}</p>
+        </div>
+        <div className="template-choice-card-face template-choice-card-back">
+          <p className="text-xs font-semibold leading-4 text-teal-950">{type}</p>
+          <div className="mt-2 grid w-full gap-2">
+            <button type="button" onClick={onBlank} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-md border border-teal-200 bg-white px-3 text-[11px] font-semibold leading-4 text-teal-800 hover:bg-teal-50"><FileOutput className="h-3.5 w-3.5 shrink-0" />Start blank</button>
+            <button type="button" onClick={onAI} className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-md bg-cyan-700 px-3 text-[11px] font-semibold leading-4 text-white hover:bg-cyan-800"><Sparkles className="h-3.5 w-3.5 shrink-0" />Prepare with AI</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function DraftingWorkspace({ issue, assignedOfficer, officers, summary, communications, references, notes = [], initialNoteIds = [], initialCommunicationIds = [], initialReferenceIds = [], sourceNoteId = '', noteSelectionRevision = 0, initialDraftId = '', readOnly = false, onSaveCommunication, onDirtyChange }) {
   const auth = useAuth();
   const [sourceTab, setSourceTab] = useState('Communications');
   const [workspaceView, setWorkspaceView] = useState('compose');
   const [draftDialogOpen, setDraftDialogOpen] = useState(false);
-  const [draftDialogTab, setDraftDialogTab] = useState('details');
+  const [draftDialogStep, setDraftDialogStep] = useState(1);
+  const [draftDialogMaxStep, setDraftDialogMaxStep] = useState(1);
+  const [contextPreviewExpanded, setContextPreviewExpanded] = useState(false);
+  const [moreTemplatesOpen, setMoreTemplatesOpen] = useState(false);
   const [draftDialogType, setDraftDialogType] = useState(COMMUNICATION_TYPES[0]);
   const [selectedCommunicationIds, setSelectedCommunicationIds] = useState([]);
   const [selectedReferenceIds, setSelectedReferenceIds] = useState([]);
@@ -90,10 +123,23 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
     setSelection(nextSelection);
   };
 
-  const openAIPreparation = (tab = 'details') => {
-    setDraftDialogType(communicationType);
-    setDraftDialogTab(tab);
+  const openAIPreparation = (requestedType = communicationType) => {
+    setDraftDialogType(requestedType);
+    setDraftDialogStep(1);
+    setDraftDialogMaxStep(1);
+    setContextPreviewExpanded(false);
     setDraftDialogOpen(true);
+  };
+
+  const goToDraftStep = (step) => {
+    if (step > draftDialogMaxStep) return;
+    setDraftDialogStep(step);
+  };
+
+  const continueDraftPreparation = () => {
+    const nextStep = Math.min(4, draftDialogStep + 1);
+    setDraftDialogStep(nextStep);
+    setDraftDialogMaxStep((current) => Math.max(current, nextStep));
   };
 
   useEffect(() => {
@@ -121,7 +167,9 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
     setAdvancedSettingsOpen(false);
     setWorkspaceView('compose');
     setDraftDialogOpen(false);
-    setDraftDialogTab('details');
+    setDraftDialogStep(1);
+    setDraftDialogMaxStep(1);
+    setContextPreviewExpanded(false);
     setDraftDialogType(COMMUNICATION_TYPES[0]);
     resumedDraftRef.current = '';
   }, [issue.id]);
@@ -403,7 +451,8 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
     if (!selectedNotes.length && !instruction.trim()) {
       showDraftPreparationError('State the goal or requested outcome of the communication, or select a saved Note as its basis.');
       setDraftDialogOpen(true);
-      setDraftDialogTab('details');
+      setDraftDialogStep(2);
+      setDraftDialogMaxStep((current) => Math.max(current, 2));
       return;
     }
     if (aiPreferences.mode === 'cloud' && !cloudConfirmed) {
@@ -916,11 +965,11 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
 
   return (
     <>
-    <section className="surface overflow-hidden rounded-md border-t-4 border-t-teal-600">
+    <section className="surface overflow-hidden rounded-xl border-slate-200">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#dce6e4] px-4 py-4 sm:px-5">
-        <div>
-          <div className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-teal-700" /><h2 className="text-base font-semibold text-[#17333b]">Drafting workspace</h2></div>
-          <p className="mt-1 text-sm text-slate-600">Write the communication, complete its details and record it when issued.</p>
+        <div className="flex min-w-0 items-start gap-3">
+          <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-teal-50 text-teal-700"><ShieldCheck className="h-4.5 w-4.5" /></span>
+          <div className="min-w-0"><h2 className="text-sm font-semibold text-slate-950 sm:text-base">Drafting workspace</h2><p className="mt-0.5 text-xs leading-5 text-slate-500 sm:text-sm">Prepare the communication, review its official structure and record it when issued.</p></div>
         </div>
       </div>
 
@@ -936,7 +985,7 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
             aria-selected={workspaceView === value}
             tabIndex={workspaceView === value ? 0 : -1}
             onClick={() => setWorkspaceView(value)}
-            className={`min-h-10 min-w-[104px] shrink-0 rounded px-2 py-2 text-xs font-semibold transition-colors sm:min-w-0 sm:text-sm ${
+            className={`min-h-11 min-w-[104px] shrink-0 rounded-md px-2 py-2 text-xs font-semibold transition-colors sm:min-w-0 sm:min-h-10 sm:text-sm ${
               workspaceView === value
                 ? 'bg-white text-teal-800 shadow-sm ring-1 ring-slate-200'
                 : 'text-slate-500 hover:bg-white/70 hover:text-slate-800'
@@ -1008,19 +1057,14 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
           </div>
         )}
         {workspaceView === 'compose' && generation.status === 'idle' && (
-          <div className="mx-auto flex min-h-[420px] w-full max-w-xl flex-col justify-center px-4 py-10 sm:px-5">
+          <div className="mx-auto flex min-h-[420px] w-full max-w-4xl flex-col justify-center px-4 py-10 sm:px-5">
             <div className="text-center">
               <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-teal-50 text-teal-700"><FilePenLine className="h-5 w-5" /></div>
               <h3 className="mt-3 text-base font-semibold text-[#17333b]">What are you preparing?</h3>
             <p className="mt-1 text-sm leading-6 text-slate-500">Choose a format, then write directly or ask AI to prepare an editable first version.</p>
             </div>
-            <div className="mt-5">
-              <AdaptiveSelect ariaLabel="Communication type to prepare" value={draftDialogType} onChange={setDraftDialogType} options={COMMUNICATION_TYPES} includeBlank={false} />
-            </div>
-            <div className="mt-4 grid gap-2 sm:grid-cols-2">
-              {!readOnly && <button type="button" onClick={() => startBlankDraft(false, draftDialogType)} className="flex min-h-16 items-center gap-3 rounded-md bg-teal-700 px-4 py-3 text-left text-white shadow-sm hover:bg-teal-800"><FileOutput className="h-5 w-5 shrink-0" /><span><span className="block text-sm font-semibold">Start blank draft</span><span className="mt-0.5 block text-xs leading-4 text-teal-50">Open the editor immediately and write yourself.</span></span></button>}
-              {!readOnly && <button type="button" onClick={() => openAIPreparation('details')} className="flex min-h-16 items-center gap-3 rounded-md border border-cyan-300 bg-cyan-50 px-4 py-3 text-left text-cyan-950 hover:bg-cyan-100"><Sparkles className="h-5 w-5 shrink-0 text-cyan-700" /><span><span className="block text-sm font-semibold">Prepare with AI</span><span className="mt-0.5 block text-xs leading-4 text-cyan-800">Choose the brief and information, then generate once.</span></span></button>}
-            </div>
+            {!readOnly && <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">{PRIMARY_DRAFT_TEMPLATES.map((template) => <TemplateChoiceCard key={template.type} {...template} onBlank={() => startBlankDraft(false, template.type)} onAI={() => openAIPreparation(template.type)} />)}<button type="button" onClick={() => setMoreTemplatesOpen((current) => !current)} aria-expanded={moreTemplatesOpen} className="flex min-h-36 flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 text-center text-slate-600 hover:border-teal-300 hover:bg-teal-50 hover:text-teal-800"><span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-sm"><MoreHorizontal className="h-5 w-5" /></span><span className="mt-2 text-xs font-semibold sm:text-sm">More</span><span className="mt-1 text-[10px] sm:text-[11px]">Special formats</span></button></div>}
+            {moreTemplatesOpen && !readOnly && <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3"><div className="mb-3 flex items-center justify-between gap-3"><div><p className="text-xs font-semibold text-slate-800">Other official formats</p><p className="mt-0.5 text-[11px] text-slate-500">Choose a less frequently used template.</p></div><button type="button" onClick={() => setMoreTemplatesOpen(false)} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-white" aria-label="Close other templates"><X className="h-4 w-4" /></button></div><div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">{COMMUNICATION_TYPES.filter((type) => !PRIMARY_DRAFT_TEMPLATES.some((template) => template.type === type)).map((type) => <TemplateChoiceCard key={type} type={type} icon={FilePenLine} description="Specialized official format" onBlank={() => startBlankDraft(false, type)} onAI={() => openAIPreparation(type)} />)}</div></div>}
             <div className="mt-3 flex flex-wrap items-center justify-center gap-3">
               {drafts.length > 0 && <button type="button" onClick={() => setWorkspaceView('versions')} className="inline-flex h-9 items-center text-xs font-semibold text-slate-600 hover:text-teal-800"><History className="mr-2 h-4 w-4" />Open saved draft</button>}
             </div>
@@ -1050,7 +1094,7 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
                     <div className="absolute right-0 z-30 mt-1 w-60 overflow-hidden rounded-md border border-slate-200 bg-white py-1 shadow-xl">
                       {workingCopy.baseVersion > 0 && <button type="button" onClick={() => saveDraftChanges({ separateVersion: true })} disabled={!generation.text.trim() || workingCopy.configurationDirty || ['saving', 'versioning'].includes(draftSaveStatus)} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"><GitBranch className="h-4 w-4" />Save as separate version</button>}
                       <button type="button" onClick={copyDraft} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"><Clipboard className="h-4 w-4" />{draftCopyStatus === 'copied' ? 'Copied' : 'Copy text'}</button>
-                      <button type="button" onClick={() => openAIPreparation('details')} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs font-semibold text-cyan-800 hover:bg-cyan-50"><Sparkles className="h-4 w-4" />Prepare again with AI</button>
+                      <button type="button" onClick={() => openAIPreparation()} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs font-semibold text-cyan-800 hover:bg-cyan-50"><Sparkles className="h-4 w-4" />Prepare again with AI</button>
                       <button type="button" onClick={() => hasUnsavedWorkingCopy(workingCopy) ? setPendingWorkingAction({ type: 'discard' }) : discardWorkingCopy()} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs font-semibold text-red-700 hover:bg-red-50"><RotateCcw className="h-4 w-4" />Discard changes</button>
                     </div>
                   </details>
@@ -1121,21 +1165,27 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
               </div>
               <p className="mt-1 text-xs leading-5 text-slate-500">Set the format, intent and source material. AI will create one editable first version.</p>
             </div>
-            <button type="button" data-autofocus title="Close" aria-label="Close draft preparation" disabled={generation.status === 'generating'} onClick={() => setDraftDialogOpen(false)} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 disabled:opacity-40"><X className="h-4 w-4" /></button>
+            <button type="button" data-autofocus title="Close" aria-label="Close draft preparation" disabled={generation.status === 'generating'} onClick={() => setDraftDialogOpen(false)} className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 disabled:opacity-40 sm:h-9 sm:w-9"><X className="h-4 w-4" /></button>
           </header>
 
-          <div className="grid shrink-0 grid-cols-2 gap-1 border-b border-slate-200 bg-slate-50 p-1.5" role="tablist" aria-label="Draft preparation" onKeyDown={handleTabListKeyDown}>
+          <nav className="grid shrink-0 grid-cols-4 border-b border-slate-200 bg-slate-50" aria-label="Communication preparation steps">
             {[
-              ['details', 'Brief & format'],
-              ['context', `Information used (${context.selectedSourceCount})`],
-            ].map(([value, label]) => (
-              <button key={value} type="button" role="tab" aria-selected={draftDialogTab === value} tabIndex={draftDialogTab === value ? 0 : -1} onClick={() => setDraftDialogTab(value)} className={`min-h-10 rounded-md px-3 text-xs font-semibold sm:text-sm ${draftDialogTab === value ? 'bg-white text-teal-800 shadow-sm ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-800'}`}>{label}</button>
-            ))}
-          </div>
+              [1, 'Setup', 'Format and parties'],
+              [2, 'Objective', 'Outcome and details'],
+              [3, 'Sources', `${context.selectedSourceCount} selected`],
+              [4, 'Review', 'Check and prepare'],
+            ].map(([value, label, description]) => {
+              const active = draftDialogStep === value;
+              const available = value <= draftDialogMaxStep;
+              const complete = value < draftDialogStep || value < draftDialogMaxStep;
+              return <button key={value} type="button" disabled={!available || generation.status === 'generating'} onClick={() => goToDraftStep(value)} aria-current={active ? 'step' : undefined} className={`min-w-0 border-b-2 px-1.5 py-3 text-center sm:px-3 ${active ? 'border-cyan-700 bg-white text-cyan-900' : available ? 'border-transparent text-slate-600 hover:bg-white' : 'border-transparent text-slate-400'}`}><span className={`mx-auto flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold ${active ? 'bg-cyan-700 text-white' : complete ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-500'}`}>{complete ? <CheckCircle2 className="h-3.5 w-3.5" /> : value}</span><span className="mt-1 block truncate text-[11px] font-semibold sm:text-xs">{label}</span><span className="mt-0.5 hidden truncate text-[10px] font-normal text-slate-500 sm:block">{description}</span></button>;
+            })}
+          </nav>
 
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-            {draftDialogTab === 'details' ? (
+            {draftDialogStep !== 3 ? (
               <div className="p-4 sm:p-5">
+                {draftDialogStep === 4 && <>
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
                   <div>
                     <p className="text-xs font-semibold text-slate-700">AI provider</p>
@@ -1147,8 +1197,10 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
                   </div>
                 </div>
                 <p className="mt-2 text-xs leading-5 text-slate-500">Model depth and output allowance are selected automatically from the requested body extent.</p>
+                </>}
 
                 <fieldset disabled={readOnly || generation.status === 'generating'} className="mt-4 grid gap-3 disabled:opacity-70 sm:grid-cols-2">
+                  {draftDialogStep === 1 && <>
                   <div>
                     <AdaptiveSelect label="Communication type" value={draftDialogType} onChange={setDraftDialogType} options={COMMUNICATION_TYPES} includeBlank={false} disabled={generation.status === 'generating'} />
                     {generation.status === 'complete' && <p className="mt-1 text-xs text-slate-500">Current draft: {communicationType}. Changing its type preserves the body and rebuilds the official structure.</p>}
@@ -1158,9 +1210,11 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
                   <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Paragraph style</span><select value={paragraphStyle} onChange={(event) => setParagraphStyle(event.target.value)} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900">{DRAFT_PARAGRAPH_STYLES.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select><span className="mt-1 block text-xs leading-5 text-slate-500">{DRAFT_PARAGRAPH_STYLES.find((option) => option.value === paragraphStyle)?.description}</span></label>
                   <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Recipient relationship</span><select value={recipientRelationship} onChange={(event) => { setRecipientRelationship(event.target.value); markDraftDirty(); }} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900">{RECIPIENT_RELATIONSHIPS.map((relationship) => <option key={relationship} value={relationship}>{relationship}</option>)}</select></label>
                   <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Recipient organization <span className="font-normal text-slate-500">(optional)</span></span><input value={recipient.organization} onChange={(event) => updateRecipient('organization', event.target.value)} placeholder="Example: Department of Legal Affairs" className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900" /></label>
+                  </>}
+                  {draftDialogStep === 2 && <>
                   <label className="block sm:col-span-2"><span className="mb-1 block text-sm font-medium text-slate-700">Saved Note as drafting basis <span className="font-normal text-slate-500">(optional)</span></span><select value={selectedNoteIds.length === 1 ? selectedNoteIds[0] : ''} onChange={(event) => chooseDraftingNote(event.target.value)} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900"><option value="">{selectedNoteIds.length > 1 ? `${selectedNoteIds.length} Notes selected in Information used` : 'Draft without a saved Note'}</option>{notes.map((item) => <option key={item.id} value={item.id}>Note {item.sequence} - {item.content.slice(0, 90)}{item.content.length > 90 ? '...' : ''}</option>)}</select><span className="mt-1 block text-xs leading-5 text-slate-500">When selected, its reasoning and proposal guide the communication. Linked communications and references are included automatically.</span></label>
                   <label className="block sm:col-span-2"><span className="mb-1 block text-sm font-medium text-slate-700">Goal / requested outcome {!selectedNotes.length && <span className="text-red-600">*</span>}</span><textarea rows={2} value={instruction} onChange={(event) => setInstruction(event.target.value)} placeholder={selectedNotes.length ? 'Optional: clarify or modify the course proposed in the selected Note.' : 'Example: request the attached office to furnish verified comments by 15 August 2026.'} className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm leading-5 text-slate-900" /><span className="mt-1 block text-xs leading-5 text-slate-500">State what the recipient should know, decide or do, including any supported deadline. This is required when drafting without a Note.</span></label>
-                  <div className="grid gap-2 sm:col-span-2 sm:grid-cols-2">
+                  <div className="hidden gap-2 sm:col-span-2 sm:grid-cols-2">
                     <label className="flex items-start gap-2 rounded-md border border-teal-200 bg-teal-50 px-3 py-3 text-sm text-slate-700"><input type="checkbox" checked={useDetailedContext} onChange={(event) => setUseDetailedContext(event.target.checked)} className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-teal-700" /><span><span className="block font-medium">Use Issue information</span><span className="mt-0.5 block text-xs leading-5 text-slate-500">Use the selected Issue material in the body.</span></span></label>
                     <label className={`flex items-start gap-2 rounded-md border px-3 py-3 text-sm text-slate-700 ${summary ? 'border-indigo-200 bg-indigo-50' : 'border-slate-200 bg-slate-50'}`}><input type="checkbox" checked={options.summary && Boolean(summary)} disabled={!summary} onChange={(event) => setOptions((current) => ({ ...current, summary: event.target.checked }))} className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-indigo-700" /><span><span className="block font-medium">Include running summary</span><span className="mt-0.5 block text-xs leading-5 text-slate-500">{summary ? `Use version ${summary.version || 1} as current factual context.` : 'No running summary is available.'}</span></span></label>
                   </div>
@@ -1178,7 +1232,14 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
                       <label className="block sm:col-span-2"><span className="mb-1 block text-sm font-medium text-slate-700">Copy / endorsement recipients <span className="font-normal text-slate-500">(one per line)</span></span><textarea rows={3} value={documentDetails.copyTo} onChange={(event) => updateDocumentDetails('copyTo', event.target.value)} className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm leading-5 text-slate-900" /></label>
                     </div>
                   </details>
+                  </>}
 
+                  {draftDialogStep === 4 && <>
+                  <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
+                    <div className="rounded-lg border border-cyan-200 bg-cyan-50/60 px-3 py-3"><p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-cyan-800"><span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-sm"><FilePenLine className="h-4 w-4" /></span>Communication</p><p className="mt-2 text-sm font-semibold text-slate-800">{draftDialogType}</p><p className="mt-1 text-xs leading-5 text-slate-600">{signatory ? `Signed by ${signatory.name}${signatory.designation ? `, ${signatory.designation}` : ''}` : 'No authorized signatory selected'}</p><p className="text-xs leading-5 text-slate-600">{recipient.organization || recipient.name || 'Recipient details not specified'}</p></div>
+                    <div className="rounded-lg border border-indigo-200 bg-indigo-50/60 px-3 py-3"><p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-indigo-800"><span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-sm"><Sparkles className="h-4 w-4" /></span>Drafting brief</p><p className="mt-2 text-sm font-semibold text-slate-800">{DRAFT_CONTENT_LENGTHS.find((option) => option.value === contentLength)?.label} · {DRAFT_PARAGRAPH_STYLES.find((option) => option.value === paragraphStyle)?.label}</p><p className="mt-1 line-clamp-3 text-xs leading-5 text-slate-600">{resolvedInstruction}</p></div>
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-3 sm:col-span-2"><p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-emerald-800"><span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-sm"><BookOpen className="h-4 w-4" /></span>Information sent to AI</p><p className="mt-2 text-sm font-semibold text-slate-800">{useDetailedContext ? `${context.selectedSourceCount} selected items · ${context.wordCount} context words` : 'Issue subject only'}</p><p className="mt-1 text-xs leading-5 text-slate-600">{options.summary && summary ? 'Latest running summary included. ' : ''}{selectedNotes.length ? `${selectedNotes.length} Note${selectedNotes.length === 1 ? '' : 's'} selected. ` : ''}{selectedCommunications.length ? `${selectedCommunications.length} communication${selectedCommunications.length === 1 ? '' : 's'} selected. ` : ''}{selectedReferences.length ? `${selectedReferences.length} reference${selectedReferences.length === 1 ? '' : 's'} selected.` : ''}</p></div>
+                  </div>
                   <div className="overflow-hidden rounded-md border border-slate-200 bg-white sm:col-span-2">
                     <button type="button" aria-expanded={advancedSettingsOpen} onClick={() => setAdvancedSettingsOpen((current) => !current)} className="flex min-h-11 w-full items-center justify-between gap-3 px-3 py-2.5 text-left hover:bg-slate-50">
                       <span className="flex items-center gap-2 text-sm font-semibold text-slate-700"><Settings2 className="h-4 w-4 text-cyan-700" />Advanced settings</span>
@@ -1217,37 +1278,38 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
 
                   {!authorizedSignatories.length && <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 sm:col-span-2">Choose authorized signatories in <Link to="/settings" className="font-semibold underline">Settings</Link> before generating official communication.</div>}
                   {authorizedSignatories.length > 0 && !signatory && <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 sm:col-span-2">Select the officer who will sign this communication.</div>}
+                  {officeProfile && !officeProfile.ministry.trim() && !officeProfile.department.trim() && <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 sm:col-span-2">Add the issuing Ministry or Department in <Link to="/settings" className="font-semibold underline">Settings</Link> before preparing an official communication.</div>}
+                  {!selectedNotes.length && !instruction.trim() && <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 sm:col-span-2">Add a goal in Step 2 or select a saved Note before preparing the communication.</div>}
+                  {useDetailedContext && !context.text && <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900 sm:col-span-2">No source information is selected. Return to Step 3 or turn off detailed context.</div>}
+                  </>}
                 </fieldset>
               </div>
             ) : (
-              <div className="grid min-h-[420px] lg:grid-cols-[360px_minmax(0,1fr)]">
-                <aside className="border-b border-slate-200 lg:border-b-0 lg:border-r">
-                  <div className="border-b border-slate-200 px-4 py-4">
-                    <h4 className="text-sm font-semibold text-slate-800">Automatically included</h4>
-                    <div className="mt-3 space-y-2">
-                      <Option label="Issue details" checked={options.issueDetails} onChange={(checked) => setOptions((current) => ({ ...current, issueDetails: checked }))} />
-                      <Option label="Current position" checked={options.currentPosition} disabled={!issue.currentPosition} onChange={(checked) => setOptions((current) => ({ ...current, currentPosition: checked }))} />
-                      <Option label="Latest running summary" checked={options.summary} disabled={!summary} onChange={(checked) => setOptions((current) => ({ ...current, summary: checked }))} />
-                    </div>
+              <div className="space-y-4 p-4 sm:p-5">
+                <div><h4 className="text-sm font-semibold text-slate-900">Choose the information AI may use</h4><p className="mt-1 text-xs leading-5 text-slate-500">Select only material relevant to this communication. Longer text stays folded until you choose to inspect it.</p></div>
+                <label className="flex items-start gap-2 rounded-md border border-teal-200 bg-teal-50 px-3 py-3 text-sm text-slate-700"><input type="checkbox" checked={useDetailedContext} onChange={(event) => setUseDetailedContext(event.target.checked)} className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-teal-700" /><span><span className="block font-medium">Use selected Issue information</span><span className="mt-0.5 block text-xs leading-5 text-slate-500">Turn this off to draft conservatively from the Issue subject and brief only.</span></span></label>
+                <section aria-labelledby="automatic-draft-sources" className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                  <h5 id="automatic-draft-sources" className="text-xs font-semibold text-slate-700">Issue information</h5>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                    <Option label="Issue details" checked={options.issueDetails} onChange={(checked) => setOptions((current) => ({ ...current, issueDetails: checked }))} />
+                    <Option label="Current position" checked={options.currentPosition} disabled={!issue.currentPosition} onChange={(checked) => setOptions((current) => ({ ...current, currentPosition: checked }))} />
+                    <Option label="Latest running summary" checked={options.summary} disabled={!summary} onChange={(checked) => setOptions((current) => ({ ...current, summary: checked }))} />
                   </div>
+                </section>
+                <section aria-labelledby="recorded-draft-sources" className="overflow-hidden rounded-md border border-slate-200 bg-white">
+                  <h5 id="recorded-draft-sources" className="sr-only">Recorded Issue sources</h5>
                   <div className="flex border-b border-slate-200 bg-slate-50 p-1" role="tablist" aria-label="Context sources" onKeyDown={handleTabListKeyDown}>
-                    {['Communications', 'References', 'Notes'].map((tab) => <button key={tab} type="button" role="tab" aria-selected={sourceTab === tab} tabIndex={sourceTab === tab ? 0 : -1} onClick={() => setSourceTab(tab)} className={`flex-1 rounded px-2 py-2 text-xs font-semibold ${sourceTab === tab ? 'bg-white text-teal-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}>{tab} <span className="tabular-nums">({tab === 'Communications' ? communications.length : tab === 'References' ? references.length : notes.length})</span></button>)}
+                    {['Communications', 'References', 'Notes'].map((tab) => <button key={tab} type="button" role="tab" aria-selected={sourceTab === tab} tabIndex={sourceTab === tab ? 0 : -1} onClick={() => setSourceTab(tab)} className={`min-h-11 min-w-0 flex-1 rounded px-1.5 py-2.5 text-[11px] font-semibold sm:px-2 sm:text-xs ${sourceTab === tab ? 'bg-white text-teal-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}><span className="block truncate">{tab}</span><span className="tabular-nums">({tab === 'Communications' ? communications.length : tab === 'References' ? references.length : notes.length})</span></button>)}
                   </div>
-                  {sourceTab === 'Communications' ? (
-                    <SourceSelector items={communications} selectedIds={selectedCommunicationIds} onToggle={(id) => toggleId(setSelectedCommunicationIds, id)} onSelectAll={() => setSelectedCommunicationIds(communications.map((item) => item.id))} onClear={() => setSelectedCommunicationIds([])} emptyText="No communications recorded." renderItem={(item) => <CommunicationLabel communication={item} />} />
-                  ) : sourceTab === 'References' ? (
-                    <SourceSelector items={references} selectedIds={selectedReferenceIds} onToggle={(id) => toggleId(setSelectedReferenceIds, id)} onSelectAll={() => setSelectedReferenceIds(references.map((item) => item.id))} onClear={() => setSelectedReferenceIds([])} emptyText="No references recorded." renderItem={(item) => <ReferenceLabel reference={item} />} />
-                  ) : (
-                    <SourceSelector items={notes} selectedIds={selectedNoteIds} onToggle={(id) => toggleId(setSelectedNoteIds, id)} onSelectAll={() => setSelectedNoteIds(notes.map((item) => item.id))} onClear={() => setSelectedNoteIds([])} emptyText="No notes recorded." renderItem={(item) => <NoteLabel note={item} />} />
-                  )}
-                </aside>
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3">
-                    <div className="text-xs text-slate-500"><span className="font-semibold tabular-nums text-slate-700">{context.wordCount}</span> words <span className="mx-1 text-slate-300">|</span> <span className="font-semibold tabular-nums text-slate-700">{context.selectedSourceCount}</span> selected</div>
-                    <button type="button" onClick={copyContext} disabled={!context.text} className={`inline-flex h-9 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold text-white disabled:bg-slate-300 ${copyStatus === 'copied' ? 'bg-emerald-700' : copyStatus === 'error' ? 'bg-red-700' : 'bg-teal-700 hover:bg-teal-800'}`}>{copyStatus === 'copied' ? <Check className="h-4 w-4" /> : copyStatus === 'error' ? <X className="h-4 w-4" /> : <Clipboard className="h-4 w-4" />}{copyStatus === 'copied' ? 'Copied' : copyStatus === 'error' ? 'Copy failed' : 'Copy context'}</button>
+                  {sourceTab === 'Communications' ? <SourceSelector items={communications} selectedIds={selectedCommunicationIds} onToggle={(id) => toggleId(setSelectedCommunicationIds, id)} onSelectAll={() => setSelectedCommunicationIds(communications.map((item) => item.id))} onClear={() => setSelectedCommunicationIds([])} emptyText="No communications recorded." renderItem={(item, expanded) => <CommunicationLabel communication={item} expanded={expanded} />} /> : sourceTab === 'References' ? <SourceSelector items={references} selectedIds={selectedReferenceIds} onToggle={(id) => toggleId(setSelectedReferenceIds, id)} onSelectAll={() => setSelectedReferenceIds(references.map((item) => item.id))} onClear={() => setSelectedReferenceIds([])} emptyText="No references recorded." renderItem={(item, expanded) => <ReferenceLabel reference={item} expanded={expanded} />} /> : <SourceSelector items={notes} selectedIds={selectedNoteIds} onToggle={(id) => toggleId(setSelectedNoteIds, id)} onSelectAll={() => setSelectedNoteIds(notes.map((item) => item.id))} onClear={() => setSelectedNoteIds([])} emptyText="No notes recorded." renderItem={(item, expanded) => <NoteLabel note={item} expanded={expanded} />} />}
+                </section>
+                <section aria-labelledby="draft-context-preview" className="overflow-hidden rounded-md border border-slate-200 bg-white">
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-3 py-2.5">
+                    <div><h5 id="draft-context-preview" className="text-xs font-semibold text-slate-700">Information that will be sent</h5><p className="mt-0.5 text-[11px] text-slate-500"><span className="font-semibold tabular-nums text-slate-700">{context.wordCount}</span> words · <span className="font-semibold tabular-nums text-slate-700">{context.selectedSourceCount}</span> selected</p></div>
+                    <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:gap-1"><button type="button" onClick={() => setContextPreviewExpanded((current) => !current)} disabled={!context.text} aria-expanded={contextPreviewExpanded} className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-md px-3 text-xs font-semibold text-slate-700 hover:bg-white disabled:text-slate-300 sm:min-h-9">{contextPreviewExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}{contextPreviewExpanded ? 'Show less' : 'Expand'}</button><button type="button" onClick={copyContext} disabled={!context.text} className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold text-white disabled:bg-slate-300 sm:min-h-9 ${copyStatus === 'copied' ? 'bg-emerald-700' : copyStatus === 'error' ? 'bg-red-700' : 'bg-teal-700 hover:bg-teal-800'}`}>{copyStatus === 'copied' ? <Check className="h-4 w-4" /> : copyStatus === 'error' ? <X className="h-4 w-4" /> : <Clipboard className="h-4 w-4" />}{copyStatus === 'copied' ? 'Copied' : copyStatus === 'error' ? 'Copy failed' : 'Copy context'}</button></div>
                   </div>
-                  <pre className="max-h-[480px] min-h-[300px] overflow-auto whitespace-pre-wrap break-words px-4 py-5 font-sans text-sm leading-6 text-slate-700">{context.text || 'Select at least one context section or source.'}</pre>
-                </div>
+                  <pre className={`whitespace-pre-wrap break-words px-3 py-3 font-sans text-xs leading-5 text-slate-700 ${contextPreviewExpanded ? 'max-h-[420px] overflow-auto' : 'line-clamp-4 overflow-hidden'}`}>{context.text || 'Select at least one context section or source.'}</pre>
+                </section>
               </div>
             )}
           </div>
@@ -1262,9 +1324,9 @@ export default function DraftingWorkspace({ issue, assignedOfficer, officers, su
                   <button type="button" title="Stop generation" onClick={() => generationController.current?.abort()} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-red-200 bg-red-50 text-red-800 hover:bg-red-100"><Square className="h-4 w-4" /><span className="sr-only">Stop generation</span></button>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-2">
-                  <button type="button" onClick={() => setDraftDialogOpen(false)} className="inline-flex h-10 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">Cancel</button>
-                  <button type="button" onClick={() => generateDraft(false, false, draftDialogType)} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-teal-700 px-3 text-xs font-semibold text-white shadow-sm hover:bg-teal-800"><Sparkles className="h-4 w-4" />{generation.status === 'complete' ? 'Generate new draft' : 'Generate draft'}</button>
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
+                  {draftDialogStep === 1 ? <button type="button" onClick={() => setDraftDialogOpen(false)} className="inline-flex min-h-11 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 sm:min-h-10">Cancel</button> : <button type="button" onClick={() => setDraftDialogStep((current) => Math.max(1, current - 1))} className="inline-flex min-h-11 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 sm:min-h-10">Back</button>}
+                  {draftDialogStep < 4 ? <button type="button" onClick={continueDraftPreparation} className="inline-flex min-h-11 items-center justify-center rounded-md bg-teal-700 px-4 text-xs font-semibold text-white shadow-sm hover:bg-teal-800 sm:min-h-10">Continue</button> : <button type="button" onClick={() => generateDraft(false, false, draftDialogType)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-teal-700 px-4 text-xs font-semibold text-white shadow-sm hover:bg-teal-800 sm:min-h-10"><Sparkles className="h-4 w-4" />{generation.status === 'complete' ? 'Prepare new communication' : 'Prepare communication'}</button>}
                 </div>
               )}
             </div>
@@ -1313,6 +1375,8 @@ function Option({ label, checked, disabled = false, onChange }) {
 }
 
 function SourceSelector({ items, selectedIds, onToggle, onSelectAll, onClear, emptyText, renderItem }) {
+  const [expandedIds, setExpandedIds] = useState([]);
+  const toggleExpanded = (id) => setExpandedIds((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id]);
   return (
     <div>
       <div className="flex items-center justify-between gap-2 border-b border-[#e3ebe9] px-4 py-2.5">
@@ -1322,21 +1386,27 @@ function SourceSelector({ items, selectedIds, onToggle, onSelectAll, onClear, em
           <button type="button" onClick={onClear} disabled={!selectedIds.length} className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100 disabled:text-slate-300"><X className="h-3.5 w-3.5" />Clear</button>
         </div>
       </div>
-      {items.length ? <div className="max-h-[430px] divide-y divide-[#e3ebe9] overflow-y-auto">{items.map((item) => <label key={item.id} className="flex cursor-pointer items-start gap-3 px-4 py-3 hover:bg-[#f5faf8]"><input type="checkbox" checked={selectedIds.includes(item.id)} onChange={() => onToggle(item.id)} className="mt-1 h-4 w-4 shrink-0 rounded border-slate-300 accent-teal-700" /><span className="min-w-0">{renderItem(item)}</span></label>)}</div> : <p className="px-4 py-8 text-center text-sm text-slate-500">{emptyText}</p>}
+      {items.length ? <div className="max-h-[330px] divide-y divide-[#e3ebe9] overflow-y-auto">{items.map((item) => {
+        const expanded = expandedIds.includes(item.id);
+        const previewText = item.content || item.citation || item.sourceSubject || item.details || '';
+        const canExpand = previewText.length > 180;
+        const inputId = `draft-source-${item.id}`;
+        return <div key={item.id} className="flex items-start gap-3 px-3 py-3 hover:bg-[#f5faf8] sm:px-4"><input id={inputId} type="checkbox" checked={selectedIds.includes(item.id)} onChange={() => onToggle(item.id)} className="mt-1 h-4 w-4 shrink-0 rounded border-slate-300 accent-teal-700" /><div className="min-w-0 flex-1"><label htmlFor={inputId} className="block cursor-pointer">{renderItem(item, expanded)}</label>{canExpand ? <button type="button" onClick={() => toggleExpanded(item.id)} aria-expanded={expanded} className="mt-1 inline-flex min-h-8 items-center gap-1 text-[11px] font-semibold text-teal-700 hover:underline">{expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}{expanded ? 'Show less' : 'Show more'}</button> : null}</div></div>;
+      })}</div> : <p className="px-4 py-8 text-center text-sm text-slate-500">{emptyText}</p>}
     </div>
   );
 }
 
-function CommunicationLabel({ communication }) {
-  return <><span className="flex items-center gap-1.5 text-xs font-semibold text-[#174f5b]"><MessageSquareText className="h-3.5 w-3.5" />{formatDisplayDate(communication.communicationDate)} - {communication.communicationType}</span><span className="mt-1 block line-clamp-2 text-xs leading-5 text-slate-600">{communication.eReceiptNumber ? `eReceipt ${communication.eReceiptNumber} - ` : ''}{communication.sourceSubject || communication.details}</span></>;
+function CommunicationLabel({ communication, expanded = false }) {
+  return <><span className="flex items-center gap-1.5 text-xs font-semibold text-[#174f5b]"><MessageSquareText className="h-3.5 w-3.5" />{formatDisplayDate(communication.communicationDate)} - {communication.communicationType}</span><span className={`mt-1 block whitespace-pre-wrap text-xs leading-5 text-slate-600 ${expanded ? '' : 'line-clamp-4'}`}>{communication.eReceiptNumber ? `eReceipt ${communication.eReceiptNumber} - ` : ''}{communication.sourceSubject || communication.details}</span></>;
 }
 
-function ReferenceLabel({ reference }) {
-  return <><span className="flex items-center gap-1.5 text-xs font-semibold text-amber-800"><BookOpen className="h-3.5 w-3.5" />{reference.referenceDate ? formatDisplayDate(reference.referenceDate) : 'Undated reference'}</span><span className="mt-1 block line-clamp-2 text-xs leading-5 text-slate-600">{reference.citation}</span></>;
+function ReferenceLabel({ reference, expanded = false }) {
+  return <><span className="flex items-center gap-1.5 text-xs font-semibold text-amber-800"><BookOpen className="h-3.5 w-3.5" />{reference.referenceDate ? formatDisplayDate(reference.referenceDate) : 'Undated reference'}</span><span className={`mt-1 block whitespace-pre-wrap text-xs leading-5 text-slate-600 ${expanded ? '' : 'line-clamp-4'}`}>{reference.citation}</span></>;
 }
 
-function NoteLabel({ note }) {
-  return <><span className="flex items-center gap-1.5 text-xs font-semibold text-indigo-800"><FilePenLine className="h-3.5 w-3.5" />Note {note.sequence} · {note.authorName || 'Officer'}</span><span className="mt-1 block line-clamp-2 text-xs leading-5 text-slate-600">{note.content}</span></>;
+function NoteLabel({ note, expanded = false }) {
+  return <><span className="flex items-center gap-1.5 text-xs font-semibold text-indigo-800"><FilePenLine className="h-3.5 w-3.5" />Note {note.sequence} · {note.authorName || 'Officer'}</span><span className={`mt-1 block whitespace-pre-wrap text-xs leading-5 text-slate-600 ${expanded ? '' : 'line-clamp-4'}`}>{note.content}</span></>;
 }
 
 async function copyText(text) {

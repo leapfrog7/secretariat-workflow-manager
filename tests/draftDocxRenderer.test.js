@@ -94,6 +94,39 @@ test('DOCX export preserves rich body emphasis, alignment and numbering', async 
   assert.match(xml, /<w:numPr>/);
 });
 
+test('DOCX export preserves body page breaks and nested government numbering', async () => {
+  const base = createDraftDocument({ communicationType: 'Letter', body: 'Initial body.' });
+  const document = replaceDraftBodyRichText(base, {
+    type: 'doc',
+    content: [
+      { type: 'paragraph', attrs: { pageBreakBefore: true }, content: [{ type: 'text', text: 'New page paragraph' }] },
+      {
+        type: 'orderedList',
+        attrs: { start: 2, numberingStyle: 'lowerRoman' },
+        content: [{
+          type: 'listItem',
+          content: [
+            { type: 'paragraph', content: [{ type: 'text', text: 'Main numbered point' }] },
+            { type: 'orderedList', attrs: { numberingStyle: 'lowerAlpha' }, content: [{ type: 'listItem', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Nested point' }] }] }] },
+          ],
+        }],
+      },
+    ],
+  });
+
+  const blob = await buildDraftDocx(document);
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  const archive = await JSZip.loadAsync(bytes);
+  const xml = await archive.file('word/document.xml').async('string');
+  const numbering = await archive.file('word/numbering.xml').async('string');
+  assert.match(xml, /w:pageBreakBefore/);
+  assert.match(xml, /Main numbered point/);
+  assert.match(xml, /Nested point/);
+  assert.match(numbering, /w:val="lowerRoman"/);
+  assert.match(numbering, /w:val="lowerLetter"/);
+  assert.match(numbering, /w:start w:val="2"/);
+});
+
 test('DOCX export preserves body tables and recipient indentation', async () => {
   const base = createDraftDocument({
     communicationType: 'Letter',
@@ -158,4 +191,22 @@ test('new drafts use a small recipient indent and narrow margins when selected',
   const recipientParagraph = xml.slice(xml.lastIndexOf('<w:p', recipientPosition), xml.indexOf('</w:p>', recipientPosition));
   assert.match(recipientParagraph, /w:left="360"/);
   assert.match(xml, /<w:pgMar[^>]*w:top="720"[^>]*w:right="720"[^>]*w:bottom="720"[^>]*w:left="720"/);
+});
+
+test('Draft DOCX exports paragraph ruler indents', async () => {
+  const base = createDraftDocument({
+    communicationType: 'Letter',
+    metadata: { subject: 'Ruler check', signatory: { name: 'A. Officer' }, officeProfile: { governmentName: 'Government of India' } },
+    body: 'Initial body.',
+  });
+  const document = replaceDraftBodyRichText(base, {
+    type: 'doc',
+    content: [{ type: 'paragraph', attrs: { indent: 1, firstLineIndent: 1, rightIndent: 2 }, content: [{ type: 'text', text: 'Ruler draft paragraph' }] }],
+  });
+  const xml = await documentXml(await buildDraftDocx(document));
+  const position = xml.indexOf('Ruler draft paragraph');
+  const paragraph = xml.slice(xml.lastIndexOf('<w:p', position), xml.indexOf('</w:p>', position));
+  assert.match(paragraph, /w:left="720"/);
+  assert.match(paragraph, /w:firstLine="284"/);
+  assert.match(paragraph, /w:right="568"/);
 });

@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   buildNoteAIInput,
   buildNoteSelectionRewriteInput,
+  buildNoteConversationInput,
   generateOrRefineNote,
   generateExaminationMap,
   noteModeTaskLevel,
@@ -10,6 +11,8 @@ import {
   NOTE_AI_SYSTEM_PROMPT,
   NOTE_SELECTION_REWRITE_SYSTEM_PROMPT,
   rewriteNoteSelection,
+  refineNoteConversation,
+  NOTE_CONVERSATION_SYSTEM_PROMPT,
 } from '../src/features/noting/noteAI.js';
 
 test('noting AI uses a separate Government note contract', () => {
@@ -166,4 +169,39 @@ test('selected note rewrite requires a non-empty selection', async () => {
     }),
     /Select the passage/,
   );
+});
+
+test('conversational refinement returns a complete reviewable note with bounded instruction history', async () => {
+  const calls = [];
+  const earlierInstructions = Array.from({ length: 8 }, (_, index) => `Earlier instruction ${index + 1}`);
+  const input = buildNoteConversationInput({
+    currentNote: 'Subject: Audit reply\n\nThe reply is under examination.',
+    instruction: 'Strengthen the reasoning and retain the conclusion.',
+    previousInstructions: earlierInstructions,
+    issueContext: 'The reply is due on 31 August 2026.',
+  });
+  const result = await refineNoteConversation({
+    provider: { id: 'test', async generateText(request) { calls.push(request); return { text: 'Subject: Audit reply\n\nThe recorded position supports further examination.\n\nApproval is solicited.', model: 'test-model' }; } },
+    currentNote: 'Subject: Audit reply\n\nThe reply is under examination.',
+    instruction: 'Strengthen the reasoning and retain the conclusion.',
+    previousInstructions: earlierInstructions,
+    issueContext: 'The reply is due on 31 August 2026.',
+  });
+
+  assert.match(NOTE_CONVERSATION_SYSTEM_PROMPT, /complete revised note/i);
+  assert.match(NOTE_CONVERSATION_SYSTEM_PROMPT, /Never invent facts/i);
+  assert.doesNotMatch(input, /Earlier instruction 1\n/);
+  assert.doesNotMatch(input, /Earlier instruction 2\n/);
+  assert.match(input, /Earlier instruction 3/);
+  assert.match(input, /LATEST OFFICER INSTRUCTION/);
+  assert.match(input, /CURRENT WORKING NOTE TO REVISE/);
+  assert.equal(calls[0].operation, 'draft');
+  assert.equal(result.model, 'test-model');
+  assert.match(result.text, /Approval is solicited/);
+});
+
+test('conversational refinement requires both a working note and an instruction', async () => {
+  const provider = { id: 'unused', generateText: async () => ({ text: 'Unused' }) };
+  await assert.rejects(() => refineNoteConversation({ provider, currentNote: '', instruction: 'Improve it.' }), /Prepare or enter a note/);
+  await assert.rejects(() => refineNoteConversation({ provider, currentNote: 'Working note', instruction: '  ' }), /Enter a refinement instruction/);
 });

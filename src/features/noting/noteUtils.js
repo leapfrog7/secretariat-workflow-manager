@@ -104,6 +104,10 @@ export function plainTextToNoteRichText(value) {
   };
   lines.forEach((rawLine) => {
     const trimmedLine = rawLine.trim();
+    // Models commonly separate numbered paragraphs with a blank line. Keep the
+    // active list across that visual spacing so the editor owns one continuous
+    // ordered list instead of several lists that each restart at 1.
+    if (!trimmedLine && activeList) return;
     if (/^([-*_])\1{2,}$/.test(trimmedLine)) return;
     const heading = trimmedLine.match(/^#{1,6}\s+(.+)$/);
     const line = (heading?.[1] || trimmedLine).replace(/^>\s?/, '');

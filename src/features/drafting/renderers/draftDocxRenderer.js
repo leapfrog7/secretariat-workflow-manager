@@ -67,13 +67,19 @@ function richTextRuns(runs, styleProfile) {
 function documentParagraph(content, blockStyle, styleProfile, options = {}) {
   return new Paragraph({
     alignment: alignments[options.alignment || blockStyle?.alignment] || AlignmentType.LEFT,
-    ...(options.listType === 'bullet' ? { bullet: { level: 0 } } : {}),
-    ...(options.listType === 'ordered' ? { numbering: { reference: 'draft-numbering', level: 0 } } : {}),
+    ...(options.listType === 'bullet' ? { bullet: { level: Math.min(8, Number(options.listLevel) || 0) } } : {}),
+    ...(options.listType === 'ordered' ? { numbering: { reference: options.numberingReference, level: 0 } } : {}),
+    pageBreakBefore: Boolean(options.pageBreakBefore),
     spacing: {
       after: Number(options.spacingAfter ?? styleProfile.paragraphSpacing ?? 0) * 20,
       line: Math.round(Number(styleProfile.lineSpacing || 1.15) * 240),
     },
-    ...(options.indentLeft ? { indent: { left: options.indentLeft } } : {}),
+    ...(options.indentLeft || options.firstLineIndent || options.rightIndent ? { indent: {
+      ...(options.indentLeft ? { left: options.indentLeft } : {}),
+      ...(options.firstLineIndent > 0 ? { firstLine: options.firstLineIndent } : {}),
+      ...(options.firstLineIndent < 0 ? { hanging: Math.abs(options.firstLineIndent) } : {}),
+      ...(options.rightIndent ? { right: options.rightIndent } : {}),
+    } } : {}),
     keepNext: ['officeHeading', 'communicationNumber', 'date', 'documentTitle', 'subject'].includes(options.role),
     children: options.runs
       ? richTextRuns(options.runs, styleProfile)
@@ -136,17 +142,37 @@ function structuredChildren(document) {
     body,
   });
 
-  return blocks.flatMap((item, index) => {
+  const richNodes = richTextDocumentNodes(document.bodyRichText, document.blocks);
+  const numberingConfig = [...new Map(richNodes
+    .filter((node) => node.type === 'paragraph' && node.listType === 'ordered')
+    .map((node) => [node.listId, node])).values()]
+    .map((node) => ({
+      reference: `draft-${node.listId}`,
+      levels: [{
+        level: 0,
+        format: { lowerRoman: LevelFormat.LOWER_ROMAN, lowerAlpha: LevelFormat.LOWER_LETTER }[node.numberingStyle] || LevelFormat.DECIMAL,
+        text: node.numberingStyle === 'decimal' ? '%1.' : '(%1)',
+        start: Math.max(1, Number(node.listStart) || 1),
+        alignment: AlignmentType.LEFT,
+        style: { paragraph: { indent: { left: 720 + (Number(node.listLevel) || 0) * 360, hanging: 360 } } },
+      }],
+    }));
+  const children = blocks.flatMap((item, index) => {
     const blockStyle = template.blocks.find((candidate) => candidate.role === item.role);
     if (item.role === 'body') {
-      return richTextDocumentNodes(document.bodyRichText, document.blocks).map((node) => (
+      return richNodes.map((node) => (
         node.type === 'table'
           ? documentTable(node, document.styleProfileSnapshot)
           : documentParagraph('', blockStyle, document.styleProfileSnapshot, {
             role: item.role,
             alignment: node.alignment,
             listType: node.listType,
+            listLevel: node.listLevel,
+            numberingReference: node.listType === 'ordered' ? `draft-${node.listId}` : undefined,
+            pageBreakBefore: node.pageBreakBefore,
             indentLeft: Number(node.indentLevel || 0) * 720,
+            firstLineIndent: Number(node.firstLineIndent || 0) * 284,
+            rightIndent: Number(node.rightIndent || 0) * 284,
             runs: node.runs,
           })
       ));
@@ -170,6 +196,7 @@ function structuredChildren(document) {
       spacingAfter: isHeadingPair(item, blocks[index + 1]) ? 0 : undefined,
     })];
   });
+  return { children, numberingConfig };
 }
 
 function legacyChildren(document, fallback) {
@@ -182,21 +209,15 @@ export function buildDraftDocxDocument(input, { fallbackContent = '' } = {}) {
   const document = normalizeDraftDocument(input, { content: fallbackContent });
   if (!document) throw new Error('There is no draft to export.');
   const isLegacy = document.blocks.some((item) => item.role === 'legacyDocument');
-  const children = isLegacy ? legacyChildren(document, fallbackContent) : structuredChildren(document);
+  const rendered = isLegacy
+    ? { children: legacyChildren(document, fallbackContent), numberingConfig: [] }
+    : structuredChildren(document);
+  const { children, numberingConfig } = rendered;
   if (!children.length) throw new Error('There is no draft to export.');
 
   return new Document({
     numbering: {
-      config: [{
-        reference: 'draft-numbering',
-        levels: [{
-          level: 0,
-          format: LevelFormat.DECIMAL,
-          text: '%1.',
-          alignment: AlignmentType.LEFT,
-          style: { paragraph: { indent: { left: 720, hanging: 360 } } },
-        }],
-      }],
+      config: numberingConfig,
     },
     styles: {
       default: {

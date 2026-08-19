@@ -32,23 +32,21 @@ test('Create action opens a usable mobile Issue form', async ({ page }) => {
   await expect(page.getByLabel('Title')).toHaveCSS('font-size', '16px');
 });
 
-test('Casework source and paste sheets remain inside the viewport', async ({ page }) => {
-  await page.goto('/#/issues/new');
-  await page.getByLabel('Title').fill(`Mobile source test ${Date.now()}`);
-  await page.getByRole('button', { name: 'Create Issue' }).click();
-  await expect(page.getByRole('link', { name: 'Open Casework' })).toBeVisible();
-  await page.getByRole('link', { name: 'Open Casework' }).click();
-
+test('Noting guided sources and paste sheets remain inside the viewport', async ({ page }) => {
+  await openNewIssueCasework(page, 'Mobile noting test');
   await page.getByRole('button', { name: 'Add note' }).click();
-  await page.getByRole('button', { name: 'Add source' }).click();
-  const sourceDialog = page.getByRole('dialog', { name: 'Add source' });
-  await expect(sourceDialog).toBeVisible();
-  await expect(sourceDialog.getByText('Choose a file')).toBeVisible();
-  await expect(sourceDialog.getByText('Paste text', { exact: true })).toBeVisible();
-  await expect(sourceDialog.getByText('Use Issue records')).toBeVisible();
-  await expectDialogInsideViewport(page, sourceDialog);
+  await page.getByRole('button', { name: 'Help me write' }).click();
+  const noteDialog = page.getByRole('dialog', { name: 'Prepare a note' });
+  await expect(noteDialog).toBeVisible();
+  await expectDialogInsideViewport(page, noteDialog);
+  await noteDialog.getByRole('button', { name: 'Continue' }).click();
+  await noteDialog.getByLabel(/Goal of this Note/i).fill('Recommend the appropriate course of action.');
+  await noteDialog.getByRole('button', { name: 'Continue' }).click();
+  await expect(noteDialog.getByText('Choose file', { exact: true })).toBeVisible();
+  await expect(noteDialog.getByText('Paste text', { exact: true })).toBeVisible();
+  await expectDialogInsideViewport(page, noteDialog);
 
-  await sourceDialog.getByRole('button', { name: /Paste text/ }).click();
+  await noteDialog.getByRole('button', { name: /Paste text/ }).click();
   const pasteDialog = page.getByRole('dialog', { name: 'Paste source text' });
   await expect(pasteDialog).toBeVisible();
   await expectDialogInsideViewport(page, pasteDialog);
@@ -75,4 +73,12 @@ async function expectDialogInsideViewport(page, dialog) {
   expect(box.y).toBeGreaterThanOrEqual(0);
   expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 1);
   expect(box.y + box.height).toBeLessThanOrEqual(viewport.height + 1);
+}
+
+async function openNewIssueCasework(page, prefix) {
+  await page.goto('/#/issues/new');
+  await page.getByLabel('Title').fill(`${prefix} ${Date.now()}`);
+  await page.getByRole('button', { name: 'Create Issue' }).click();
+  await expect(page.getByRole('link', { name: 'Open Casework' })).toBeVisible();
+  await page.getByRole('link', { name: 'Open Casework' }).click();
 }

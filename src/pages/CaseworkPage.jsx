@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, ExternalLink, FilePenLine, MessageSquareText } from 'lucide-react';
+import { ArrowLeft, BriefcaseBusiness, ChevronRight, ExternalLink, FilePenLine, MessageSquareText, Plus, Search } from 'lucide-react';
 import PageHeader from '../components/common/PageHeader';
 import LoadingState from '../components/common/LoadingState';
 import ErrorState from '../components/common/ErrorState';
@@ -32,6 +32,13 @@ const emptyBundle = {
   summary: null,
   accessLevel: 'viewer',
 };
+
+function recentCaseworkHref(item) {
+  if (item.activityKind === 'draft' && item.latestDraft) return `/casework/${item.issue.id}?mode=drafting&draft=${encodeURIComponent(item.latestDraft.id)}`;
+  if (item.latestNote) return `/casework/${item.issue.id}?mode=notes&note=${encodeURIComponent(item.latestNote.id)}`;
+  if (item.latestDraft) return `/casework/${item.issue.id}?mode=drafting&draft=${encodeURIComponent(item.latestDraft.id)}`;
+  return `/casework/${item.issue.id}`;
+}
 
 export default function CaseworkPage() {
   const { issueId = '' } = useParams();
@@ -181,24 +188,24 @@ export default function CaseworkPage() {
 
   return (
     <>
+      <div className="casework-page">
       <PageHeader
         title="Casework"
-        description="Examine an Issue, record the internal note and prepare the resulting communication in one place."
+        description="Move from examination to an issued communication without leaving the matter."
         actions={bundle.issue ? (
-          <Link to={`/issues/${bundle.issue.id}`} className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:border-teal-300 hover:bg-teal-50 hover:text-teal-800">
+          <Link to={`/issues/${bundle.issue.id}`} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:border-teal-300 hover:bg-teal-50 hover:text-teal-800 sm:min-h-10 sm:w-auto sm:text-sm">
             <ExternalLink className="h-4 w-4" />Open full Issue
           </Link>
         ) : null}
       />
 
-      <section className="surface mb-3 border-l-4 border-l-indigo-600 p-3 sm:mb-4 sm:p-5">
-        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+      <section className="surface mb-4 overflow-visible rounded-xl border-slate-200 bg-white p-3 sm:p-4">
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-start gap-3"><span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-teal-50 text-teal-700"><BriefcaseBusiness className="h-4 w-4" /></span><div className="min-w-0"><h2 className="text-sm font-semibold text-slate-900">Choose your working file</h2><p className="mt-0.5 hidden text-xs leading-4 text-slate-500 sm:block">Select a current Issue to continue its Note or communication.</p></div></div>
+          {auth.canEdit && <Link to="/issues/new" aria-label="Create new Issue" className="inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-3 text-xs font-semibold text-white shadow-sm hover:bg-slate-800 sm:min-h-11 sm:px-4 sm:text-sm"><Plus className="h-4 w-4" /><span className="sm:hidden">New</span><span className="hidden sm:inline">New Issue</span></Link>}
+        </div>
+        <div>
           <CaseworkIssuePicker issues={issues} selectedId={issueId} auth={auth} onSelect={(value) => navigate(`/casework/${value}`)} />
-          {auth.canEdit && (
-            <Link to="/issues/new" className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md border border-indigo-200 bg-indigo-50 px-4 text-sm font-semibold text-indigo-800 hover:bg-indigo-100 sm:mt-6 sm:h-10 sm:w-auto">
-              <FilePenLine className="h-4 w-4" />Create Issue
-            </Link>
-          )}
         </div>
       </section>
 
@@ -214,7 +221,7 @@ export default function CaseworkPage() {
         )
       ) : (
         <>
-          {!canEditIssue && <div className="mb-4 rounded-md border border-cyan-200 bg-cyan-50 px-3 py-3 text-sm text-cyan-950">Viewing access only. You can read this Casework, but changes are disabled.</div>}
+          {!canEditIssue && <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-3 text-xs leading-5 text-cyan-950 sm:text-sm"><span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-cyan-600" />Viewing access only. You can read this Casework, but changes are disabled.</div>}
           <CaseworkModule
             issue={bundle.issue}
             officers={bundle.officers}
@@ -245,6 +252,7 @@ export default function CaseworkPage() {
         onCancel={() => setNoteToDelete(null)}
         onConfirm={confirmDeleteNote}
       />
+      </div>
     </>
   );
 }
@@ -252,22 +260,26 @@ export default function CaseworkPage() {
 function CaseworkQueues({ activity, awaitingIssues }) {
   const [queue, setQueue] = useState(activity.length ? 'recent' : 'awaiting');
   return (
-    <section className="surface overflow-hidden">
-      <div className="flex flex-col gap-2.5 border-b border-slate-200 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-4">
-        <div><h2 className="text-base font-semibold text-[#17333b]">Casework queues</h2><p className="mt-1 text-sm text-slate-600">Return to recent work or matters waiting for follow-up.</p></div>
-        <div className="grid grid-cols-2 gap-1 rounded-md bg-slate-100 p-1" role="tablist" aria-label="Casework queues">
-          <button type="button" role="tab" aria-selected={queue === 'recent'} onClick={() => setQueue('recent')} className={`min-h-9 rounded px-3 text-xs font-semibold ${queue === 'recent' ? 'bg-white text-indigo-800 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}>Recent ({activity.length})</button>
-          <button type="button" role="tab" aria-selected={queue === 'awaiting'} onClick={() => setQueue('awaiting')} className={`min-h-9 rounded px-3 text-xs font-semibold ${queue === 'awaiting' ? 'bg-white text-amber-800 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}>Awaiting ({awaitingIssues.length})</button>
+    <section className="surface overflow-hidden rounded-xl border-slate-200">
+      <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <div className="flex items-start gap-3"><span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600"><Search className="h-4 w-4" /></span><div><h2 className="text-sm font-semibold text-slate-900 sm:text-base">Your work queue</h2><p className="mt-0.5 text-xs text-slate-500">Return to recent work or matters awaiting follow-up.</p></div></div>
+        <div className="grid grid-cols-2 border-b border-slate-200 sm:gap-1 sm:rounded-lg sm:border-0 sm:bg-slate-100 sm:p-1" role="tablist" aria-label="Casework queues">
+          <button type="button" role="tab" aria-selected={queue === 'recent'} onClick={() => setQueue('recent')} className={`min-h-10 border-b-2 px-3 text-xs font-semibold sm:rounded-md sm:border-b-0 ${queue === 'recent' ? 'border-slate-900 text-slate-900 sm:bg-white sm:shadow-sm' : 'border-transparent text-slate-500 hover:text-slate-900'}`}>Recent <span className="ml-1 tabular-nums text-slate-400">{activity.length}</span></button>
+          <button type="button" role="tab" aria-selected={queue === 'awaiting'} onClick={() => setQueue('awaiting')} className={`min-h-10 border-b-2 px-3 text-xs font-semibold sm:rounded-md sm:border-b-0 ${queue === 'awaiting' ? 'border-amber-600 text-amber-800 sm:bg-white sm:shadow-sm' : 'border-transparent text-slate-500 hover:text-slate-900'}`}>Awaiting <span className="ml-1 tabular-nums text-slate-400">{awaitingIssues.length}</span></button>
         </div>
       </div>
       {queue === 'recent' && <div className="divide-y divide-slate-200">
         {activity.map((item) => (
-          <article key={item.issue.id} className="grid gap-2.5 px-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-5 sm:py-4">
-            <div className="min-w-0">
+          <article key={item.issue.id} className="transition-colors hover:bg-slate-50/70 sm:grid sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-3 sm:px-5 sm:py-4">
+            <Link to={recentCaseworkHref(item)} aria-label={`Open ${item.issue.shortTitle}`} className="flex min-h-16 items-center gap-3 px-4 py-3.5 sm:hidden">
+              <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold text-slate-900">{item.issue.shortTitle}</span><span className="mt-1 block text-[11px] text-slate-500">{formatDateTime(item.activityAt)} · {item.activityKind === 'draft' ? 'Draft updated' : 'Note updated'}</span><span className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-medium text-slate-500">{item.latestNote ? <span className="inline-flex items-center gap-1"><MessageSquareText className="h-3 w-3 text-indigo-500" />Note {item.latestNote.sequence}</span> : null}{item.latestDraft ? <span className="inline-flex items-center gap-1"><FilePenLine className="h-3 w-3 text-teal-600" />Draft available</span> : null}</span></span>
+              <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
+            </Link>
+            <div className="hidden min-w-0 sm:block">
               <Link to={`/casework/${item.issue.id}`} className="block truncate text-sm font-semibold text-slate-900 hover:text-indigo-800 hover:underline">{item.issue.shortTitle}</Link>
               <p className="mt-1 text-xs text-slate-500">Last worked {formatDateTime(item.activityAt)} · {item.activityKind === 'draft' ? 'Draft updated' : 'Note updated'}</p>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="hidden flex-wrap gap-2 sm:flex">
               {item.latestNote && (
                 <Link to={`/casework/${item.issue.id}?mode=notes&note=${encodeURIComponent(item.latestNote.id)}`} className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-md border border-indigo-200 bg-indigo-50 px-3 text-xs font-semibold text-indigo-800 hover:bg-indigo-100 sm:flex-none">
                   <MessageSquareText className="h-4 w-4" />Open Note {item.latestNote.sequence}
@@ -285,9 +297,10 @@ function CaseworkQueues({ activity, awaitingIssues }) {
       </div>}
       {queue === 'awaiting' && <div className="divide-y divide-slate-200">
         {awaitingIssues.map((issue) => (
-          <article key={issue.id} className="flex flex-col gap-2.5 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-4">
-            <div className="min-w-0"><Link to={`/casework/${issue.id}`} className="block truncate text-sm font-semibold text-slate-900 hover:text-indigo-800 hover:underline">{issue.shortTitle}</Link><div className="mt-1.5"><StatusBadge status={issue.status} /></div></div>
-            <Link to={`/casework/${issue.id}`} className="inline-flex h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-800">Open Casework</Link>
+          <article key={issue.id} className="transition-colors hover:bg-slate-50/70 sm:flex sm:items-center sm:justify-between sm:gap-3 sm:px-5 sm:py-4">
+            <Link to={`/casework/${issue.id}`} aria-label={`Open ${issue.shortTitle}`} className="flex min-h-16 items-center gap-3 px-4 py-3.5 sm:hidden"><span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold text-slate-900">{issue.shortTitle}</span><span className="mt-1.5 block"><StatusBadge status={issue.status} /></span></span><ChevronRight className="h-4 w-4 shrink-0 text-slate-400" /></Link>
+            <div className="hidden min-w-0 sm:block"><Link to={`/casework/${issue.id}`} className="block truncate text-sm font-semibold text-slate-900 hover:text-indigo-800 hover:underline">{issue.shortTitle}</Link><div className="mt-1.5"><StatusBadge status={issue.status} /></div></div>
+            <Link to={`/casework/${issue.id}`} className="hidden h-9 items-center justify-center rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-800 sm:inline-flex">Open Casework</Link>
           </article>
         ))}
         {!awaitingIssues.length && <p className="px-4 py-10 text-center text-sm text-slate-500">No Issues are awaiting input or discussion.</p>}

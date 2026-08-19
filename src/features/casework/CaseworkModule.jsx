@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowRight, FilePenLine, MessageSquareText } from 'lucide-react';
+import { Check, ChevronRight, Circle, FilePenLine, FolderOpen, MessageSquareText } from 'lucide-react';
 import NotingPanel from '../noting/NotingPanel';
 import DraftingWorkspace from '../drafting/DraftingWorkspace';
 import { useToast } from '../../components/common/ToastProvider';
 import { handleTabListKeyDown } from '../../utils/tabKeyboardUtils';
+import StatusBadge from '../../components/common/StatusBadge';
 
 export default function CaseworkModule({
   issue,
@@ -61,30 +62,54 @@ export default function CaseworkModule({
 
   const assignedOfficer = officers.find((officer) => officer.id === issue.assignedOfficerId);
   const issued = communications.some((item) => item.draftId);
+  const workflowSteps = [
+    { label: 'Examine', complete: view === 'drafting' || issued, active: view === 'notes' && !issued },
+    { label: 'Prepare', complete: issued, active: view === 'drafting' && !issued },
+    { label: 'Issued', complete: issued, active: issued },
+  ];
 
   return (
-    <div className="space-y-4">
-      <section className={`surface overflow-hidden rounded-md border-t-4 ${view === 'notes' ? 'border-t-indigo-600' : 'border-t-teal-600'}`}>
-        <div className="flex flex-col gap-2.5 border-b border-slate-200 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-5 sm:py-4">
-          <div>
-            <h2 className="text-base font-semibold text-[#17333b]">Casework</h2>
-            <p className="mt-0.5 text-[12px] leading-4 text-slate-600 sm:mt-1 sm:text-sm sm:leading-5">Examine the matter, record the internal view and prepare the communication.</p>
+    <div className="casework-workflow space-y-4">
+      <section className="surface overflow-hidden rounded-xl border-slate-200">
+        <div className="grid gap-4 px-4 py-4 sm:px-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+          <div className="min-w-0">
+            <div className="flex items-start gap-3">
+              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-white shadow-sm"><FolderOpen className="h-4.5 w-4.5" /></span>
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-teal-700">Active matter</p>
+                <h2 className="mt-1 truncate text-base font-semibold text-slate-950 sm:text-lg" title={issue.shortTitle}>{issue.shortTitle}</h2>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <StatusBadge status={issue.status} />
+                  {issue.eFileNumber ? <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-medium tabular-nums text-slate-600">eFile {issue.eFileNumber}</span> : null}
+                  {issue.stage ? <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-medium text-slate-600">{issue.stage}</span> : null}
+                </div>
+              </div>
+            </div>
+            <p className={`mt-3 line-clamp-2 border-l-2 border-teal-200 pl-3 text-xs leading-5 ${issue.currentPosition ? 'text-slate-600' : 'italic text-slate-400'}`}>{issue.currentPosition || 'No current position has been recorded.'}</p>
           </div>
-          <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-400" aria-label={`Casework progress: ${issued ? 'communication issued' : view === 'drafting' ? 'preparing communication' : 'examination'}`}>
-            <span className={view === 'notes' ? 'text-indigo-700' : 'text-slate-500'}>Examination</span>
-            <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-            <span className={view === 'drafting' ? 'text-teal-700' : 'text-slate-500'}>Communication</span>
-            <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-            <span className={issued ? 'text-emerald-700' : 'text-slate-400'}>Issued</span>
-          </div>
+
+          <ol className="flex min-w-0 items-center rounded-lg border border-slate-200 bg-slate-50 p-2" aria-label={`Casework progress: ${issued ? 'communication issued' : view === 'drafting' ? 'preparing communication' : 'examination'}`}>
+            {workflowSteps.map((step, index) => (
+              <li key={step.label} className="flex min-w-0 flex-1 items-center lg:flex-none">
+                <span className={`inline-flex min-w-0 items-center gap-1.5 rounded-md px-2 py-1.5 text-[10px] font-semibold sm:text-[11px] ${step.active ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200' : step.complete ? 'text-emerald-700' : 'text-slate-400'}`}>
+                  <span className={`inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${step.complete ? 'bg-emerald-100' : step.active ? 'bg-teal-100 text-teal-800' : 'bg-slate-200'}`}>{step.complete ? <Check className="h-3 w-3" /> : <Circle className="h-2.5 w-2.5" />}</span>
+                  <span className="truncate">{step.label}</span>
+                </span>
+                {index < workflowSteps.length - 1 ? <ChevronRight className="mx-0.5 h-3.5 w-3.5 shrink-0 text-slate-300" /> : null}
+              </li>
+            ))}
+          </ol>
         </div>
-        <div className={`grid grid-cols-2 gap-1 p-1.5 ${view === 'notes' ? 'bg-indigo-50/60' : 'bg-teal-50/60'}`} role="tablist" aria-label="Casework" onKeyDown={handleTabListKeyDown}>
-          <button type="button" role="tab" aria-selected={view === 'notes'} tabIndex={view === 'notes' ? 0 : -1} onClick={() => changeView('notes')} className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold sm:text-sm ${view === 'notes' ? 'bg-white text-indigo-800 shadow-sm ring-1 ring-indigo-200' : 'text-slate-500 hover:bg-white/70 hover:text-indigo-800'}`}>
-            <MessageSquareText className="h-4 w-4" />Examine and Note
-            {notes.length > 0 && <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[11px] tabular-nums text-indigo-700">{notes.length}</span>}
+
+        <div className="grid grid-cols-2 gap-2 border-t border-slate-200 bg-slate-50/80 p-2" role="tablist" aria-label="Casework" onKeyDown={handleTabListKeyDown}>
+          <button type="button" role="tab" aria-selected={view === 'notes'} tabIndex={view === 'notes' ? 0 : -1} onClick={() => changeView('notes')} className={`group flex min-h-14 min-w-0 items-center gap-2.5 rounded-lg px-3 text-left transition-colors sm:min-h-16 sm:px-4 ${view === 'notes' ? 'bg-white text-indigo-950 shadow-sm ring-1 ring-indigo-200' : 'text-slate-500 hover:bg-white/80 hover:text-slate-800'}`}>
+            <span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${view === 'notes' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-200 text-slate-500 group-hover:bg-indigo-50 group-hover:text-indigo-700'}`}><MessageSquareText className="h-4 w-4" /></span>
+            <span className="min-w-0"><span className="block truncate text-xs font-semibold sm:text-sm">Examine and Note</span><span className="mt-0.5 hidden truncate text-[11px] font-normal text-slate-500 sm:block">Record analysis and proposed action</span></span>
+            {notes.length > 0 ? <span className="ml-auto rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold tabular-nums text-indigo-700">{notes.length}</span> : null}
           </button>
-          <button type="button" role="tab" aria-selected={view === 'drafting'} tabIndex={view === 'drafting' ? 0 : -1} onClick={() => changeView('drafting')} className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-xs font-semibold sm:text-sm ${view === 'drafting' ? 'bg-white text-teal-800 shadow-sm ring-1 ring-teal-200' : 'text-slate-500 hover:bg-white/70 hover:text-teal-800'}`}>
-            <FilePenLine className="h-4 w-4" />Prepare Communication
+          <button type="button" role="tab" aria-selected={view === 'drafting'} tabIndex={view === 'drafting' ? 0 : -1} onClick={() => changeView('drafting')} className={`group flex min-h-14 min-w-0 items-center gap-2.5 rounded-lg px-3 text-left transition-colors sm:min-h-16 sm:px-4 ${view === 'drafting' ? 'bg-white text-teal-950 shadow-sm ring-1 ring-teal-200' : 'text-slate-500 hover:bg-white/80 hover:text-slate-800'}`}>
+            <span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${view === 'drafting' ? 'bg-teal-100 text-teal-700' : 'bg-slate-200 text-slate-500 group-hover:bg-teal-50 group-hover:text-teal-700'}`}><FilePenLine className="h-4 w-4" /></span>
+            <span className="min-w-0"><span className="block truncate text-xs font-semibold sm:hidden">Prepare</span><span className="hidden truncate text-sm font-semibold sm:block">Prepare Communication</span><span className="mt-0.5 hidden truncate text-[11px] font-normal text-slate-500 sm:block">Draft, review and record issue</span></span>
           </button>
         </div>
       </section>

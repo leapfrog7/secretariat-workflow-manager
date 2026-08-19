@@ -27,8 +27,18 @@ test('Casework supports an Issue picker and a stable Issue deep link', () => {
 
 test('Casework aligns its primary action with the Issue search control', () => {
   const page = source('src/pages/CaseworkPage.jsx');
-  assert.match(page, /Create Issue/);
-  assert.match(page, /sm:mt-6 sm:h-10 sm:w-auto/);
+  assert.match(page, /New Issue/);
+  assert.match(page, /aria-label="Create new Issue"/);
+  assert.match(page, /min-h-10 shrink-0/);
   assert.match(page, /h-11 w-full items-center justify-center rounded-md bg-teal-700/);
-  assert.doesNotMatch(page, /sm:items-end/);
+});
+
+test('Casework gives the active matter and its workflow a single visual hierarchy', () => {
+  const module = source('src/features/casework/CaseworkModule.jsx');
+  assert.match(module, /Active matter/);
+  assert.match(module, /issue\.currentPosition/);
+  assert.match(module, /workflowSteps\.map/);
+  assert.match(module, /Examine and Note/);
+  assert.match(module, /Prepare Communication/);
+  assert.match(module, /rounded-xl border-slate-200/);
 });

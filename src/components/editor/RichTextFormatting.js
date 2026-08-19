@@ -2,9 +2,15 @@ import { Extension, Mark } from '@tiptap/react';
 
 const MAX_INDENT_LEVEL = 6;
 const FONT_SIZES = new Set([10, 11, 12, 13, 14, 16, 18]);
+const PARAGRAPH_STYLES = new Set(['normal', 'heading', 'subheading', 'recommendation', 'conclusion', 'quotation']);
+const NUMBERING_STYLES = new Set(['decimal', 'lowerRoman', 'lowerAlpha']);
 
 function clampedIndent(value) {
   return Math.min(MAX_INDENT_LEVEL, Math.max(0, Number(value) || 0));
+}
+
+function clampedFirstLineIndent(value) {
+  return Math.min(MAX_INDENT_LEVEL, Math.max(-MAX_INDENT_LEVEL, Number(value) || 0));
 }
 
 function changeParagraphIndent({ state, tr, dispatch }, delta) {
@@ -46,6 +52,26 @@ export const ParagraphIndent = Extension.create({
               : {};
           },
         },
+        firstLineIndent: {
+          default: 0,
+          parseHTML: (element) => clampedFirstLineIndent(element.getAttribute('data-first-line-indent')),
+          renderHTML: (attributes) => {
+            const firstLineIndent = clampedFirstLineIndent(attributes.firstLineIndent);
+            return firstLineIndent
+              ? { 'data-first-line-indent': firstLineIndent, style: `text-indent: ${firstLineIndent * 0.5}cm` }
+              : {};
+          },
+        },
+        rightIndent: {
+          default: 0,
+          parseHTML: (element) => clampedIndent(element.getAttribute('data-right-indent')),
+          renderHTML: (attributes) => {
+            const rightIndent = clampedIndent(attributes.rightIndent);
+            return rightIndent
+              ? { 'data-right-indent': rightIndent, style: `margin-right: ${rightIndent * 0.5}cm` }
+              : {};
+          },
+        },
       },
     }];
   },
@@ -54,6 +80,11 @@ export const ParagraphIndent = Extension.create({
     return {
       increaseParagraphIndent: () => (props) => changeParagraphIndent(props, 1),
       decreaseParagraphIndent: () => (props) => changeParagraphIndent(props, -1),
+      setParagraphRulerIndent: (attributes) => ({ commands }) => commands.updateAttributes('paragraph', {
+        ...(attributes.indent !== undefined ? { indent: clampedIndent(attributes.indent) } : {}),
+        ...(attributes.firstLineIndent !== undefined ? { firstLineIndent: clampedFirstLineIndent(attributes.firstLineIndent) } : {}),
+        ...(attributes.rightIndent !== undefined ? { rightIndent: clampedIndent(attributes.rightIndent) } : {}),
+      }),
     };
   },
 
@@ -113,4 +144,113 @@ export const FontSizeMark = Mark.create({
   },
 });
 
+export const ParagraphStyle = Extension.create({
+  name: 'paragraphStyle',
+
+  addGlobalAttributes() {
+    return [{
+      types: ['paragraph'],
+      attributes: {
+        stylePreset: {
+          default: 'normal',
+          parseHTML: (element) => PARAGRAPH_STYLES.has(element.getAttribute('data-paragraph-style'))
+            ? element.getAttribute('data-paragraph-style')
+            : 'normal',
+          renderHTML: ({ stylePreset }) => PARAGRAPH_STYLES.has(stylePreset) && stylePreset !== 'normal'
+            ? { 'data-paragraph-style': stylePreset }
+            : {},
+        },
+      },
+    }];
+  },
+
+  addCommands() {
+    return {
+      setParagraphStyle: (stylePreset) => ({ commands }) => (
+        PARAGRAPH_STYLES.has(stylePreset)
+          ? commands.updateAttributes('paragraph', { stylePreset })
+          : false
+      ),
+    };
+  },
+});
+
+export const GovernmentNumbering = Extension.create({
+  name: 'governmentNumbering',
+
+  addGlobalAttributes() {
+    return [{
+      types: ['orderedList'],
+      attributes: {
+        numberingStyle: {
+          default: 'decimal',
+          parseHTML: (element) => NUMBERING_STYLES.has(element.getAttribute('data-numbering-style'))
+            ? element.getAttribute('data-numbering-style')
+            : 'decimal',
+          renderHTML: ({ numberingStyle }) => NUMBERING_STYLES.has(numberingStyle) && numberingStyle !== 'decimal'
+            ? {
+              'data-numbering-style': numberingStyle,
+              style: `list-style-type: ${numberingStyle === 'lowerRoman' ? 'lower-roman' : 'lower-alpha'}`,
+            }
+            : {},
+        },
+      },
+    }];
+  },
+
+  addCommands() {
+    return {
+      setNumberingStyle: (numberingStyle) => ({ commands }) => (
+        NUMBERING_STYLES.has(numberingStyle)
+          ? commands.updateAttributes('orderedList', { numberingStyle })
+          : false
+      ),
+    };
+  },
+});
+
+export const PageBreakBefore = Extension.create({
+  name: 'pageBreakBefore',
+
+  addGlobalAttributes() {
+    return [{
+      types: ['paragraph'],
+      attributes: {
+        pageBreakBefore: {
+          default: false,
+          parseHTML: (element) => element.getAttribute('data-page-break-before') === 'true',
+          renderHTML: ({ pageBreakBefore }) => pageBreakBefore
+            ? { 'data-page-break-before': 'true' }
+            : {},
+        },
+      },
+    }];
+  },
+
+  addCommands() {
+    return {
+      togglePageBreakBefore: () => ({ commands, editor }) => commands.updateAttributes('paragraph', {
+        pageBreakBefore: !Boolean(editor.getAttributes('paragraph').pageBreakBefore),
+      }),
+    };
+  },
+
+  addKeyboardShortcuts() {
+    return { 'Mod-Enter': () => this.editor.commands.togglePageBreakBefore() };
+  },
+});
+
 export const NOTE_FONT_SIZES = [...FONT_SIZES];
+export const NOTE_PARAGRAPH_STYLES = [
+  { value: 'normal', label: 'Normal paragraph' },
+  { value: 'heading', label: 'Heading' },
+  { value: 'subheading', label: 'Subheading' },
+  { value: 'recommendation', label: 'Recommendation' },
+  { value: 'conclusion', label: 'Conclusion' },
+  { value: 'quotation', label: 'Quotation' },
+];
+export const GOVERNMENT_NUMBERING_STYLES = [
+  { value: 'decimal', label: '1, 2, 3' },
+  { value: 'lowerRoman', label: '(i), (ii), (iii)' },
+  { value: 'lowerAlpha', label: '(a), (b), (c)' },
+];

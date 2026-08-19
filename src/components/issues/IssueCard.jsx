@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { Archive, LoaderCircle, PencilLine, RotateCcw, Trash2 } from 'lucide-react';
+import { Archive, ListChecks, LoaderCircle, PencilLine, RotateCcw, Trash2 } from 'lucide-react';
 import StatusBadge from '../common/StatusBadge';
 import DeadlineIndicator from '../common/DeadlineIndicator';
 import { formatDisplayDate, getIssueAgeDays } from '../../utils/dateUtils';
@@ -7,7 +7,7 @@ import { isScheduledIssue } from '../../utils/scheduleUtils';
 import SourceSearchMatch from './SourceSearchMatch';
 import { getIssuePositionPreview } from '../../utils/issueUtils';
 
-export default function IssueCard({ issue, officers = [], working = false, canEdit = true, showDivision = false, onQuickPosition, onRestore, onBringBack, onArchive, onDelete }) {
+export default function IssueCard({ issue, officers = [], working = false, canEdit = true, showDivision = false, onQuickPosition, onQuickStage, onRestore, onBringBack, onArchive, onDelete }) {
   const navigate = useNavigate();
   const officer = officers.find((item) => item.id === issue.assignedOfficerId);
   const ageDays = getIssueAgeDays(issue);
@@ -48,6 +48,7 @@ export default function IssueCard({ issue, officers = [], working = false, canEd
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
         <StatusBadge status={issue.status} />
+        {canQuickUpdate && <CardAction label="Update stage" onClick={() => onQuickStage(issue)}><ListChecks className="h-4 w-4" /></CardAction>}
         <DeadlineIndicator issue={issue} compact />
       </div>
       <div className="mt-2.5 flex min-h-10 items-center justify-between gap-2 border-t border-[#e3ebe9] pt-2">
@@ -58,7 +59,7 @@ export default function IssueCard({ issue, officers = [], working = false, canEd
           </div>
           {scheduled && <div className="truncate text-cyan-800">Returns {formatDisplayDate(issue.nextAppearanceDate)}</div>}
         </div>
-        {canEdit && <div className="flex shrink-0 items-center justify-end gap-0.5">
+        {canEdit && <div className="flex shrink-0 items-center justify-end gap-3">
           {working ? <span className="flex items-center gap-1 text-xs font-semibold text-cyan-800" role="status"><LoaderCircle className="h-3.5 w-3.5 animate-spin" />Updating</span> : <>
             {issue.isArchived && <CardAction label="Restore Issue" onClick={() => onRestore(issue)}><RotateCcw className="h-4 w-4" /></CardAction>}
             {scheduled && <CardAction label="Bring back now" onClick={() => onBringBack(issue)}><RotateCcw className="h-4 w-4" /></CardAction>}
@@ -72,5 +73,5 @@ export default function IssueCard({ issue, officers = [], working = false, canEd
 }
 
 function CardAction({ label, danger = false, onClick, children }) {
-  return <button type="button" title={label} aria-label={label} onClick={onClick} className={`flex h-9 w-9 items-center justify-center rounded-md border ${danger ? 'border-transparent text-slate-400 hover:border-red-200 hover:bg-red-50 hover:text-red-700' : 'border-slate-200 bg-white text-slate-600 hover:border-teal-200 hover:bg-teal-50 hover:text-teal-800'}`}>{children}</button>;
+  return <button type="button" title={label} aria-label={label} onClick={onClick} className={`issue-card-action relative flex h-8 w-8 shrink-0 items-center justify-center rounded-md border after:absolute after:-inset-1.5 after:content-[''] ${danger ? 'border-transparent text-slate-400 hover:border-red-200 hover:bg-red-50 hover:text-red-700' : 'border-slate-200 bg-white text-slate-600 hover:border-teal-200 hover:bg-teal-50 hover:text-teal-800'}`}>{children}</button>;
 }

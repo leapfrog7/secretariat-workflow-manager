@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Check, LoaderCircle, Search } from 'lucide-react';
+import { Check, ChevronsUpDown, LoaderCircle, Search } from 'lucide-react';
 import { searchCloudCaseworkIssues, recordCaseworkOperationalEvent } from './caseworkApi';
 import { searchLocalCaseworkIssues, shouldUseCloudCaseworkSearch } from './caseworkSearch';
 
@@ -85,10 +85,10 @@ export default function CaseworkIssuePicker({ issues, selectedId = '', auth, onS
   };
 
   return (
-    <div ref={containerRef} className="relative">
-      <label htmlFor={`${listId}-input`} className="mb-1 block text-sm font-medium text-slate-700">Issue</label>
+    <div ref={containerRef} className="relative min-w-0">
+      <label htmlFor={`${listId}-input`} className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">Find a matter</label>
       <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" aria-hidden="true" />
+        <Search className="pointer-events-none absolute left-3.5 top-3.5 h-4 w-4 text-slate-400" aria-hidden="true" />
         <input
           id={`${listId}-input`}
           role="combobox"
@@ -113,18 +113,18 @@ export default function CaseworkIssuePicker({ issues, selectedId = '', auth, onS
               choose(results[0]);
             }
           }}
-          className="h-10 w-full rounded-md border border-slate-300 bg-white pl-9 pr-9 text-sm text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+          className="h-11 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-10 text-sm font-medium text-slate-900 shadow-sm focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-100 sm:h-12"
         />
-        {status === 'loading' && <LoaderCircle className="absolute right-3 top-3 h-4 w-4 animate-spin text-indigo-600" aria-label="Searching Issues" />}
+        {status === 'loading' ? <LoaderCircle className="absolute right-3.5 top-3.5 h-4 w-4 animate-spin text-teal-700" aria-label="Searching Issues" /> : <ChevronsUpDown className="pointer-events-none absolute right-3.5 top-3.5 h-4 w-4 text-slate-400" aria-hidden="true" />}
       </div>
-      <p className="mt-1 text-xs text-slate-500">Searches the current Issues you are permitted to access.</p>
+      <p className="mt-1.5 text-[11px] leading-4 text-slate-500">Search title, eFile number or current position.</p>
 
       {open && (
-        <div id={listId} role="listbox" className="absolute inset-x-0 top-[calc(100%+0.35rem)] z-30 max-h-80 overflow-y-auto rounded-md border border-slate-200 bg-white p-1.5 shadow-xl">
+        <div id={listId} role="listbox" className="absolute inset-x-0 top-[calc(100%+0.5rem)] z-30 max-h-80 overflow-y-auto rounded-xl border border-slate-200 bg-white p-1.5 shadow-2xl shadow-slate-900/10">
           {results.map((issue) => (
-            <button key={issue.id} type="button" role="option" aria-selected={issue.id === selectedId} onMouseDown={(event) => event.preventDefault()} onClick={() => choose(issue)} className="flex min-h-11 w-full items-center justify-between gap-3 rounded-md px-3 py-2 text-left hover:bg-indigo-50">
+            <button key={issue.id} type="button" role="option" aria-selected={issue.id === selectedId} onMouseDown={(event) => event.preventDefault()} onClick={() => choose(issue)} className="flex min-h-12 w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-teal-50">
               <span className="min-w-0"><span className="block truncate text-sm font-semibold text-slate-800">{issue.shortTitle}</span><span className="mt-0.5 block text-xs text-slate-500">{issue.status || 'Pending'}</span></span>
-              {issue.id === selectedId && <Check className="h-4 w-4 shrink-0 text-indigo-700" aria-hidden="true" />}
+              {issue.id === selectedId && <Check className="h-4 w-4 shrink-0 text-teal-700" aria-hidden="true" />}
             </button>
           ))}
           {status !== 'loading' && !results.length && <p className="px-3 py-6 text-center text-sm text-slate-500">No matching Issues.</p>}
