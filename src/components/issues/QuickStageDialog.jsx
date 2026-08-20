@@ -28,7 +28,11 @@ export default function QuickStageDialog({
       onClose={onClose}
       maxWidth="max-w-md"
     >
-      <form onSubmit={submit} className="w-full">
+      <form
+        onSubmit={submit}
+        aria-busy={saving || undefined}
+        className={`w-full ${saved ? "save-surface-confirm" : ""}`}
+      >
         <div className="flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-4 py-4 sm:px-5">
           <div className="min-w-0">
             <h2 id="quick-stage-title" className="text-base font-semibold text-slate-950">
@@ -87,8 +91,9 @@ export default function QuickStageDialog({
           </button>
           <button
             type="submit"
+            aria-live="polite"
             disabled={saving || saved || stage === issue.status}
-            className={`inline-flex h-10 min-w-32 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold text-white transition-colors disabled:opacity-60 ${saved ? "bg-emerald-600" : "bg-teal-700 hover:bg-teal-800"}`}
+            className={`inline-flex h-10 min-w-32 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold text-white transition-colors disabled:opacity-60 ${saved ? "action-confirm bg-emerald-600" : "bg-teal-700 hover:bg-teal-800"}`}
           >
             {saving ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
             {saved ? <Check className="h-4 w-4" /> : null}

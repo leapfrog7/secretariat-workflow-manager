@@ -3,11 +3,34 @@
 :root {
   --app-mobile-nav-height: 56px;
   --app-mobile-nav-gap: 1.25rem;
+  --swm-background: #f3f7f6;
+  --swm-surface: #ffffff;
+  --swm-surface-subtle: #f9fbfa;
+  --swm-surface-muted: #f0f5f4;
+  --swm-ink: #17333b;
+  --swm-muted: #60727a;
+  --swm-primary: #176b63;
+  --swm-primary-hover: #125b55;
+  --swm-border: #dbe5e3;
+  --swm-border-strong: #c8d6d3;
+  --swm-ring: #0f766e;
+  --swm-radius-sm: 0.5rem;
+  --swm-radius-md: 0.7rem;
+  --swm-radius-lg: 0.9rem;
+  --swm-radius-xl: 1.2rem;
+  --swm-shadow-xs: 0 1px 2px rgb(15 49 56 / 0.05);
+  --swm-shadow-card: 0 1px 2px rgb(15 49 56 / 0.04), 0 8px 24px rgb(15 49 56 / 0.035);
+  --swm-shadow-float: 0 18px 50px rgb(15 49 56 / 0.16);
+  --swm-shadow-button: 0 5px 14px rgb(23 107 99 / 0.16);
+  --swm-motion-fast: 140ms;
+  --swm-motion-standard: 180ms;
+  --swm-motion-emphasized: 220ms;
+  --swm-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --app-mobile-nav-clearance: calc(
     var(--app-mobile-nav-height) + env(safe-area-inset-bottom, 0px) + var(--app-mobile-nav-gap)
   );
-  color: #18323a;
-  background: #f2f6f5;
+  color: var(--swm-ink);
+  background: var(--swm-background);
   font-size: 16px;
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
@@ -55,14 +78,23 @@ html {
 body {
   margin: 0;
   min-width: 320px;
-  background: #f2f6f5;
+  background: var(--swm-background);
 }
 
-button,
-input,
-select,
-textarea {
-  font: inherit;
+/* Keep native form controls in the product typeface without allowing this
+   reset to outrank component-level text sizes and weights. */
+@layer base {
+  button,
+  input,
+  select,
+  textarea {
+    color: inherit;
+    font-family: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+    letter-spacing: inherit;
+    line-height: inherit;
+  }
 }
 
 button,
@@ -118,6 +150,15 @@ button:disabled {
 
 .mobile-sheet-safe {
   padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+}
+
+.mobile-scroll-strip {
+  scrollbar-width: none;
+  overscroll-behavior-inline: contain;
+}
+
+.mobile-scroll-strip::-webkit-scrollbar {
+  display: none;
 }
 
 @media (min-width: 1200px), (min-width: 768px) and (orientation: landscape) {
@@ -250,6 +291,33 @@ button:disabled {
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
+@keyframes popover-in {
+  from { opacity: 0; transform: translateY(5px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes disclosure-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes mobile-sheet-in {
+  from { opacity: 0; transform: translateY(1.25rem); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes action-confirm {
+  0% { transform: scale(0.98); box-shadow: none; }
+  55% { transform: scale(1.025); box-shadow: 0 0 0 5px rgb(16 185 129 / 0.12); }
+  100% { transform: scale(1); box-shadow: none; }
+}
+
+@keyframes save-surface-confirm {
+  0% { box-shadow: inset 0 0 0 0 rgb(16 185 129 / 0); }
+  50% { box-shadow: inset 0 0 0 2px rgb(16 185 129 / 0.16); }
+  100% { box-shadow: inset 0 0 0 0 rgb(16 185 129 / 0); }
+}
+
 .loading-shimmer {
   position: relative;
   overflow: hidden;
@@ -298,7 +366,29 @@ span.route-progress {
 }
 
 .dialog-enter {
-  animation: dialog-in 160ms ease-out both;
+  animation: dialog-in var(--swm-motion-standard) var(--swm-ease-out) both;
+}
+
+.popover-enter {
+  animation: popover-in var(--swm-motion-fast) var(--swm-ease-out) both;
+}
+
+.disclosure-enter {
+  animation: disclosure-in var(--swm-motion-standard) var(--swm-ease-out) both;
+}
+
+.action-confirm {
+  animation: action-confirm var(--swm-motion-emphasized) var(--swm-ease-out) both;
+}
+
+.save-surface-confirm {
+  animation: save-surface-confirm 520ms var(--swm-ease-out) both;
+}
+
+@media (max-width: 639px) {
+  .mobile-filter-sheet {
+    animation: mobile-sheet-in var(--swm-motion-emphasized) var(--swm-ease-out) both;
+  }
 }
 
 @media (pointer: coarse) {
@@ -336,22 +426,44 @@ a:not([class]) {
 }
 
 :focus-visible {
-  outline: 2px solid #0f766e;
+  outline: 2px solid var(--swm-ring);
   outline-offset: 2px;
 }
 
+.app-main:focus-visible {
+  outline: none;
+}
+
 .surface {
-  border: 1px solid #dce6e4;
-  background: #ffffff;
-  box-shadow:
-    0 1px 2px rgb(15 49 56 / 0.04),
-    0 5px 16px rgb(15 49 56 / 0.025);
+  border: 1px solid var(--swm-border);
+  background: var(--swm-surface);
+  box-shadow: var(--swm-shadow-card);
 }
 
 input,
 select,
 textarea {
   transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
+}
+
+/* A single modern native-select treatment preserves keyboard, screen-reader
+   and operating-system picker behavior across every workflow. */
+select:not([multiple]) {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%2360727a' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 8 4 4 4-4'/%3E%3C/svg%3E");
+  background-position: right 0.75rem center;
+  background-repeat: no-repeat;
+  background-size: 1rem;
+  padding-right: 2.5rem;
+}
+
+select:not([multiple]):not(:disabled) {
+  cursor: pointer;
+}
+
+select:not([multiple]):disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
 }
 
 input:hover,
@@ -540,6 +652,13 @@ textarea:focus {
   border-top: 2px dashed #94a3b8;
 }
 
+/* TipTap sits inside a document-like surface which already supplies a quiet
+   neutral focus ring. Avoid drawing the global teal control outline around the
+   editable page itself. */
+.official-rich-editor .ProseMirror:focus-visible {
+  outline: none;
+}
+
 .official-rich-editor .ProseMirror p[data-page-break-before="true"]::before {
   position: absolute;
   top: -1.65rem;
@@ -648,6 +767,84 @@ textarea:focus {
   .note-ai-suggestion-action { min-height: 2.5rem; }
 }
 
+/* Public entry surface: restrained motion keeps the product illustration alive
+   without competing with the sign-in and account actions. */
+.public-home section[id] {
+  scroll-margin-top: 5rem;
+}
+
+.public-home-glow {
+  position: absolute;
+  z-index: -1;
+  border-radius: 9999px;
+  filter: blur(2px);
+  pointer-events: none;
+}
+
+.public-home-glow-one {
+  top: 7%;
+  right: -9rem;
+  width: 30rem;
+  height: 30rem;
+  background: radial-gradient(circle, rgb(153 246 228 / 0.34), rgb(204 251 241 / 0.06) 68%, transparent 72%);
+  animation: public-home-drift 11s ease-in-out infinite alternate;
+}
+
+.public-home-glow-two {
+  bottom: -8rem;
+  left: -11rem;
+  width: 27rem;
+  height: 27rem;
+  background: radial-gradient(circle, rgb(186 230 253 / 0.26), transparent 70%);
+  animation: public-home-drift 14s ease-in-out 1.5s infinite alternate-reverse;
+}
+
+.public-home-visual {
+  animation: public-home-rise 650ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.public-home-float {
+  animation: public-home-float 4.5s ease-in-out infinite;
+}
+
+.public-home-pulse {
+  animation: public-home-pulse 2.8s ease-in-out infinite;
+}
+
+@keyframes public-home-rise {
+  from { opacity: 0; transform: translateY(18px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes public-home-drift {
+  from { transform: translate3d(0, 0, 0) scale(1); }
+  to { transform: translate3d(-1.5rem, 1rem, 0) scale(1.05); }
+}
+
+@keyframes public-home-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+@keyframes public-home-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(13 148 136 / 0); }
+  50% { box-shadow: 0 0 0 5px rgb(13 148 136 / 0.1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .public-home-glow-one,
+  .public-home-glow-two,
+  .public-home-visual,
+  .public-home-float,
+  .public-home-pulse {
+    animation: none;
+  }
+
+  .public-home * {
+    scroll-behavior: auto !important;
+  }
+}
+
 @media print {
   .official-rich-editor .ProseMirror p[data-page-break-before="true"] {
     margin-top: 0 !important;
@@ -667,11 +864,19 @@ textarea:focus {
   :root[data-text-size="normal"] { font-size: 15px; }
   :root[data-text-size="large"] { font-size: 17px; }
 
-  /* Prevent iOS form zoom while allowing surrounding interface text to be denser. */
+  /* Text-entry controls remain at the iOS anti-zoom size. Selects can use
+     their component typography on other mobile browsers because they open a
+     native picker rather than a text keyboard. */
   input,
-  select,
   textarea {
     font-size: 16px;
+  }
+
+  /* iOS can still zoom undersized native controls in some embedded contexts. */
+  @supports (-webkit-touch-callout: none) {
+    select:not([multiple]) {
+      font-size: 16px;
+    }
   }
 
   .ui-page-title { font-size: 1.0625rem; }

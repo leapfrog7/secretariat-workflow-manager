@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AlertTriangle, LoaderCircle, X } from 'lucide-react';
 import ModalFrame from './ModalFrame';
+import Button from '../ui/Button';
 
 export default function ConfirmDialog({
   open,
@@ -31,38 +32,38 @@ export default function ConfirmDialog({
   };
 
   return (
-    <ModalFrame open labelledBy="confirm-title" busy={busy} onClose={onCancel} maxWidth="max-w-md" className="dialog-enter border border-slate-200">
-      <div className="p-4">
+    <ModalFrame open labelledBy="confirm-title" describedBy={message ? 'confirm-description' : undefined} busy={busy} onClose={onCancel} maxWidth="max-w-md">
+      <div className="p-5 sm:p-6">
         <div className="flex items-start gap-3">
-          <div className={`rounded-full p-2 ${destructive ? 'bg-red-50 text-red-700' : 'bg-teal-50 text-teal-700'}`}>
+          <div className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${destructive ? 'bg-red-50 text-red-700' : 'bg-teal-50 text-teal-700'}`}>
             <AlertTriangle className="h-5 w-5" aria-hidden="true" />
           </div>
           <div className="min-w-0 flex-1">
-            <h2 id="confirm-title" className="text-base font-semibold text-slate-950">
+            <h2 id="confirm-title" className="text-base font-bold tracking-tight text-[var(--swm-ink)]">
               {title}
             </h2>
-            {message && <p className="mt-1 text-sm leading-6 text-slate-600">{message}</p>}
+            {message ? <p id="confirm-description" className="mt-1.5 text-sm leading-6 text-[var(--swm-muted)]">{message}</p> : null}
           </div>
-          <button type="button" onClick={onCancel} disabled={busy} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 disabled:opacity-40">
+          <Button type="button" onClick={onCancel} disabled={busy} variant="ghost" size="icon" className="-mr-2 -mt-2 h-9 w-9">
             <span className="sr-only">Close</span>
             <X className="h-4 w-4" aria-hidden="true" />
-          </button>
+          </Button>
         </div>
         <div className="mt-5 grid grid-cols-2 gap-2 sm:flex sm:justify-end">
-          <button type="button" data-autofocus onClick={onCancel} disabled={busy} className="h-11 rounded-md border border-slate-300 px-3 text-sm font-medium disabled:opacity-50 sm:h-10">
+          <Button type="button" data-autofocus onClick={onCancel} disabled={busy} variant="secondary" size="lg" className="sm:min-h-10">
             {cancelLabel}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={confirm}
             disabled={busy}
-            className={`inline-flex h-11 min-w-28 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium text-white disabled:cursor-wait disabled:opacity-80 sm:h-10 ${
-              destructive ? 'bg-red-700 hover:bg-red-800' : 'bg-teal-700 hover:bg-teal-800'
-            }`}
+            variant={destructive ? 'danger' : 'primary'}
+            size="lg"
+            className="min-w-28 sm:min-h-10"
           >
-            {busy && <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />}
+            {busy ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
             {busy ? 'Working...' : confirmLabel}
-          </button>
+          </Button>
         </div>
       </div>
     </ModalFrame>

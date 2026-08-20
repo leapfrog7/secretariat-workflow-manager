@@ -9,6 +9,7 @@ export default function ModalFrame({
   busy = false,
   onClose,
   closeOnBackdrop = true,
+  mobilePlacement = 'bottom',
   maxWidth = 'max-w-xl',
   className = '',
   children,
@@ -65,7 +66,7 @@ export default function ModalFrame({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 p-0 backdrop-blur-[2px] sm:items-center sm:p-4"
+      className={`fixed inset-0 z-50 flex justify-center bg-slate-950/45 p-0 backdrop-blur-[2px] sm:items-center sm:p-4 ${mobilePlacement === 'top' ? 'items-start pt-[max(0.75rem,env(safe-area-inset-top))]' : 'items-end'}`}
       role="presentation"
       onMouseDown={(event) => {
         if (closeOnBackdrop && !busy && event.target === event.currentTarget) onClose?.();
@@ -79,7 +80,7 @@ export default function ModalFrame({
         aria-describedby={describedBy}
         aria-busy={busy || undefined}
         tabIndex={-1}
-        className={`mobile-sheet-safe max-h-[96dvh] w-full overflow-y-auto rounded-t-lg bg-white shadow-2xl sm:max-h-[92dvh] ${maxWidth} sm:rounded-lg ${className}`}
+        className={`mobile-sheet-safe dialog-enter max-h-[96dvh] w-full overflow-y-auto border border-[var(--swm-border)] bg-white shadow-[var(--swm-shadow-float)] sm:max-h-[92dvh] ${maxWidth} sm:rounded-[var(--swm-radius-xl)] ${mobilePlacement === 'top' ? 'mx-2 rounded-[var(--swm-radius-xl)] sm:mx-0' : 'rounded-t-[1.35rem]'} ${className}`}
       >
         {children}
       </section>

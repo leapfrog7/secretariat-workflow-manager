@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   Activity,
   AlertTriangle,
@@ -10,7 +11,9 @@ import {
   CircleDashed,
   ClipboardList,
   MessageCircleQuestion,
+  RotateCcw,
   SlidersHorizontal,
+  X,
 } from "lucide-react";
 import PageHeader from "../components/common/PageHeader";
 import SearchInput from "../components/common/SearchInput";
@@ -18,6 +21,7 @@ import LoadingState from "../components/common/LoadingState";
 import ErrorState from "../components/common/ErrorState";
 import EmptyState from "../components/common/EmptyState";
 import ConfirmDialog from "../components/common/ConfirmDialog";
+import ModalFrame from "../components/common/ModalFrame";
 import FilterBar from "../components/issues/FilterBar";
 import IssueTable from "../components/issues/IssueTable";
 import IssueCard from "../components/issues/IssueCard";
@@ -35,7 +39,7 @@ import {
 import { getMilestonesByIssue } from "../db/milestoneRepository";
 import { getAllOfficers } from "../db/officerRepository";
 import { issueMatchesSearch } from "../utils/issueUtils";
-import { getDeadlineState } from "../utils/dateUtils";
+import { getDeadlineState, isStaleIssue } from "../utils/dateUtils";
 import { useToast } from "../components/common/ToastProvider";
 import { isScheduledIssue } from "../utils/scheduleUtils";
 import { getAllCommunications } from "../db/communicationRepository";
@@ -46,6 +50,7 @@ import { findCurrentPositionMilestone } from "../utils/positionUpdateUtils";
 
 const defaultFilters = {
   query: "",
+  focus: "",
   status: "",
   divisionId: "",
   archiveMode: "Current",
@@ -54,8 +59,53 @@ const defaultFilters = {
 
 const ARCHIVED_PAGE_SIZES = [25, 50, 100];
 
+const FOCUS_VIEWS = {
+  pending: "Pending",
+  overdue: "Overdue",
+  "due-soon": "Due soon",
+  awaiting: "Awaiting response",
+  "high-priority": "High priority",
+  stale: "Needs an update",
+};
+
+function matchesFocusView(issue, focus) {
+  if (focus === "pending") return issue.status === "Pending";
+  if (focus === "overdue") return getDeadlineState(issue) === "overdue";
+  if (focus === "due-soon") return ["today", "upcoming"].includes(getDeadlineState(issue));
+  if (focus === "awaiting") return ["Awaiting Input", "Awaiting Discussion"].includes(issue.status);
+  if (focus === "high-priority") return ["High", "Critical"].includes(issue.priority);
+  if (focus === "stale") return isStaleIssue(issue);
+  return true;
+}
+
+function useMobileLayout() {
+  const [mobile, setMobile] = useState(() => window.matchMedia("(max-width: 639px)").matches);
+
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 639px)");
+    const update = (event) => setMobile(event.matches);
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+
+  return mobile;
+}
+
+function resetAdvancedFilterValues(current) {
+  return {
+    ...defaultFilters,
+    query: current.query,
+    archiveMode: current.archiveMode,
+    sort: current.archiveMode === "Scheduled" ? "Next appearance" : defaultFilters.sort,
+  };
+}
+
 export default function IssueRegisterPage() {
   const auth = useAuth();
+  const mobileLayout = useMobileLayout();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedFocus = searchParams.get("focus") || "";
+  const focusView = FOCUS_VIEWS[requestedFocus] ? requestedFocus : "";
   const { showToast } = useToast();
   const [data, setData] = useState({
     loading: true,
@@ -65,12 +115,18 @@ export default function IssueRegisterPage() {
     communications: [],
     divisions: [],
   });
-  const [filters, setFilters] = useState(defaultFilters);
-  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState(() => ({ ...defaultFilters, focus: focusView }));
+  const [filterDraft, setFilterDraft] = useState(() => ({ ...defaultFilters, focus: focusView }));
+  const [showFilters, setShowFilters] = useState(() => Boolean(focusView && !window.matchMedia("(max-width: 639px)").matches));
   const [workingId, setWorkingId] = useState("");
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [quickPosition, setQuickPosition] = useState(null);
   const [quickStage, setQuickStage] = useState(null);
+
+  useEffect(() => {
+    setFilters((current) => current.focus === focusView ? current : { ...current, focus: focusView });
+    if (focusView && !mobileLayout) setShowFilters(true);
+  }, [focusView, mobileLayout]);
   const [archivedPage, setArchivedPage] = useState(1);
   const [archivedPageSize, setArchivedPageSize] = useState(
     ARCHIVED_PAGE_SIZES[0],
@@ -340,6 +396,7 @@ export default function IssueRegisterPage() {
       if (filters.archiveMode === "Scheduled" && !isScheduledIssue(issue))
         return [];
       if (filters.archiveMode === "Archived" && !issue.isArchived) return [];
+      if (filters.focus && !matchesFocusView(issue, filters.focus)) return [];
       if (filters.status && issue.status !== filters.status) return [];
       if (filters.divisionId === "__unassigned__" && issue.owningDivisionId)
         return [];
@@ -418,6 +475,7 @@ export default function IssueRegisterPage() {
   }, [
     filters.archiveMode,
     filters.divisionId,
+    filters.focus,
     filters.query,
     filters.sort,
     filters.status,
@@ -433,15 +491,56 @@ export default function IssueRegisterPage() {
       ? "Next appearance"
       : "Recently updated";
   const advancedFiltersActive = Boolean(
-    filters.status || filters.divisionId || filters.sort !== expectedSort,
+    filters.focus || filters.status || filters.divisionId || filters.sort !== expectedSort,
   );
+  const activeFilterCount = [filters.focus, filters.status, filters.divisionId, filters.sort !== expectedSort].filter(Boolean).length;
+  const activeFilterLabels = [
+    filters.focus ? `Focus: ${FOCUS_VIEWS[filters.focus]}` : "",
+    filters.status ? `Status: ${filters.status}` : "",
+    filters.divisionId ? `Division: ${filters.divisionId === "__unassigned__" ? "Unassigned" : data.divisions.find((division) => division.id === filters.divisionId)?.name || "Selected"}` : "",
+    filters.sort !== expectedSort ? `Sort: ${filters.sort}` : "",
+  ].filter(Boolean);
+  const draftExpectedSort = filterDraft.archiveMode === "Scheduled" ? "Next appearance" : "Recently updated";
+  const draftFilterCount = [filterDraft.focus, filterDraft.status, filterDraft.divisionId, filterDraft.sort !== draftExpectedSort].filter(Boolean).length;
 
-  if (data.loading) return <LoadingState message="Loading Issue register..." />;
+  const setFocusQuery = (focus) => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (focus) nextParams.set("focus", focus);
+    else nextParams.delete("focus");
+    setSearchParams(nextParams, { replace: true });
+  };
+
+  const changeAdvancedFilters = (nextFilters) => {
+    if (nextFilters.focus !== filters.focus) setFocusQuery(nextFilters.focus);
+    setFilters(nextFilters);
+  };
+
+  const clearAdvancedFilters = () => {
+    setFocusQuery("");
+    setFilters((current) => resetAdvancedFilterValues(current));
+  };
+
+  const toggleFilters = () => {
+    if (showFilters) {
+      setShowFilters(false);
+      return;
+    }
+    setFilterDraft(filters);
+    setShowFilters(true);
+  };
+
+  const applyMobileFilters = () => {
+    changeAdvancedFilters(filterDraft);
+    setShowFilters(false);
+  };
+
+  if (data.loading) return <LoadingState message="Loading Issue register..." variant="register" />;
   if (data.error) return <ErrorState message={data.error} onRetry={load} />;
 
   return (
     <>
       <PageHeader
+        eyebrow="Work register"
         title="Issues"
         description="Search the Issue register and monitor ownership, age and deadlines."
       />
@@ -453,7 +552,7 @@ export default function IssueRegisterPage() {
       )}
       <div className="space-y-4">
         <section
-          className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-slate-200 bg-slate-200 shadow-[0_1px_2px_rgb(15_49_56_/_0.04),0_5px_16px_rgb(15_49_56_/_0.025)] sm:grid-cols-5"
+          className="mobile-scroll-strip -mx-1 flex snap-x snap-mandatory gap-2 overflow-x-auto px-1 pb-1 sm:mx-0 sm:grid sm:grid-cols-5 sm:gap-px sm:overflow-hidden sm:rounded-xl sm:border sm:border-slate-200 sm:bg-slate-200 sm:px-0 sm:pb-0 sm:shadow-[0_1px_2px_rgb(15_49_56_/_0.04),0_5px_16px_rgb(15_49_56_/_0.025)]"
           aria-label="Issue summary"
         >
           <Metric
@@ -494,7 +593,7 @@ export default function IssueRegisterPage() {
           />
         </section>
 
-        <section className="surface rounded-xl p-3 sm:p-4">
+        <section className="surface rounded-[var(--swm-radius-lg)] p-3 sm:p-4">
           <div className="grid grid-cols-[minmax(0,1fr)_44px] gap-2 sm:grid-cols-[auto_minmax(280px,1fr)_44px] sm:items-center sm:gap-3">
             <ArchiveViewSwitch
               value={filters.archiveMode}
@@ -530,30 +629,22 @@ export default function IssueRegisterPage() {
               className="col-start-2 row-start-2 flex sm:col-start-3 sm:row-start-1"
               open={showFilters}
               active={advancedFiltersActive}
-              onClick={() => setShowFilters((current) => !current)}
+              activeCount={activeFilterCount}
+              onClick={toggleFilters}
             />
           </div>
-          <div>
-            {showFilters && (
-              <div className="mt-3 border-t border-slate-200 pt-3">
+          {!mobileLayout && showFilters ? (
+            <div>
+              <div className="disclosure-enter mt-3 border-t border-slate-200 pt-3">
                 <FilterBar
                   filters={filters}
                   divisions={data.divisions}
-                  onChange={setFilters}
-                  onClear={() =>
-                    setFilters((current) => ({
-                      ...defaultFilters,
-                      archiveMode: current.archiveMode,
-                      sort:
-                        current.archiveMode === "Scheduled"
-                          ? "Next appearance"
-                          : defaultFilters.sort,
-                    }))
-                  }
+                  onChange={changeAdvancedFilters}
                 />
               </div>
-            )}
-          </div>
+            </div>
+          ) : null}
+          {advancedFiltersActive ? <div className="mt-3 flex items-center gap-2 border-t border-slate-200 pt-3" role="status" aria-label="Active Issue filters"><span className="shrink-0 text-xs font-bold text-slate-700">Filtered</span><div className="mobile-scroll-strip flex min-w-0 flex-1 gap-2 overflow-x-auto pb-0.5 sm:flex-wrap sm:overflow-visible sm:pb-0">{activeFilterLabels.map((label) => <span key={label} className="shrink-0 rounded-full border border-teal-200 bg-teal-50 px-2.5 py-1 text-[11px] font-semibold text-teal-800">{label}</span>)}</div><button type="button" onClick={clearAdvancedFilters} className="shrink-0 rounded-md px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100 hover:text-slate-900">Clear</button></div> : null}
         </section>
         <div className="flex items-center justify-between gap-3">
           <div className="text-sm font-medium text-slate-600" aria-live="polite">
@@ -640,6 +731,18 @@ export default function IssueRegisterPage() {
         onCancel={() => setDeleteTarget(null)}
         onConfirm={deleteIssue}
       />
+      {mobileLayout ? (
+        <MobileFilterSheet
+          open={showFilters}
+          filters={filterDraft}
+          divisions={data.divisions}
+          activeCount={draftFilterCount}
+          onChange={setFilterDraft}
+          onReset={() => setFilterDraft((current) => resetAdvancedFilterValues(current))}
+          onApply={applyMobileFilters}
+          onClose={() => setShowFilters(false)}
+        />
+      ) : null}
       {quickPosition && (
         <QuickPositionDialog
           key={quickPosition.issue.id}
@@ -760,7 +863,7 @@ const metricTones = {
 function Metric({ label, value, detail, icon: Icon, tone, className = "" }) {
   return (
     <div
-      className={`relative min-w-0 bg-white px-3 py-3 sm:px-4 sm:py-4 ${className}`}
+      className={`relative w-[8.6rem] shrink-0 snap-start rounded-[var(--swm-radius-lg)] border border-[var(--swm-border)] bg-white px-3 py-2.5 shadow-[var(--swm-shadow-xs)] sm:w-auto sm:rounded-none sm:border-0 sm:px-4 sm:py-4 sm:shadow-none ${className}`}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
@@ -784,6 +887,36 @@ function Metric({ label, value, detail, icon: Icon, tone, className = "" }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function MobileFilterSheet({ open, filters, divisions, activeCount, onChange, onReset, onApply, onClose }) {
+  return (
+    <ModalFrame
+      open={open}
+      labelledBy="mobile-filter-title"
+      describedBy="mobile-filter-description"
+      onClose={onClose}
+      className="mobile-filter-sheet flex max-h-[82dvh] flex-col overflow-hidden"
+    >
+      <header className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 bg-white px-4 py-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-50 text-teal-700"><SlidersHorizontal className="h-4 w-4" aria-hidden="true" /></span>
+            <h2 id="mobile-filter-title" className="text-base font-semibold text-slate-950">Filter and sort</h2>
+          </div>
+          <p id="mobile-filter-description" className="mt-2 text-xs leading-5 text-slate-500">Choose what belongs in this view, then apply the selections together.</p>
+        </div>
+        <button type="button" aria-label="Close filters" onClick={onClose} className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900"><X className="h-4 w-4" aria-hidden="true" /></button>
+      </header>
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+        <FilterBar filters={filters} divisions={divisions} onChange={onChange} />
+      </div>
+      <footer className="grid shrink-0 grid-cols-[auto_minmax(0,1fr)] gap-2 border-t border-slate-200 bg-white px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <button type="button" onClick={onReset} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"><RotateCcw className="h-4 w-4" aria-hidden="true" />Reset</button>
+        <button type="button" onClick={onApply} className="inline-flex min-h-11 items-center justify-center rounded-lg bg-teal-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-teal-800">{activeCount ? `Apply ${activeCount} filter${activeCount === 1 ? "" : "s"}` : "Apply filters"}</button>
+      </footer>
+    </ModalFrame>
   );
 }
 
@@ -825,20 +958,18 @@ function ArchiveViewSwitch({
   );
 }
 
-function FilterButton({ className = "", open, active, onClick }) {
+function FilterButton({ className = "", open, active, activeCount = 0, onClick }) {
   return (
     <button
       type="button"
-      title="Filter and sort"
-      aria-label="Filter and sort"
+      title={activeCount ? `Filter and sort, ${activeCount} active` : "Filter and sort"}
+      aria-label={activeCount ? `Filter and sort, ${activeCount} active` : "Filter and sort"}
       aria-expanded={open}
       onClick={onClick}
       className={`relative h-[44px] w-[44px] items-center justify-center rounded-lg border ${open || active ? "border-teal-300 bg-teal-50 text-teal-800" : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"} ${className}`}
     >
       <SlidersHorizontal className="h-4 w-4" />
-      {active && (
-        <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-teal-700" />
-      )}
+      {active ? <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-teal-700 px-1 text-[10px] font-bold text-white shadow-sm">{activeCount}</span> : null}
     </button>
   );
 }

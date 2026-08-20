@@ -39,6 +39,7 @@ import PushNotificationSetting from '../components/notifications/PushNotificatio
 
 export default function SettingsPage() {
   const fileRef = useRef(null);
+  const tabsRef = useRef(null);
   const { showToast } = useToast();
   const auth = useAuth();
   const canMutateWorkspace = auth.mode !== 'cloud' || auth.isWorkspaceAdmin;
@@ -68,6 +69,16 @@ export default function SettingsPage() {
     aiStatus: 'idle',
     aiMessage: '',
   });
+
+  useEffect(() => {
+    const active = tabsRef.current?.querySelector('[role="tab"][aria-selected="true"]');
+    if (!active) return;
+    active.scrollIntoView({
+      behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+      block: 'nearest',
+      inline: 'nearest',
+    });
+  }, [activeTab]);
 
   const load = async () => {
     try {
@@ -383,7 +394,7 @@ export default function SettingsPage() {
     }
   };
 
-  if (state.loading) return <LoadingState message="Loading settings..." />;
+  if (state.loading) return <LoadingState message="Loading settings..." variant="settings" />;
   if (state.error) return <ErrorState message={state.error} onRetry={load} />;
 
   const storage = state.storageStatus;
@@ -401,9 +412,10 @@ export default function SettingsPage() {
 
   return (
     <>
-      <PageHeader title="Settings" description="Manage each part of your workspace in one clearly separated place." />
-      <nav className="mb-4 overflow-x-auto border-b border-slate-200" aria-label="Settings sections">
-        <div className="flex min-w-max gap-1" role="tablist" onKeyDown={handleTabListKeyDown}>
+      <PageHeader eyebrow="Your workspace" title="Settings" description="Manage each part of your workspace in one clearly separated place." />
+      <div className="relative mb-5">
+      <nav ref={tabsRef} className="mobile-scroll-strip overflow-x-auto rounded-[var(--swm-radius-lg)] border border-[var(--swm-border)] bg-[var(--swm-surface-muted)] p-1 pr-8 sm:pr-1" aria-label="Settings sections">
+        <div className="flex min-w-max gap-1 pr-2 sm:pr-0" role="tablist" onKeyDown={handleTabListKeyDown}>
           {tabs.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -414,7 +426,7 @@ export default function SettingsPage() {
               aria-selected={activeTab === id}
               aria-controls="settings-tab-panel"
               tabIndex={activeTab === id ? 0 : -1}
-              className={`inline-flex h-11 items-center gap-2 border-b-2 px-3 text-sm font-semibold transition-colors ${activeTab === id ? 'border-teal-700 text-teal-800' : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-800'}`}
+              className={`inline-flex h-10 items-center gap-2 rounded-[var(--swm-radius-sm)] border px-3 text-sm font-semibold transition-colors ${activeTab === id ? 'border-[var(--swm-border)] bg-white text-teal-800 shadow-[var(--swm-shadow-xs)]' : 'border-transparent text-slate-500 hover:bg-white/60 hover:text-slate-800'}`}
             >
               <Icon className="h-4 w-4" />
               {label}
@@ -422,6 +434,8 @@ export default function SettingsPage() {
           ))}
         </div>
       </nav>
+      <span className="pointer-events-none absolute inset-y-px right-px w-9 rounded-r-[var(--swm-radius-lg)] bg-gradient-to-r from-transparent to-[var(--swm-surface-muted)] sm:hidden" aria-hidden="true" />
+      </div>
       <div id="settings-tab-panel" role="tabpanel" aria-labelledby={`settings-tab-${activeTab}`} tabIndex={0}>
         {activeTab === 'display' && <section className="surface rounded-md border-t-4 border-t-teal-600 p-4 sm:p-5">
           <div className="flex items-start gap-3 border-b border-slate-200 pb-4">

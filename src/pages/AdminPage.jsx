@@ -439,6 +439,7 @@ export default function AdminPage() {
   return (
     <>
       <PageHeader
+        eyebrow="Workspace governance"
         title="Administration"
         description="Approve registered users and control access to official workspaces."
       />
@@ -452,7 +453,7 @@ export default function AdminPage() {
         </div>
       </div>
       <nav
-        className="mb-5 overflow-x-auto border-b border-slate-200"
+        className="mb-5 overflow-x-auto rounded-[var(--swm-radius-lg)] border border-[var(--swm-border)] bg-[var(--swm-surface-muted)] p-1"
         aria-label="Administration sections"
       >
         <div className="flex min-w-max gap-1" role="tablist" onKeyDown={handleTabListKeyDown}>
@@ -470,7 +471,7 @@ export default function AdminPage() {
               aria-selected={activeTab === id}
               aria-controls="admin-tab-panel"
               tabIndex={activeTab === id ? 0 : -1}
-              className={`inline-flex h-11 items-center gap-2 border-b-2 px-3 text-sm font-semibold transition-colors ${activeTab === id ? "border-teal-700 text-teal-800" : "border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-800"}`}
+              className={`inline-flex h-10 items-center gap-2 rounded-[var(--swm-radius-sm)] border px-3 text-sm font-semibold transition-colors ${activeTab === id ? "border-[var(--swm-border)] bg-white text-teal-800 shadow-[var(--swm-shadow-xs)]" : "border-transparent text-slate-500 hover:bg-white/60 hover:text-slate-800"}`}
             >
               <Icon className="h-4 w-4" />
               {label}

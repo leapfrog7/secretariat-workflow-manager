@@ -50,7 +50,8 @@ export default function QuickPositionDialog({
     <ModalFrame open labelledBy="quick-position-title" busy={saving || saved} onClose={onClose} maxWidth="max-w-xl">
       <form
         onSubmit={submit}
-        className="w-full"
+        aria-busy={saving || undefined}
+        className={`w-full ${saved ? "save-surface-confirm" : ""}`}
       >
         <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-slate-200 bg-white px-4 py-4 sm:px-5">
           <div className="min-w-0">
@@ -196,9 +197,10 @@ export default function QuickPositionDialog({
           </button>
           <button
             type="submit"
+            aria-live="polite"
             disabled={saving || saved || !note.trim()}
             className={`inline-flex h-10 min-w-36 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold text-white transition-colors disabled:cursor-wait disabled:opacity-70 ${
-              saved ? "bg-emerald-600" : "bg-teal-700 hover:bg-teal-800"
+              saved ? "action-confirm bg-emerald-600" : "bg-teal-700 hover:bg-teal-800"
             }`}
           >
             {saving && <LoaderCircle className="h-4 w-4 animate-spin" />}

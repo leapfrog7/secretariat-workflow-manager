@@ -28,11 +28,13 @@ test('high-use workflow dialogs use the shared mobile-safe modal', () => {
 
 test('mobile navigation keeps the five primary destinations in the intended order', () => {
   const navigation = source('src/components/layout/MobileNavigation.jsx');
+  const home = navigation.indexOf("label: 'Home'");
   const issues = navigation.indexOf("label: 'Issues'");
   const casework = navigation.indexOf("label: 'Casework'");
   const create = navigation.indexOf("label: 'Create Issue'");
   const reports = navigation.indexOf("label: 'Reports'");
-  assert.ok(issues >= 0 && issues < casework && casework < create && create < reports);
+  assert.ok(home >= 0 && home < issues && issues < casework && casework < create);
+  assert.ok(reports > navigation.indexOf('const secondaryItems'));
   assert.match(navigation, /<span>More<\/span>/);
   assert.match(navigation, /item\.to === '\/issues\/new'/);
   assert.match(navigation, /text-\[10px\]/);
@@ -41,8 +43,18 @@ test('mobile navigation keeps the five primary destinations in the intended orde
 test('mobile typography is compact without triggering form-field zoom', () => {
   const css = source('src/index.css');
   assert.match(css, /:root\[data-text-size="normal"\][\s\S]*font-size:\s*15px/);
-  assert.match(css, /input,[\s\S]*select,[\s\S]*textarea[\s\S]*font-size:\s*16px/);
+  assert.match(css, /input,[\s\S]*textarea[\s\S]*font-size:\s*16px/);
+  assert.match(css, /@supports \(-webkit-touch-callout: none\)[\s\S]*select:not\(\[multiple\]\)[\s\S]*font-size:\s*16px/);
+  assert.match(css, /select:not\(\[multiple\]\)[\s\S]*appearance:\s*none/);
   assert.match(source('src/components/common/PageHeader.jsx'), /ui-page-title/);
+});
+
+test('mobile navigation button and link labels share one typography contract', () => {
+  const navigation = source('src/components/layout/MobileNavigation.jsx');
+  assert.equal((navigation.match(/text-\[10px\] font-semibold leading-none tracking-normal/g) || []).length, 2);
+  const css = source('src/index.css');
+  assert.doesNotMatch(css, /button,[\s\S]{0,80}font:\s*inherit/);
+  assert.match(css, /@layer base[\s\S]*button,[\s\S]*font-family:\s*inherit/);
 });
 
 test('Issue card actions keep proportional controls with extended tap areas', () => {
@@ -89,6 +101,17 @@ test('rich editors use compact mobile controls and progressively disclose advanc
   assert.match(draftEditor, /hidden overflow-x-auto[\s\S]*sm:block/);
 });
 
+test('rich editor focus stays neutral and the Note placeholder clears for the caret', () => {
+  const styles = source('src/index.css');
+  const noteEditor = source('src/features/noting/NoteEditor.jsx');
+  const draftEditor = source('src/features/drafting/editor/DraftDocumentEditor.jsx');
+
+  assert.match(styles, /\.official-rich-editor \.ProseMirror:focus-visible\s*\{\s*outline:\s*none/);
+  assert.match(noteEditor, /group-focus-within:hidden/);
+  assert.match(noteEditor, /official-rich-editor note-rich-editor/);
+  assert.match(draftEditor, /official-rich-editor draft-rich-editor/);
+});
+
 test('document ruler is functional on desktop and absent from mobile', () => {
   const shared = source('src/components/editor/EditorEnhancements.jsx');
   const noteEditor = source('src/features/noting/NoteEditor.jsx');
@@ -119,6 +142,26 @@ test('Casework keeps its primary controls and work modes mobile-sized', () => {
   assert.match(picker, /h-11 w-full rounded-lg/);
 });
 
+test('Issue filters use a staged mobile sheet while desktop filters remain inline', () => {
+  const register = source('src/pages/IssueRegisterPage.jsx');
+  assert.match(register, /function MobileFilterSheet/);
+  assert.match(register, /ModalFrame[\s\S]*Filter and sort/);
+  assert.match(register, /Apply \$\{activeCount\} filter/);
+  assert.match(register, /resetAdvancedFilterValues/);
+  assert.match(register, /!mobileLayout && showFilters/);
+  assert.match(register, /mobile-scroll-strip[\s\S]*snap-mandatory/);
+});
+
+test('mobile overflow cues preserve space in Settings and Casework', () => {
+  const settings = source('src/pages/SettingsPage.jsx');
+  const picker = source('src/features/casework/CaseworkIssuePicker.jsx');
+  assert.match(settings, /mobile-scroll-strip overflow-x-auto/);
+  assert.match(settings, /bg-gradient-to-r from-transparent/);
+  assert.match(settings, /scrollIntoView/);
+  assert.match(picker, /Choose a matter/);
+  assert.doesNotMatch(picker, /Search title, eFile number or current position\.<\/p>/);
+});
+
 test('mobile Casework queues use one calm row action while desktop retains explicit actions', () => {
   const page = source('src/pages/CaseworkPage.jsx');
   assert.match(page, /recentCaseworkHref/);
@@ -145,4 +188,36 @@ test('the application publishes an installable PWA shell', () => {
   assert.match(source('src/main.jsx'), /serviceWorker\.register/);
   assert.match(source('public/manifest.webmanifest'), /"display": "standalone"/);
   assert.match(source('public/sw.js'), /self\.addEventListener\('fetch'/);
+});
+
+test('high-frequency mobile interactions use calm motion and explicit save feedback', () => {
+  const styles = source('src/index.css');
+  const register = source('src/pages/IssueRegisterPage.jsx');
+  const navigation = source('src/components/layout/MobileNavigation.jsx');
+  const picker = source('src/features/casework/CaseworkIssuePicker.jsx');
+  const stageDialog = source('src/components/issues/QuickStageDialog.jsx');
+  const positionDialog = source('src/components/issues/QuickPositionDialog.jsx');
+
+  assert.match(register, /mobile-filter-sheet/);
+  assert.match(navigation, /popover-enter/);
+  assert.match(picker, /popover-enter/);
+  assert.match(stageDialog, /aria-live="polite"/);
+  assert.match(stageDialog, /action-confirm/);
+  assert.match(positionDialog, /save-surface-confirm/);
+  assert.match(styles, /@media \(max-width:\s*639px\)[\s\S]*\.mobile-filter-sheet/);
+});
+
+test('workspace search is compact and top-anchored on mobile', () => {
+  const dashboard = source('src/pages/DashboardPage.jsx');
+  const palette = source('src/components/navigation/CommandPalette.jsx');
+  const modal = source('src/components/common/ModalFrame.jsx');
+
+  assert.match(dashboard, /Find a matter, eFile number, or workspace area/);
+  assert.match(dashboard, /min-h-12[\s\S]*sm:min-h-16/);
+  assert.match(palette, /mobilePlacement="top"/);
+  assert.match(palette, /aria-label="Clear search"/);
+  assert.match(palette, /sm:hidden">Cancel/);
+  assert.match(palette, /max-h-\[min\(68dvh,34rem\)\]/);
+  assert.match(modal, /mobilePlacement = 'bottom'/);
+  assert.match(modal, /mobilePlacement === 'top'/);
 });

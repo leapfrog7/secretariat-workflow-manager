@@ -178,7 +178,7 @@ export default function CaseworkPage() {
     }
   };
 
-  if (loading) return <LoadingState message={issueId ? 'Opening Casework...' : 'Loading Issues...'} />;
+  if (loading) return <LoadingState message={issueId ? 'Opening Casework...' : 'Loading Issues...'} variant="casework" />;
   if (error) return <ErrorState message={error} />;
 
   const canEditIssue = auth.canEdit && bundle.accessLevel === 'editor';
@@ -190,19 +190,20 @@ export default function CaseworkPage() {
     <>
       <div className="casework-page">
       <PageHeader
+        eyebrow="Examine and act"
         title="Casework"
         description="Move from examination to an issued communication without leaving the matter."
         actions={bundle.issue ? (
-          <Link to={`/issues/${bundle.issue.id}`} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:border-teal-300 hover:bg-teal-50 hover:text-teal-800 sm:min-h-10 sm:w-auto sm:text-sm">
+          <Link to={`/issues/${bundle.issue.id}`} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-teal-700 px-4 text-xs font-semibold text-white shadow-[var(--swm-shadow-button)] hover:bg-teal-800 sm:min-h-10 sm:w-auto sm:text-sm">
             <ExternalLink className="h-4 w-4" />Open full Issue
           </Link>
         ) : null}
       />
 
-      <section className="surface mb-4 overflow-visible rounded-xl border-slate-200 bg-white p-3 sm:p-4">
+      <section className="surface mb-4 overflow-visible rounded-[var(--swm-radius-lg)] border-slate-200 bg-white p-3 sm:p-4">
         <div className="mb-3 flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-3"><span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-teal-50 text-teal-700"><BriefcaseBusiness className="h-4 w-4" /></span><div className="min-w-0"><h2 className="text-sm font-semibold text-slate-900">Choose your working file</h2><p className="mt-0.5 hidden text-xs leading-4 text-slate-500 sm:block">Select a current Issue to continue its Note or communication.</p></div></div>
-          {auth.canEdit && <Link to="/issues/new" aria-label="Create new Issue" className="inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-3 text-xs font-semibold text-white shadow-sm hover:bg-slate-800 sm:min-h-11 sm:px-4 sm:text-sm"><Plus className="h-4 w-4" /><span className="sm:hidden">New</span><span className="hidden sm:inline">New Issue</span></Link>}
+          {auth.canEdit && <Link to="/issues/new" aria-label="Create new Issue" className="inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-[var(--swm-radius-md)] border border-[var(--swm-border-strong)] bg-white px-3 text-xs font-semibold text-[var(--swm-ink)] shadow-[var(--swm-shadow-xs)] hover:border-teal-300 hover:bg-teal-50 sm:min-h-11 sm:px-4 sm:text-sm"><Plus className="h-4 w-4" /><span className="sm:hidden">New</span><span className="hidden sm:inline">New Issue</span></Link>}
         </div>
         <div>
           <CaseworkIssuePicker issues={issues} selectedId={issueId} auth={auth} onSelect={(value) => navigate(`/casework/${value}`)} />

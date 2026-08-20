@@ -17,6 +17,7 @@ import { listDivisions } from '../features/collaboration/accessApi';
 import { formatDisplayDate, formatDateTime, todayISO } from '../utils/dateUtils';
 import { buildActivityReport, buildIssueReport, DEFAULT_ACTIVITY_CONTENT_OPTIONS, getReportPeriod, REPORT_PERIOD_PRESETS, REPORT_TYPES } from '../utils/reportUtils';
 import { downloadActivityReportAsCsv } from '../utils/reportCsvUtils';
+import Button from '../components/ui/Button';
 
 const initialPeriod = getReportPeriod({ preset: 'weekly' });
 
@@ -213,12 +214,13 @@ export default function ReportsPage() {
   return (
     <div className="report-page">
       <PageHeader
+        eyebrow="Operational intelligence"
         title="Reports"
         description="Prepare a current snapshot or a dated progress report from the Issues and history you are permitted to see."
         actions={<>
-          <button type="button" onClick={() => window.print()} disabled={!activeReport} className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"><Printer className="h-4 w-4" />Print</button>
-          {mode === 'activity' && <button type="button" onClick={exportCsv} disabled={!activityReport} className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"><FileSpreadsheet className="h-4 w-4" />CSV</button>}
-          <button type="button" onClick={exportWord} disabled={!activeReport || exportingWord} className="inline-flex h-10 min-w-32 items-center justify-center gap-2 rounded-md bg-teal-700 px-3 text-sm font-semibold text-white shadow-sm hover:bg-teal-800 disabled:cursor-wait disabled:opacity-70"><Download className={`h-4 w-4 ${exportingWord ? 'animate-pulse' : ''}`} />{exportingWord ? 'Preparing...' : 'Word (.docx)'}</button>
+          <Button onClick={() => window.print()} disabled={!activeReport} variant="secondary"><Printer className="h-4 w-4" />Print</Button>
+          {mode === 'activity' ? <Button onClick={exportCsv} disabled={!activityReport} variant="secondary"><FileSpreadsheet className="h-4 w-4" />CSV</Button> : null}
+          <Button onClick={exportWord} disabled={!activeReport || exportingWord} className="min-w-32"><Download className={`h-4 w-4 ${exportingWord ? 'animate-pulse' : ''}`} />{exportingWord ? 'Preparing...' : 'Word (.docx)'}</Button>
         </>}
       />
 

@@ -68,7 +68,7 @@ export default function NotificationCenter() {
         {unread > 0 && <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-xs font-bold text-white">{unread > 9 ? '9+' : unread}</span>}
       </button>
       {state.open && (
-        <div className="fixed inset-x-3 top-16 z-50 overflow-hidden rounded-md border border-slate-200 bg-white shadow-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-10 sm:w-[min(360px,calc(100vw-24px))]">
+        <div className="popover-enter fixed inset-x-3 top-16 z-50 origin-top-right overflow-hidden rounded-md border border-slate-200 bg-white shadow-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-10 sm:w-[min(360px,calc(100vw-24px))]">
           <div className="flex h-12 items-center justify-between border-b border-slate-200 px-3">
             <div><h2 className="text-sm font-semibold text-[#17333b]">Notifications</h2><p className="text-xs text-slate-500">Deadlines, returns and digests</p></div>
             {(unread > 0 || state.markingAll) && <button type="button" onClick={readAll} disabled={state.markingAll} title="Mark all as read" className="flex h-9 w-9 items-center justify-center rounded-md text-teal-700 hover:bg-teal-50 disabled:cursor-wait"><CheckCheck className={`h-4 w-4 ${state.markingAll ? 'animate-pulse' : ''}`} /></button>}

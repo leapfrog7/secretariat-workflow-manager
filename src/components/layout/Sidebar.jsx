@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { BookMarked, BookOpenCheck, ClipboardCheck, ClipboardList, FilePenLine, FilePlus2, FileText, LoaderCircle, PanelLeftClose, PanelLeftOpen, Settings, UserRoundCog } from 'lucide-react';
+import { BookMarked, BookOpenCheck, ClipboardCheck, ClipboardList, FilePenLine, FilePlus2, FileText, House, LoaderCircle, PanelLeftClose, PanelLeftOpen, Settings, UserRoundCog } from 'lucide-react';
 import { useAuth } from '../../features/auth/AuthContext';
 import { useNavigationFeedback } from '../common/NavigationFeedback';
 
 const workspaceItems = [
+  { label: 'Home', to: '/home', icon: House },
   { label: 'Issues', to: '/issues', icon: ClipboardList },
   { label: 'Casework', to: '/casework', icon: FilePenLine },
   { label: 'References', to: '/references', icon: BookMarked },
@@ -38,10 +39,10 @@ export default function Sidebar() {
     });
   };
   return (
-    <aside className={`app-sidebar sticky top-0 h-screen shrink-0 overflow-y-auto border-r border-[#294950] bg-[#17333b] text-white transition-[width] ${collapsed ? 'w-[68px]' : 'w-64'}`}>
+    <aside className={`app-sidebar sticky top-0 h-screen shrink-0 overflow-y-auto border-r border-white/10 bg-[var(--swm-ink)] text-white shadow-[8px_0_28px_rgb(15_49_56_/_0.06)] transition-[width] ${collapsed ? 'w-[68px]' : 'w-64'}`}>
       <div className={`py-5 ${collapsed ? 'px-3' : 'px-4'}`}>
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-teal-600 text-white shadow-sm">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-teal-600 text-white shadow-sm">
             <ClipboardCheck className="h-[18px] w-[18px]" aria-hidden="true" />
           </div>
           <div className={`min-w-0 flex-1 ${collapsed ? 'hidden' : ''}`}>
@@ -102,10 +103,10 @@ function SidebarLink({ item, collapsed, active, pending, action = false }) {
 
   const stateClass = action
     ? active
-      ? 'border-teal-300 bg-teal-400/15 text-teal-100 hover:bg-white hover:text-gray-500'
-      : 'border-white/15 bg-white/[0.06] text-white hover:border-teal-300/40 hover:bg-white hover:text-gray-500'
+      ? 'border-teal-300/70 bg-teal-400/15 text-teal-50 hover:bg-teal-400/20'
+      : 'border-white/15 bg-white/[0.06] text-white hover:border-teal-300/40 hover:bg-white/10'
     : active
-      ? 'bg-white/10 text-white'
+      ? 'bg-white/[0.12] text-white shadow-[inset_3px_0_0_rgb(45_212_191)]'
       : 'text-slate-300 hover:bg-white/5 hover:text-white';
 
   return (

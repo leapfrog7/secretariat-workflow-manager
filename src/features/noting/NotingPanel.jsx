@@ -863,7 +863,7 @@ function NoteForm({ issueId, issue, summary, note, notes, communications, refere
               <ChevronDown className="h-4 w-4" />
             </button>
             {aiMenuOpen && (
-              <div role="menu" className="absolute right-0 top-11 z-20 w-72 overflow-hidden rounded-md border border-slate-200 bg-white py-1 shadow-xl">
+              <div role="menu" className="popover-enter absolute right-0 top-11 z-20 w-72 origin-top-right overflow-hidden rounded-md border border-slate-200 bg-white py-1 shadow-xl">
                 {NOTE_AI_ACTIONS.map((action) => {
                   const needsText = action.value !== 'prepare';
                   const disabled = needsText && !form.content.trim();

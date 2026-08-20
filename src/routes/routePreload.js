@@ -1,4 +1,5 @@
 const routeImports = {
+  home: () => import('../pages/DashboardPage'),
   issues: () => import('../pages/IssueRegisterPage'),
   issueForm: () => import('../pages/IssueFormPage'),
   issueWorkspace: () => import('../pages/IssueWorkspacePage'),
@@ -12,6 +13,7 @@ const routeImports = {
 };
 
 export function getRouteImport(pathname) {
+  if (pathname === '/home') return routeImports.home;
   if (pathname === '/issues') return routeImports.issues;
   if (pathname === '/issues/new' || pathname.endsWith('/edit'))
     return routeImports.issueForm;
