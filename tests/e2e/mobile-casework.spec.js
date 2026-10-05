@@ -19,9 +19,11 @@ test('mobile shell fits the viewport and exposes primary navigation', async ({ p
   expect(await page.evaluate(() => document.body.scrollWidth)).toBeLessThanOrEqual(page.viewportSize().width);
   const navigation = page.getByRole('navigation', { name: 'Mobile navigation' });
   await expect(navigation).toBeVisible();
-  for (const label of ['Issues', 'Casework', 'Create', 'Reports']) {
+  for (const label of ['Home', 'Issues', 'Casework', 'Create', 'More']) {
     await expect(navigation.getByText(label, { exact: true })).toBeVisible();
   }
+  await navigation.getByRole('button', { name: 'More navigation' }).click();
+  await expect(page.getByRole('menuitem', { name: 'Reports' })).toBeVisible();
 });
 
 test('Create action opens a usable mobile Issue form', async ({ page }) => {
