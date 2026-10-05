@@ -88,18 +88,35 @@ export default function PublicLandingPage() {
       <section id="why-swm" className="border-y border-slate-200/80 bg-white py-16 sm:py-22">
         <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-10">
           <div className="max-w-2xl"><p className="text-xs font-bold uppercase tracking-[0.18em] text-teal-700">Clarity at every level</p><h2 className="mt-3 text-2xl font-bold tracking-tight text-[#17333b] sm:text-3xl">Designed around the way matters actually move.</h2><p className="mt-4 text-sm leading-7 text-slate-600 sm:text-base">SWM keeps attention on the work—not on hunting through disconnected records or rebuilding context.</p></div>
-          <div className="mt-10 grid gap-4 md:grid-cols-3">
-            {OUTCOMES.map(({ icon: Icon, title, text }) => <article key={title} className="group rounded-2xl border border-slate-200 bg-[#fbfcfc] p-5 transition duration-300 hover:-translate-y-1 hover:border-teal-200 hover:bg-white hover:shadow-[0_18px_45px_rgb(15_49_56_/_0.08)] sm:p-6"><span className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-teal-100 bg-teal-50 text-teal-800"><Icon className="h-5 w-5" /></span><h3 className="mt-5 text-base font-bold text-[#17333b]">{title}</h3><p className="mt-2 text-sm leading-6 text-slate-600">{text}</p></article>)}
+          <div className="mt-8 grid gap-3 md:mt-10 md:grid-cols-3 md:gap-4">
+            {OUTCOMES.map(({ icon: Icon, title, text }) => (
+              <article key={title} className="group flex items-start gap-3.5 rounded-xl border border-slate-200/90 bg-[#fbfcfc] p-4 transition duration-300 hover:border-teal-200 hover:bg-white hover:shadow-[0_14px_36px_rgb(15_49_56_/_0.07)] md:block md:rounded-2xl md:p-6 md:hover:-translate-y-1">
+                <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-teal-100 bg-teal-50 text-teal-800 md:h-11 md:w-11"><Icon className="h-[18px] w-[18px] md:h-5 md:w-5" /></span>
+                <div className="min-w-0 pt-0.5 md:pt-0">
+                  <h3 className="text-sm font-bold leading-5 text-[#17333b] md:mt-5 md:text-base">{title}</h3>
+                  <p className="mt-1 text-[13px] leading-5 text-slate-600 md:mt-2 md:text-sm md:leading-6">{text}</p>
+                </div>
+              </article>
+            ))}
           </div>
         </div>
       </section>
 
       <section id="workflow" className="py-16 sm:py-24">
         <div className="mx-auto max-w-[1280px] px-4 sm:px-6 lg:px-10">
-          <div className="text-center"><p className="text-xs font-bold uppercase tracking-[0.18em] text-teal-700">A continuous record</p><h2 className="mt-3 text-2xl font-bold tracking-tight text-[#17333b] sm:text-3xl">One matter. One chronology. Four natural movements.</h2></div>
-          <div className="relative mt-11 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="text-center"><p className="text-xs font-bold uppercase tracking-[0.18em] text-teal-700">A continuous record</p><h2 className="mx-auto mt-3 max-w-2xl text-xl font-bold leading-tight tracking-tight text-[#17333b] sm:text-3xl">One matter. One chronology. Four natural movements.</h2></div>
+          <div className="relative mt-8 grid gap-2.5 sm:mt-11 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
+            <div aria-hidden="true" className="absolute bottom-6 left-[2rem] top-6 border-l border-dashed border-teal-200 sm:hidden" />
             <div aria-hidden="true" className="absolute left-[12.5%] right-[12.5%] top-7 hidden border-t border-dashed border-teal-200 lg:block" />
-            {WORKFLOW.map(([number, title, text]) => <article key={number} className="relative rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><span className="relative z-10 inline-flex h-14 w-14 items-center justify-center rounded-full border-4 border-[#f6f8f7] bg-[#17333b] text-xs font-bold tracking-wider text-white shadow-sm">{number}</span><h3 className="mt-5 font-bold text-[#17333b]">{title}</h3><p className="mt-2 text-sm leading-6 text-slate-600">{text}</p></article>)}
+            {WORKFLOW.map(([number, title, text]) => (
+              <article key={number} className="relative grid grid-cols-[2.5rem_minmax(0,1fr)] items-center gap-3 rounded-xl border border-slate-200/90 bg-white p-3 shadow-[0_4px_14px_rgb(15_49_56_/_0.05)] sm:block sm:rounded-2xl sm:p-5 sm:shadow-sm">
+                <span className="relative z-10 inline-flex h-10 w-10 items-center justify-center rounded-full border-[3px] border-[#f6f8f7] bg-[#17333b] text-[10px] font-bold tracking-wider text-white shadow-sm sm:h-14 sm:w-14 sm:border-4 sm:text-xs">{number}</span>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-bold text-[#17333b] sm:mt-5 sm:text-base">{title}</h3>
+                  <p className="mt-1 text-[13px] leading-5 text-slate-600 sm:mt-2 sm:text-sm sm:leading-6">{text}</p>
+                </div>
+              </article>
+            ))}
           </div>
         </div>
       </section>

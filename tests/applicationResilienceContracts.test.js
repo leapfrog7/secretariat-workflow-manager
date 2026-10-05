@@ -30,3 +30,12 @@ test('principal tab-heavy pages use the shared keyboard behavior', () => {
     assert.match(source(path), /handleTabListKeyDown/);
   }
 });
+
+test('an elapsed schedule date cannot block unrelated Issue updates while its disclosure is closed', () => {
+  const workspace = source('src/pages/IssueWorkspacePage.jsx');
+  const scheduleDateControl = workspace.match(/<input type="date"[^>]+value=\{draft\.nextAppearanceDate\}[^>]+>/)?.[0] || '';
+
+  assert.ok(scheduleDateControl, 'the next appearance date control should remain available');
+  assert.doesNotMatch(scheduleDateControl, /\bmin=/);
+  assert.match(workspace, /updateIssuePosition/);
+});

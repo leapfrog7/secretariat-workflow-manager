@@ -19,7 +19,7 @@ import { getAllOfficers } from '../db/officerRepository';
 import { countMilestonesByIssue, getMilestonesByIssue } from '../db/milestoneRepository';
 import { countSummaryVersions, deleteSummaryVersion, getLatestSummary, getSummaryVersions, saveSummaryVersion } from '../db/summaryRepository';
 import { useToast } from '../components/common/ToastProvider';
-import { formatDateTime, formatDisplayDate, todayISO, tomorrowISO } from '../utils/dateUtils';
+import { formatDateTime, formatDisplayDate, todayISO } from '../utils/dateUtils';
 import { ISSUE_RECURRENCE_TYPES, ISSUE_STATUSES } from '../constants/issueConstants';
 import { useAuth } from '../features/auth/AuthContext';
 import AdaptiveSelect from '../components/common/AdaptiveSelect';
@@ -569,7 +569,7 @@ function CurrentPositionTab({ issue, officers, draft, dirty, saveStatus, operati
           <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-3 text-sm font-semibold text-slate-700"><CalendarClock className="h-4 w-4 text-cyan-700" />Schedule return <span className="font-normal text-slate-500">(optional)</span></summary>
           <div className="grid gap-3 border-t border-slate-200 px-3 py-3 sm:grid-cols-2">
             <Select label="Return pattern" value={draft.recurrenceType} options={ISSUE_RECURRENCE_TYPES} includeBlank blankLabel="Does not repeat" onChange={(value) => onUpdateSchedule({ recurrenceType: value, nextAppearanceDate: value ? draft.nextAppearanceDate : '', recurrenceAnchorDay: null })} />
-            {draft.recurrenceType && <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Next appearance date</span><input type="date" min={tomorrowISO()} value={draft.nextAppearanceDate} onChange={(event) => onUpdateSchedule({ nextAppearanceDate: event.target.value, recurrenceAnchorDay: null })} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900" /></label>}
+            {draft.recurrenceType && <label className="block"><span className="mb-1 block text-sm font-medium text-slate-700">Next appearance date</span><input type="date" value={draft.nextAppearanceDate} onChange={(event) => onUpdateSchedule({ nextAppearanceDate: event.target.value, recurrenceAnchorDay: null })} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-900" /></label>}
             {draft.recurrenceType && <p className="text-xs leading-5 text-slate-500 sm:col-span-2">When this cycle is saved as Completed, the Issue will move to Scheduled and return as Pending on this date.</p>}
           </div>
         </details>

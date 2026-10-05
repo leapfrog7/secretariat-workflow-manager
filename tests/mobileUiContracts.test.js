@@ -221,3 +221,13 @@ test('workspace search is compact and top-anchored on mobile', () => {
   assert.match(modal, /mobilePlacement = 'bottom'/);
   assert.match(modal, /mobilePlacement === 'top'/);
 });
+
+test('mobile Home uses width efficiently without duplicate stacked actions', () => {
+  const dashboard = source('src/pages/DashboardPage.jsx');
+
+  assert.match(dashboard, /grid grid-cols-3 gap-1\.5/);
+  assert.match(dashboard, /min-h-11[\s\S]*sm:min-h-12/);
+  assert.match(dashboard, /sm:hidden[\s\S]*No saved work yet/);
+  assert.match(dashboard, /hidden border-t[\s\S]*sm:block[\s\S]*Continue Casework/);
+  assert.match(dashboard, /grid min-h-16 grid-cols-\[minmax\(0,1fr\)_auto\]/);
+});

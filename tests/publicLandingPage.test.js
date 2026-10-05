@@ -40,6 +40,15 @@ test('homepage and account dialog include responsive and accessible interaction 
   assert.match(styles, /public-home-rise/);
 });
 
+test('homepage information cards use compact mobile rows and retain spacious desktop cards', () => {
+  const homepage = source('src/pages/PublicLandingPage.jsx');
+
+  assert.match(homepage, /flex items-start gap-3\.5[^"]+md:block/);
+  assert.match(homepage, /grid-cols-\[2\.5rem_minmax\(0,1fr\)\][^"]+sm:block/);
+  assert.match(homepage, /border-l border-dashed border-teal-200 sm:hidden/);
+  assert.match(homepage, /sm:rounded-2xl sm:p-5/);
+});
+
 test('the first-login welcome banner is removed from the application shell', () => {
   const shell = source('src/layouts/AppShell.jsx');
   const bannerPath = new URL('../src/components/common/WelcomeBanner.jsx', import.meta.url);
