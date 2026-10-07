@@ -1,9 +1,5 @@
-const VARIANTS = {
-  default: 'border-[var(--swm-border)] bg-[var(--swm-surface)] shadow-[var(--swm-shadow-card)]',
-  subtle: 'border-[var(--swm-border)] bg-[var(--swm-surface-subtle)]',
-  inset: 'border-[var(--swm-border)] bg-[var(--swm-surface-muted)]',
-};
+import Card from './Card';
 
 export default function Surface({ as: Component = 'section', variant = 'default', className = '', children, ...props }) {
-  return <Component className={`border ${VARIANTS[variant] || VARIANTS.default} ${className}`} {...props}>{children}</Component>;
+  return <Card as={Component} variant={variant} className={className} {...props}>{children}</Card>;
 }

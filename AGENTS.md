@@ -120,6 +120,9 @@ Current implementation status:
   Reference Library synchronization is enabled. References belong to the
   workspace; Issue links carry relevance notes and selected extracts without
   duplicating the retained source text.
+- Migration `029_reference_link_authorization_hardening.sql` must be applied
+  immediately after migration 028. It binds every Reference Library link save
+  to the authorized stored Issue and prevents cross-Issue conflict disclosure.
 - Division enforcement remains off until a workspace administrator creates
   divisions, assigns active members and Issues, passes the readiness report, and
   explicitly enables it.

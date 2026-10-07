@@ -90,7 +90,7 @@ export default function MobileNavigation() {
               to={item.to}
               aria-current={isActive ? 'page' : undefined}
               aria-busy={isPending || undefined}
-              className={`relative m-1 flex min-h-[48px] min-w-0 flex-col items-center justify-center gap-0.5 rounded-[var(--swm-radius-md)] px-1 py-1 text-[10px] font-semibold leading-none tracking-normal transition-colors ${
+              className={`relative m-1 flex min-h-[48px] min-w-0 flex-col items-center justify-center gap-0.5 rounded-[var(--swm-radius-md)] px-1 py-1 text-xs font-semibold leading-none transition-colors ${
                   isActive ? 'bg-teal-50 text-teal-800 after:absolute after:bottom-0.5 after:h-0.5 after:w-5 after:rounded-full after:bg-teal-600' : item.to === '/issues/new' ? 'text-teal-700 hover:bg-teal-50' : 'text-slate-500 hover:bg-slate-50'
                 }`}
             >
@@ -106,7 +106,7 @@ export default function MobileNavigation() {
           aria-expanded={menuOpen}
           aria-haspopup="menu"
           onClick={() => setMenuOpen((current) => !current)}
-          className={`relative m-1 flex min-h-[48px] min-w-0 flex-col items-center justify-center gap-0.5 rounded-[var(--swm-radius-md)] px-1 py-1 text-[10px] font-semibold leading-none tracking-normal transition-colors ${
+          className={`relative m-1 flex min-h-[48px] min-w-0 flex-col items-center justify-center gap-0.5 rounded-[var(--swm-radius-md)] px-1 py-1 text-xs font-semibold leading-none transition-colors ${
             menuOpen || moreActive ? 'bg-teal-50 text-teal-800' : 'text-slate-500 hover:bg-slate-50'
           }`}
         >

@@ -25,6 +25,11 @@ test('Reference Library is routable and Issue references attach rather than dupl
   assert.match(source('src/pages/ReferencesPage.jsx'), /PdfContextDialog/);
   assert.match(source('db/migrations/028_workspace_reference_library.sql'), /issue_reference_links/);
   assert.match(source('db/migrations/028_workspace_reference_library.sql'), /can_read_issue/);
+  const hardening = source('db/migrations/029_reference_link_authorization_hardening.sql');
+  assert.match(hardening, /current_row\.issue_id <> target_issue_id/);
+  assert.match(hardening, /current_row\.reference_id <> target_reference_id/);
+  assert.match(hardening, /target_payload->>'issueId' IS DISTINCT FROM target_issue_id::text/);
+  assert.match(hardening, /REVOKE ALL ON FUNCTION public\.save_issue_reference_link_revision/);
 });
 
 test('reviewed PDF and OCR text is synchronized into the active reference editor', () => {

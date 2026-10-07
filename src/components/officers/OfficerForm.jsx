@@ -1,12 +1,18 @@
 import { useRef, useState } from 'react';
-import { CheckCircle2, LoaderCircle, Save, X } from 'lucide-react';
+import { Check, Save, X } from 'lucide-react';
+import Alert from '../ui/Alert';
+import Button from '../ui/Button';
+import OperationStatus from '../ui/OperationStatus';
 
 export default function OfficerForm({ initialOfficer, onSubmit, onCancel }) {
   const [officer, setOfficer] = useState(initialOfficer || { name: '', designation: '', telephone: '', email: '', section: '', role: 'Other', isActive: true });
   const [error, setError] = useState('');
   const [saveStatus, setSaveStatus] = useState('idle');
   const submitting = useRef(false);
-  const update = (field, value) => setOfficer((current) => ({ ...current, [field]: value }));
+  const update = (field, value) => {
+    setError('');
+    setOfficer((current) => ({ ...current, [field]: value }));
+  };
   const submit = async (event) => {
     event.preventDefault();
     if (!officer.name.trim()) {
@@ -28,8 +34,9 @@ export default function OfficerForm({ initialOfficer, onSubmit, onCancel }) {
   };
   return (
     <form onSubmit={submit} className="border-y border-[#dce6e4] bg-[#f7faf9] px-3 py-4">
+      {error ? <Alert tone="danger" title="Officer not saved" className="mb-3">{error}</Alert> : null}
       <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <Input label="Name" value={officer.name} onChange={(value) => update('name', value)} error={error} required />
+        <Input label="Name" value={officer.name} onChange={(value) => update('name', value)} required />
         <Input label="Designation" value={officer.designation} onChange={(value) => update('designation', value)} />
         <Input label="Telephone" value={officer.telephone} onChange={(value) => update('telephone', value)} />
         <Input label="Email" value={officer.email} onChange={(value) => update('email', value)} />
@@ -38,9 +45,10 @@ export default function OfficerForm({ initialOfficer, onSubmit, onCancel }) {
           Available for allocation
         </label>
       </div>
-      <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:justify-end">
-        <button type="button" onClick={onCancel} disabled={saveStatus !== 'idle'} className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-slate-300 px-3 text-sm font-medium disabled:opacity-50 sm:h-10"><X className="h-4 w-4" />Cancel</button>
-        <button type="submit" disabled={saveStatus !== 'idle'} className={`inline-flex h-11 min-w-32 items-center justify-center gap-2 rounded-md px-3 text-sm font-semibold text-white shadow-sm sm:h-10 ${saveStatus === 'saved' ? 'bg-emerald-700' : 'bg-teal-700 hover:bg-teal-800 disabled:bg-slate-400'}`}>{saveStatus === 'saving' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : saveStatus === 'saved' ? <CheckCircle2 className="h-4 w-4" /> : <Save className="h-4 w-4" />}{saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved' : 'Save officer'}</button>
+      <div className="mt-4 grid grid-cols-2 items-center gap-2 sm:flex sm:justify-end">
+        <OperationStatus state={error ? 'error' : saveStatus} className="col-span-2 sm:mr-auto" />
+        <Button type="button" onClick={onCancel} disabled={saveStatus !== 'idle'} variant="secondary" size="lg"><X className="h-4 w-4" />Cancel</Button>
+        <Button type="submit" disabled={saveStatus === 'saved'} loading={saveStatus === 'saving'} loadingLabel="Saving…" variant={saveStatus === 'saved' ? 'success' : 'primary'} size="lg" className="min-w-32">{saveStatus === 'saved' ? <Check className="h-4 w-4" /> : <Save className="h-4 w-4" />}{saveStatus === 'saved' ? 'Saved' : 'Save officer'}</Button>
       </div>
     </form>
   );

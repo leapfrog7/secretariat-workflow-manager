@@ -92,7 +92,7 @@ export default function Sidebar() {
 function SidebarGroup({ label, collapsed, className = '', children }) {
   return (
     <div className={className}>
-      {!collapsed && <div className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">{label}</div>}
+      {!collapsed && <div className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-slate-400">{label}</div>}
       <div className="space-y-1">{children}</div>
     </div>
   );

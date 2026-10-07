@@ -938,7 +938,7 @@ function PeopleDirectory({
                       </h3>
                       <AccessStatus status={profile.status} />
                       <span
-                        className={`inline-flex rounded-md px-2 py-1 text-[11px] font-semibold ${profile.role === "platform_admin" ? "bg-indigo-100 text-indigo-800" : "bg-slate-100 text-slate-600"}`}
+                        className={`inline-flex rounded-md px-2 py-1 text-xs font-semibold ${profile.role === "platform_admin" ? "bg-indigo-100 text-indigo-800" : "bg-slate-100 text-slate-600"}`}
                       >
                         {profile.role === "platform_admin"
                           ? "System administrator"
@@ -952,7 +952,7 @@ function PeopleDirectory({
                 </div>
 
                 <div className="mt-4">
-                  <p className="text-[11px] font-semibold uppercase text-slate-500">
+                  <p className="text-xs font-semibold uppercase text-slate-500">
                     Active workspace rights
                   </p>
                   <div className="mt-2 flex flex-wrap gap-2">
@@ -1153,7 +1153,7 @@ function ControlField({ label, help, children }) {
         {label}
       </span>
       {children}
-      <span className="mt-1.5 block text-[11px] leading-4 text-slate-500">
+      <span className="mt-1.5 block text-xs leading-4 text-slate-500">
         {help}
       </span>
     </label>
@@ -1172,7 +1172,7 @@ function WorkspaceRight({ assignment, current }) {
       <strong className="font-semibold">{role.label}</strong>
       <span className="truncate">{assignment.workspace?.name}</span>
       {current && (
-        <span className="shrink-0 border-l border-current/20 pl-2 text-[10px] font-semibold uppercase">
+        <span className="shrink-0 border-l border-current/20 pl-2 text-xs font-semibold uppercase">
           Current
         </span>
       )}

@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   Activity,
@@ -47,6 +54,8 @@ import { getCommunicationSearchContext } from "../utils/communicationUtils";
 import { useAuth } from "../features/auth/AuthContext";
 import { listDivisions } from "../features/collaboration/accessApi";
 import { findCurrentPositionMilestone } from "../utils/positionUpdateUtils";
+import Alert from "../components/ui/Alert";
+import OperationStatus from "../components/ui/OperationStatus";
 
 const defaultFilters = {
   query: "",
@@ -57,7 +66,7 @@ const defaultFilters = {
   sort: "Recently updated",
 };
 
-const ARCHIVED_PAGE_SIZES = [25, 50, 100];
+const REGISTER_PAGE_SIZES = [25, 50, 100];
 
 const FOCUS_VIEWS = {
   pending: "Pending",
@@ -113,6 +122,9 @@ export default function IssueRegisterPage() {
     issues: [],
     officers: [],
     communications: [],
+    communicationsLoaded: false,
+    communicationsLoading: false,
+    communicationsError: "",
     divisions: [],
   });
   const [filters, setFilters] = useState(() => ({ ...defaultFilters, focus: focusView }));
@@ -127,47 +139,125 @@ export default function IssueRegisterPage() {
     setFilters((current) => current.focus === focusView ? current : { ...current, focus: focusView });
     if (focusView && !mobileLayout) setShowFilters(true);
   }, [focusView, mobileLayout]);
-  const [archivedPage, setArchivedPage] = useState(1);
-  const [archivedPageSize, setArchivedPageSize] = useState(
-    ARCHIVED_PAGE_SIZES[0],
+  const [registerPage, setRegisterPage] = useState(1);
+  const [registerPageSize, setRegisterPageSize] = useState(
+    REGISTER_PAGE_SIZES[0],
   );
+  const communicationsLoadedRef = useRef(false);
+  const communicationRequestRef = useRef(0);
+  const communicationPromiseRef = useRef(null);
 
-  const load = async () => {
+  const load = useCallback(async ({
+    includeCommunications = communicationsLoadedRef.current,
+  } = {}) => {
     try {
-      const [issues, officers, communications, divisions] = await Promise.all([
+      const [issues, officers, divisions, communications] = await Promise.all([
         getAllIssues(),
         getAllOfficers(),
-        getAllCommunications(),
         auth.workspace?.id
           ? listDivisions(auth.workspace.id)
           : Promise.resolve([]),
+        includeCommunications ? getAllCommunications() : Promise.resolve(null),
       ]);
-      setData({
+      if (includeCommunications) communicationsLoadedRef.current = true;
+      setData((current) => ({
+        ...current,
         loading: false,
         error: "",
         issues,
         officers,
-        communications,
         divisions,
-      });
+        ...(includeCommunications
+          ? {
+              communications,
+              communicationsLoaded: true,
+              communicationsLoading: false,
+              communicationsError: "",
+            }
+          : {}),
+      }));
     } catch (error) {
-      setData({
+      setData((current) => ({
+        ...current,
         loading: false,
         error: error.message,
         issues: [],
         officers: [],
-        communications: [],
         divisions: [],
-      });
+      }));
     }
-  };
+  }, [auth.workspace?.id]);
+
+  const loadCommunicationsForSearch = useCallback(async () => {
+    if (communicationsLoadedRef.current) return;
+    if (communicationPromiseRef.current) return communicationPromiseRef.current;
+
+    const requestId = ++communicationRequestRef.current;
+    setData((current) => ({
+      ...current,
+      communicationsLoading: true,
+      communicationsError: "",
+    }));
+
+    const request = getAllCommunications()
+      .then((communications) => {
+        if (requestId !== communicationRequestRef.current) return;
+        communicationsLoadedRef.current = true;
+        setData((current) => ({
+          ...current,
+          communications,
+          communicationsLoaded: true,
+          communicationsLoading: false,
+          communicationsError: "",
+        }));
+      })
+      .catch((error) => {
+        if (requestId !== communicationRequestRef.current) return;
+        setData((current) => ({
+          ...current,
+          communicationsLoading: false,
+          communicationsError:
+            error.message || "Source documents could not be searched.",
+        }));
+      })
+      .finally(() => {
+        if (requestId === communicationRequestRef.current) {
+          communicationPromiseRef.current = null;
+        }
+      });
+    communicationPromiseRef.current = request;
+    return request;
+  }, []);
 
   useEffect(() => {
-    load();
+    communicationRequestRef.current += 1;
+    communicationPromiseRef.current = null;
+    communicationsLoadedRef.current = false;
+    setData((current) => ({
+      ...current,
+      loading: true,
+      error: "",
+      communications: [],
+      communicationsLoaded: false,
+      communicationsLoading: false,
+      communicationsError: "",
+    }));
+    load({ includeCommunications: false });
     const handleSync = () => load();
     window.addEventListener("swm:issues-synced", handleSync);
-    return () => window.removeEventListener("swm:issues-synced", handleSync);
-  }, [auth.workspace?.id]);
+    return () => {
+      communicationRequestRef.current += 1;
+      window.removeEventListener("swm:issues-synced", handleSync);
+    };
+  }, [load]);
+
+  const deferredQuery = useDeferredValue(filters.query);
+  const searchUpdating = filters.query !== deferredQuery;
+  const hasSearchQuery = Boolean(deferredQuery.trim());
+
+  useEffect(() => {
+    if (hasSearchQuery) loadCommunicationsForSearch();
+  }, [auth.workspace?.id, hasSearchQuery, loadCommunicationsForSearch]);
 
   const summary = useMemo(() => {
     const current = data.issues.filter(
@@ -198,6 +288,25 @@ export default function IssueRegisterPage() {
     });
     return grouped;
   }, [data.communications]);
+
+  const deferredFilters = useMemo(
+    () => ({
+      query: deferredQuery,
+      focus: filters.focus,
+      status: filters.status,
+      divisionId: filters.divisionId,
+      archiveMode: filters.archiveMode,
+      sort: filters.sort,
+    }),
+    [
+      deferredQuery,
+      filters.archiveMode,
+      filters.divisionId,
+      filters.focus,
+      filters.sort,
+      filters.status,
+    ],
+  );
 
   const restore = async (issue) => {
     try {
@@ -390,29 +499,32 @@ export default function IssueRegisterPage() {
       data.divisions.map((division) => [division.id, division.name]),
     );
     const rows = data.issues.flatMap((issue) => {
-      if (filters.archiveMode === "Current" && issue.isArchived) return [];
-      if (filters.archiveMode === "Current" && isScheduledIssue(issue))
+      if (deferredFilters.archiveMode === "Current" && issue.isArchived) return [];
+      if (deferredFilters.archiveMode === "Current" && isScheduledIssue(issue))
         return [];
-      if (filters.archiveMode === "Scheduled" && !isScheduledIssue(issue))
+      if (deferredFilters.archiveMode === "Scheduled" && !isScheduledIssue(issue))
         return [];
-      if (filters.archiveMode === "Archived" && !issue.isArchived) return [];
-      if (filters.focus && !matchesFocusView(issue, filters.focus)) return [];
-      if (filters.status && issue.status !== filters.status) return [];
-      if (filters.divisionId === "__unassigned__" && issue.owningDivisionId)
+      if (deferredFilters.archiveMode === "Archived" && !issue.isArchived) return [];
+      if (deferredFilters.focus && !matchesFocusView(issue, deferredFilters.focus)) return [];
+      if (deferredFilters.status && issue.status !== deferredFilters.status) return [];
+      if (deferredFilters.divisionId === "__unassigned__" && issue.owningDivisionId)
         return [];
       if (
-        filters.divisionId &&
-        filters.divisionId !== "__unassigned__" &&
-        issue.owningDivisionId !== filters.divisionId
+        deferredFilters.divisionId &&
+        deferredFilters.divisionId !== "__unassigned__" &&
+        issue.owningDivisionId !== deferredFilters.divisionId
       )
         return [];
-      const sourceMatch = getCommunicationSearchContext(
-        communicationsByIssue.get(issue.id) || [],
-        filters.query,
-      );
+      const sourceMatch =
+        hasSearchQuery && data.communicationsLoaded
+          ? getCommunicationSearchContext(
+              communicationsByIssue.get(issue.id) || [],
+              deferredFilters.query,
+            )
+          : null;
       if (
-        filters.query &&
-        !issueMatchesSearch(issue, filters.query) &&
+        hasSearchQuery &&
+        !issueMatchesSearch(issue, deferredFilters.query) &&
         !sourceMatch
       )
         return [];
@@ -425,19 +537,26 @@ export default function IssueRegisterPage() {
       ];
     });
     return rows.sort((a, b) => {
-      if (filters.sort === "Recently updated")
+      if (deferredFilters.sort === "Recently updated")
         return new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0);
-      if (filters.sort === "Next appearance")
+      if (deferredFilters.sort === "Next appearance")
         return (a.nextAppearanceDate || "9999-12-31").localeCompare(
           b.nextAppearanceDate || "9999-12-31",
         );
-      if (filters.sort === "Date opened")
+      if (deferredFilters.sort === "Date opened")
         return (b.dateOpened || "").localeCompare(a.dateOpened || "");
-      if (filters.sort === "Title")
+      if (deferredFilters.sort === "Title")
         return a.shortTitle.localeCompare(b.shortTitle);
       return 0;
     });
-  }, [data.divisions, data.issues, communicationsByIssue, filters]);
+  }, [
+    communicationsByIssue,
+    data.communicationsLoaded,
+    data.divisions,
+    data.issues,
+    deferredFilters,
+    hasSearchQuery,
+  ]);
 
   const sourceMatchCount = useMemo(
     () =>
@@ -447,44 +566,42 @@ export default function IssueRegisterPage() {
       ),
     [filtered],
   );
-  const archivedPageCount = Math.max(
+  const registerPageCount = Math.max(
     1,
-    Math.ceil(filtered.length / archivedPageSize),
+    Math.ceil(filtered.length / registerPageSize),
   );
-  const currentArchivedPage = Math.min(archivedPage, archivedPageCount);
+  const currentRegisterPage = Math.min(registerPage, registerPageCount);
   const pagedIssues = useMemo(() => {
-    if (filters.archiveMode !== "Archived") return filtered;
-    const start = (currentArchivedPage - 1) * archivedPageSize;
-    return filtered.slice(start, start + archivedPageSize);
+    const start = (currentRegisterPage - 1) * registerPageSize;
+    return filtered.slice(start, start + registerPageSize);
   }, [
-    archivedPageSize,
-    currentArchivedPage,
+    registerPageSize,
+    currentRegisterPage,
     filtered,
-    filters.archiveMode,
   ]);
-  const archivedRangeStart = filtered.length
-    ? (currentArchivedPage - 1) * archivedPageSize + 1
+  const registerRangeStart = filtered.length
+    ? (currentRegisterPage - 1) * registerPageSize + 1
     : 0;
-  const archivedRangeEnd = Math.min(
-    currentArchivedPage * archivedPageSize,
+  const registerRangeEnd = Math.min(
+    currentRegisterPage * registerPageSize,
     filtered.length,
   );
 
   useEffect(() => {
-    setArchivedPage(1);
+    setRegisterPage(1);
   }, [
-    filters.archiveMode,
-    filters.divisionId,
-    filters.focus,
-    filters.query,
-    filters.sort,
-    filters.status,
-    archivedPageSize,
+    deferredFilters.archiveMode,
+    deferredFilters.divisionId,
+    deferredFilters.focus,
+    deferredFilters.query,
+    deferredFilters.sort,
+    deferredFilters.status,
+    registerPageSize,
   ]);
 
   useEffect(() => {
-    setArchivedPage((current) => Math.min(current, archivedPageCount));
-  }, [archivedPageCount]);
+    setRegisterPage((current) => Math.min(current, registerPageCount));
+  }, [registerPageCount]);
 
   const expectedSort =
     filters.archiveMode === "Scheduled"
@@ -644,18 +761,43 @@ export default function IssueRegisterPage() {
               </div>
             </div>
           ) : null}
-          {advancedFiltersActive ? <div className="mt-3 flex items-center gap-2 border-t border-slate-200 pt-3" role="status" aria-label="Active Issue filters"><span className="shrink-0 text-xs font-bold text-slate-700">Filtered</span><div className="mobile-scroll-strip flex min-w-0 flex-1 gap-2 overflow-x-auto pb-0.5 sm:flex-wrap sm:overflow-visible sm:pb-0">{activeFilterLabels.map((label) => <span key={label} className="shrink-0 rounded-full border border-teal-200 bg-teal-50 px-2.5 py-1 text-[11px] font-semibold text-teal-800">{label}</span>)}</div><button type="button" onClick={clearAdvancedFilters} className="shrink-0 rounded-md px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100 hover:text-slate-900">Clear</button></div> : null}
+          {advancedFiltersActive ? <div className="mt-3 flex items-center gap-2 border-t border-slate-200 pt-3" role="status" aria-label="Active Issue filters"><span className="shrink-0 text-xs font-bold text-slate-700">Filtered</span><div className="mobile-scroll-strip flex min-w-0 flex-1 gap-2 overflow-x-auto pb-0.5 sm:flex-wrap sm:overflow-visible sm:pb-0">{activeFilterLabels.map((label) => <span key={label} className="shrink-0 rounded-full border border-teal-200 bg-teal-50 px-2.5 py-1 text-xs font-semibold text-teal-800">{label}</span>)}</div><button type="button" onClick={clearAdvancedFilters} className="shrink-0 rounded-md px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100 hover:text-slate-900">Clear</button></div> : null}
         </section>
+        {data.communicationsError && hasSearchQuery ? (
+          <Alert
+            tone="warning"
+            compact
+            title="Source-document search is temporarily unavailable"
+            action={
+              <button
+                type="button"
+                onClick={loadCommunicationsForSearch}
+                className="rounded-md px-2 py-1 text-xs font-semibold text-amber-900 transition-colors hover:bg-amber-100"
+              >
+                Try again
+              </button>
+            }
+          >
+            Issue titles, eFile numbers and present positions are still being searched.
+          </Alert>
+        ) : null}
         <div className="flex items-center justify-between gap-3">
           <div className="text-sm font-medium text-slate-600" aria-live="polite">
-            {filters.archiveMode === "Archived" && filtered.length
-              ? `Showing ${archivedRangeStart}–${archivedRangeEnd} of `
+            {filtered.length
+              ? `Showing ${registerRangeStart}–${registerRangeEnd} of `
               : ""}
             {filtered.length} issue{filtered.length === 1 ? "" : "s"}
-            {filters.query && sourceMatchCount > 0
+            {hasSearchQuery && sourceMatchCount > 0
               ? ` - ${sourceMatchCount} source match${sourceMatchCount === 1 ? "" : "es"}`
               : ""}
           </div>
+          {searchUpdating || (hasSearchQuery && data.communicationsLoading) ? (
+            <OperationStatus
+              state="loading"
+              label={searchUpdating ? "Updating results…" : "Searching source documents…"}
+              className="shrink-0"
+            />
+          ) : null}
         </div>
         {!filtered.length ? (
           <EmptyState
@@ -709,16 +851,16 @@ export default function IssueRegisterPage() {
                 />
               ))}
             </div>
-            {filters.archiveMode === "Archived" && (
-              <ArchivedPagination
-                page={currentArchivedPage}
-                pageCount={archivedPageCount}
-                pageSize={archivedPageSize}
+            {registerPageCount > 1 ? (
+              <RegisterPagination
+                page={currentRegisterPage}
+                pageCount={registerPageCount}
+                pageSize={registerPageSize}
                 total={filtered.length}
-                onPageChange={setArchivedPage}
-                onPageSizeChange={setArchivedPageSize}
+                onPageChange={setRegisterPage}
+                onPageSizeChange={setRegisterPageSize}
               />
-            )}
+            ) : null}
           </>
         )}
       </div>
@@ -769,7 +911,7 @@ export default function IssueRegisterPage() {
   );
 }
 
-function ArchivedPagination({
+function RegisterPagination({
   page,
   pageCount,
   pageSize,
@@ -780,7 +922,7 @@ function ArchivedPagination({
   return (
     <nav
       className="mt-3 flex flex-col gap-3 border-t border-slate-200 pt-3 sm:flex-row sm:items-center sm:justify-between"
-      aria-label="Archived Issues pagination"
+      aria-label="Issue register pagination"
     >
       <label className="flex items-center gap-2 text-sm text-slate-600">
         <span>Rows per page</span>
@@ -789,7 +931,7 @@ function ArchivedPagination({
           onChange={(event) => onPageSizeChange(Number(event.target.value))}
           className="h-9 rounded-md border border-slate-300 bg-white px-2 text-sm font-medium text-slate-800"
         >
-          {ARCHIVED_PAGE_SIZES.map((size) => (
+          {REGISTER_PAGE_SIZES.map((size) => (
             <option key={size} value={size}>
               {size}
             </option>
@@ -948,7 +1090,7 @@ function ArchiveViewSwitch({
           {option.icon && <option.icon className="h-3.5 w-3.5" />}
           {option.label}
           <span
-            className={`rounded-md px-1.5 py-0.5 text-[11px] tabular-nums ${value === option.label ? "bg-slate-100 text-slate-700" : "bg-slate-200/70 text-slate-600"}`}
+            className={`rounded-md px-1.5 py-0.5 text-xs tabular-nums ${value === option.label ? "bg-slate-100 text-slate-700" : "bg-slate-200/70 text-slate-600"}`}
           >
             {option.count}
           </span>
@@ -969,7 +1111,7 @@ function FilterButton({ className = "", open, active, activeCount = 0, onClick }
       className={`relative h-[44px] w-[44px] items-center justify-center rounded-lg border ${open || active ? "border-teal-300 bg-teal-50 text-teal-800" : "border-slate-300 bg-white text-slate-600 hover:bg-slate-50"} ${className}`}
     >
       <SlidersHorizontal className="h-4 w-4" />
-      {active ? <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-teal-700 px-1 text-[10px] font-bold text-white shadow-sm">{activeCount}</span> : null}
+      {active ? <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-teal-700 px-1 text-xs font-bold text-white shadow-sm">{activeCount}</span> : null}
     </button>
   );
 }

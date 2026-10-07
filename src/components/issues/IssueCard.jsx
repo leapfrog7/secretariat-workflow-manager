@@ -41,7 +41,7 @@ export default function IssueCard({ issue, officers = [], working = false, canEd
       <SourceSearchMatch match={issue.searchMatch} />
       <div className="mt-2 rounded-md bg-slate-50 px-2.5 py-2">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-[11px] font-semibold uppercase text-slate-500">Present position</p>
+          <p className="text-xs font-semibold uppercase text-slate-500">Present position</p>
           {canQuickUpdate && <CardAction label="Quick position update" onClick={() => onQuickPosition(issue)}><PencilLine className="h-4 w-4" /></CardAction>}
         </div>
         <p className={`mt-0.5 line-clamp-2 text-xs leading-5 ${positionPreview ? 'text-slate-700' : 'italic text-slate-400'}`} title={issue.currentPosition || undefined}>{positionPreview || 'No position recorded'}</p>

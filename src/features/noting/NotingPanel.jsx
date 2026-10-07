@@ -40,6 +40,9 @@ import { buildNoteSuggestionReview } from './noteConversationUtils';
 import { MAX_PDF_BYTES } from './pdf/pdfExtractionService';
 import { extractSourceDocument } from './document/documentTextExtraction';
 import { recordCaseworkOperationalEvent } from '../casework/caseworkApi';
+import Button from '../../components/ui/Button';
+import ContextualCommandBar from '../../components/ui/ContextualCommandBar';
+import OperationStatus from '../../components/ui/OperationStatus';
 
 const NoteEditor = lazy(() => import('./NoteEditor'));
 const PdfContextDialog = lazy(() => import('./pdf/PdfContextDialog'));
@@ -132,7 +135,7 @@ function ReviewItem({ icon: Icon, label, value, tone = 'cyan' }) {
     amber: 'border-amber-200 bg-amber-50/60 text-amber-800',
     emerald: 'border-emerald-200 bg-emerald-50/60 text-emerald-800',
   };
-  return <div className={`rounded-lg border px-3 py-3 ${tones[tone] || tones.cyan}`}><div className="flex items-center gap-2"><span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/90 shadow-sm"><Icon className="h-4 w-4" /></span><p className="text-[11px] font-bold uppercase tracking-wide">{label}</p></div><p className="mt-2 text-xs font-medium leading-5 text-slate-800">{value}</p></div>;
+  return <div className={`rounded-lg border px-3 py-3 ${tones[tone] || tones.cyan}`}><div className="flex items-center gap-2"><span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/90 shadow-sm"><Icon className="h-4 w-4" /></span><p className="text-xs font-bold uppercase tracking-wide">{label}</p></div><p className="mt-2 text-xs font-medium leading-5 text-slate-800">{value}</p></div>;
 }
 
 function NoteForm({ issueId, issue, summary, note, notes, communications, references, author, onSave, onCancel, onDirtyChange }) {
@@ -814,78 +817,44 @@ function NoteForm({ issueId, issue, summary, note, notes, communications, refere
         <h3 className="text-sm font-semibold text-[#17333b]">{note ? `Edit Note ${note.sequence}` : 'New note'}</h3>
         <p className="mt-1 text-xs leading-5 text-slate-500">Record concise facts, examination and the proposed course of action. Saving an edit retains the earlier version.</p>
       </div>
-      <div className="space-y-3 p-4">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs leading-5 text-slate-500">
-            Record the facts, examination and proposed course of action.
-          </p>
-          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:justify-end">
-          <button
-            type="button"
-            onPointerDown={() => {
-              const selection = noteEditorRef.current?.getSelection();
-              if (selection?.text?.trim()) pendingRewriteSelection.current = selection;
-            }}
-            onMouseDown={(event) => {
-              const selection = noteEditorRef.current?.getSelection();
-              if (selection?.text?.trim()) {
-                pendingRewriteSelection.current = selection;
-                event.preventDefault();
-              }
-            }}
-            onClick={() => rewriteSelection()}
-            disabled={!aiConfig || aiBusy || saveStatus !== 'idle'}
-            title={selectedWordCount ? `Rewrite the selected ${selectedWordCount} words with AI` : 'Select text in the note before using AI rewrite'}
-            className="inline-flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-md border border-indigo-200 bg-white px-2 text-[11px] font-semibold text-indigo-800 hover:bg-indigo-50 disabled:opacity-50 sm:gap-2 sm:px-3 sm:text-xs"
-          >
-            {aiStatus.status === 'rewriting-selection' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            {aiStatus.status === 'rewriting-selection' ? 'Rewriting...' : 'Rewrite selection'}
-          </button>
+      <ContextualCommandBar
+        label="Note commands"
+        title={note ? `Editing Note ${note.sequence}` : 'New note'}
+        status={<OperationStatus state={saveStatus === 'saving' ? 'saving' : saveStatus === 'saved' ? 'saved' : dirty ? 'dirty' : 'idle'} label={!dirty && saveStatus === 'idle' ? 'Ready to edit' : undefined} />}
+        contextAction={(
           <div ref={aiMenuRef} className="relative inline-flex min-w-0">
-            <button
-              type="button"
-              onClick={() => openAIAssistance()}
-              disabled={!aiConfig || aiBusy || saveStatus !== 'idle'}
-              className="inline-flex min-h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-l-md border border-r-0 border-cyan-200 bg-cyan-50 px-2 text-[11px] font-semibold text-cyan-900 hover:bg-cyan-100 disabled:opacity-50 sm:gap-2 sm:px-3 sm:text-xs"
-            >
+            <Button type="button" variant="accent" size="md" onClick={() => openAIAssistance()} disabled={!aiConfig || aiBusy || saveStatus !== 'idle'} className="min-w-12 rounded-r-none border-r-0 px-2.5 sm:min-w-0 sm:px-3">
               {aiBusy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              {aiBusy ? 'AI is working...' : 'Help me write'}
-            </button>
-            <button
-              type="button"
-              aria-label="Choose AI writing action"
-              aria-haspopup="menu"
-              aria-expanded={aiMenuOpen}
-              onClick={() => setAIMenuOpen((open) => !open)}
-              disabled={!aiConfig || aiBusy || saveStatus !== 'idle'}
-              className="inline-flex min-h-11 w-11 items-center justify-center rounded-r-md border border-cyan-200 bg-cyan-50 text-cyan-900 hover:bg-cyan-100 disabled:opacity-50"
-            >
-              <ChevronDown className="h-4 w-4" />
-            </button>
+              <span className="sm:hidden">AI</span><span className="hidden sm:inline">{aiBusy ? 'AI is working…' : 'Help me write'}</span>
+            </Button>
+            <Button type="button" variant="accent" size="icon" aria-label="Choose AI writing action" aria-haspopup="menu" aria-expanded={aiMenuOpen} onClick={() => setAIMenuOpen((open) => !open)} disabled={!aiConfig || aiBusy || saveStatus !== 'idle'} className="h-10 w-9 rounded-l-none px-0 sm:w-10"><ChevronDown className="h-4 w-4" /></Button>
             {aiMenuOpen && (
-              <div role="menu" className="popover-enter absolute right-0 top-11 z-20 w-72 origin-top-right overflow-hidden rounded-md border border-slate-200 bg-white py-1 shadow-xl">
+              <div role="menu" className="popover-enter absolute bottom-12 left-0 z-40 w-72 origin-bottom-left overflow-hidden rounded-md border border-slate-200 bg-white py-1 shadow-xl sm:bottom-auto sm:left-auto sm:right-0 sm:top-11 sm:origin-top-right">
                 {NOTE_AI_ACTIONS.map((action) => {
                   const needsText = action.value !== 'prepare';
                   const disabled = needsText && !form.content.trim();
-                  return (
-                    <button
-                      key={action.value}
-                      type="button"
-                      role="menuitem"
-                      disabled={disabled}
-                      onClick={() => openAIAssistance(action.value)}
-                      className="block w-full px-3 py-2.5 text-left hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-45"
-                    >
-                      <span className="block text-xs font-semibold text-slate-800">{action.label}</span>
-                      <span className="mt-0.5 block text-[11px] leading-4 text-slate-500">{action.description}</span>
-                    </button>
-                  );
+                  return <button key={action.value} type="button" role="menuitem" disabled={disabled} onClick={() => openAIAssistance(action.value)} className="block w-full px-3 py-2.5 text-left hover:bg-cyan-50 disabled:cursor-not-allowed disabled:opacity-45"><span className="block text-xs font-semibold text-slate-800">{action.label}</span><span className="mt-0.5 block text-[11px] leading-4 text-slate-500">{action.description}</span></button>;
                 })}
               </div>
             )}
           </div>
-          </div>
-        </div>
+        )}
+        desktopActions={(
+          <>
+            <Button type="button" variant="accent" size="sm" onPointerDown={() => { const selection = noteEditorRef.current?.getSelection(); if (selection?.text?.trim()) pendingRewriteSelection.current = selection; }} onMouseDown={(event) => { const selection = noteEditorRef.current?.getSelection(); if (selection?.text?.trim()) { pendingRewriteSelection.current = selection; event.preventDefault(); } }} onClick={() => rewriteSelection()} disabled={!aiConfig || aiBusy || saveStatus !== 'idle'} title={selectedWordCount ? `Rewrite the selected ${selectedWordCount} words with AI` : 'Select text in the note before using AI rewrite'}><Sparkles className="h-4 w-4" />{aiStatus.status === 'rewriting-selection' ? 'Rewriting…' : 'Rewrite selection'}</Button>
+            <Button type="button" variant="secondary" size="sm" onClick={downloadNote} disabled={!form.content.trim() || downloadStatus === 'preparing'}>{downloadStatus === 'preparing' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}{downloadStatus === 'complete' ? 'Downloaded' : 'Word'}</Button>
+          </>
+        )}
+        primaryAction={<Button type="submit" variant={saveStatus === 'saved' ? 'success' : 'note'} size="md" loading={saveStatus === 'saving'} loadingLabel="Saving…" disabled={saveStatus !== 'idle'} className="min-w-24 sm:min-w-28">{saveStatus === 'saved' ? <><CheckCircle2 className="h-4 w-4" />Saved</> : <><Save className="h-4 w-4" />Save note</>}</Button>}
+        moreActions={(
+          <>
+            <button data-command-menu-action type="button" onClick={() => rewriteSelection()} disabled={!aiConfig || aiBusy || saveStatus !== 'idle'} className="flex min-h-10 items-center gap-2 rounded-md px-3 text-left text-xs font-semibold text-indigo-800 hover:bg-indigo-50 disabled:opacity-40 sm:hidden"><Sparkles className="h-4 w-4" />Rewrite selection</button>
+            <button data-command-menu-action type="button" onClick={downloadNote} disabled={!form.content.trim() || downloadStatus === 'preparing'} className="flex min-h-10 items-center gap-2 rounded-md px-3 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40 sm:hidden"><Download className="h-4 w-4" />Download Word</button>
+            <button data-command-menu-action type="button" onClick={onCancel} disabled={saveStatus !== 'idle'} className="flex min-h-10 items-center gap-2 rounded-md px-3 text-left text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-40"><X className="h-4 w-4" />Cancel note</button>
+          </>
+        )}
+      />
+      <div className="space-y-3 p-4">
         {false && <div className={`rounded-md border p-2.5 sm:p-4 ${markdownContext ? 'border-cyan-200 bg-cyan-50/60' : 'border-indigo-200 bg-indigo-50/60'}`}>
           {markdownContext ? (
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -902,7 +871,7 @@ function NoteForm({ issueId, issue, summary, note, notes, communications, refere
             </div>
           ) : (
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex min-w-0 items-start gap-2.5"><span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-white text-indigo-800 shadow-sm"><FileType2 className="h-4 w-4" /></span><div><p className="ui-section-title text-indigo-950">Start from source material</p><p className="mt-0.5 text-[11px] leading-4 text-slate-600 sm:text-xs sm:leading-5">PDF with OCR, Word, text, pasted content or Issue records.</p></div></div>
+              <div className="flex min-w-0 items-start gap-2.5"><span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-white text-indigo-800 shadow-sm"><FileType2 className="h-4 w-4" /></span><div><p className="text-sm font-semibold leading-snug text-indigo-950">Start from source material</p><p className="mt-0.5 text-xs leading-5 text-slate-600">PDF with OCR, Word, text, pasted content or Issue records.</p></div></div>
               <button type="button" onClick={() => setSourcePickerOpen(true)} disabled={sourceDocumentBusy || aiBusy} className="inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-2 rounded-md bg-indigo-700 px-4 text-xs font-semibold text-white shadow-sm hover:bg-indigo-800 disabled:opacity-50 sm:w-auto sm:text-sm"><Plus className="h-4 w-4" />Add source</button>
             </div>
           )}
@@ -1008,20 +977,12 @@ function NoteForm({ issueId, issue, summary, note, notes, communications, refere
           </div>}
         </div>}
       </div>
-      <div className="sticky z-20 grid grid-cols-[auto_auto_1fr] gap-2 border-t border-indigo-100 bg-white/95 px-3 py-2 backdrop-blur sm:static sm:flex sm:justify-end sm:bg-indigo-50/50 sm:px-4 sm:py-3" style={{ bottom: 'var(--app-mobile-nav-clearance)' }}>
-        <button type="button" onClick={onCancel} disabled={saveStatus !== 'idle'} aria-label="Cancel note" title="Cancel" className="inline-flex min-h-11 w-11 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 sm:h-10 sm:w-auto sm:gap-2 sm:px-3 sm:text-sm"><X className="h-4 w-4" /><span className="hidden sm:inline">Cancel</span></button>
-        <button type="button" onClick={downloadNote} disabled={!form.content.trim() || downloadStatus === 'preparing'} aria-label="Download note as Word" title="Download Word" className="inline-flex min-h-11 w-11 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:opacity-40 sm:h-10 sm:w-auto sm:gap-2 sm:px-3 sm:text-sm">{downloadStatus === 'preparing' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : downloadStatus === 'complete' ? <CheckCircle2 className="h-4 w-4 text-emerald-700" /> : <Download className="h-4 w-4" />}<span className="hidden sm:inline">{downloadStatus === 'complete' ? 'Downloaded' : 'Download Word'}</span></button>
-        <button type="submit" disabled={saveStatus !== 'idle'} className={`inline-flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-md px-2 text-xs font-semibold text-white shadow-sm sm:h-10 sm:min-w-28 sm:px-3 sm:text-sm ${saveStatus === 'saved' ? 'bg-emerald-700' : 'bg-indigo-700 hover:bg-indigo-800 disabled:bg-slate-400'}`}>
-          {saveStatus === 'saving' ? <LoaderCircle className="h-4 w-4 animate-spin" /> : saveStatus === 'saved' ? <CheckCircle2 className="h-4 w-4" /> : <Save className="h-4 w-4" />}
-          {saveStatus === 'saving' ? 'Saving...' : saveStatus === 'saved' ? 'Saved' : 'Save note'}
-        </button>
-      </div>
     </form>
     {aiDialogOpen && (
       <ModalFrame open labelledBy="note-ai-title" busy={aiBusy} onClose={() => setAIDialogOpen(false)} maxWidth="max-w-6xl" className="flex flex-col overflow-hidden border border-slate-200">
           <header className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 px-4 py-4 sm:px-6">
             <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-cyan-700">Help me write</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-cyan-700">Help me write</p>
               <h3 id="note-ai-title" className="mt-1 text-base font-semibold text-[#17333b]">{currentAIAction.label}</h3>
               <p className="mt-1 text-xs leading-5 text-slate-500">{currentAIAction.description} The result remains editable and is never saved automatically.</p>
             </div>
@@ -1113,7 +1074,7 @@ function NoteForm({ issueId, issue, summary, note, notes, communications, refere
     )}
     {sourcePickerOpen && (
       <ModalFrame open labelledBy="source-picker-title" onClose={() => setSourcePickerOpen(false)} maxWidth="max-w-md" className="border border-slate-200">
-        <header className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3"><div><h3 id="source-picker-title" className="ui-section-title text-[#17333b]">Add source</h3><p className="mt-0.5 text-[11px] leading-4 text-slate-500">Choose how you want to provide the material.</p></div><button type="button" onClick={() => setSourcePickerOpen(false)} aria-label="Close source options" className="inline-flex h-11 w-11 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100"><X className="h-4 w-4" /></button></header>
+        <header className="flex items-start justify-between gap-3 border-b border-slate-200 px-4 py-3"><div><h3 id="source-picker-title" className="text-sm font-semibold leading-snug text-[#17333b]">Add source</h3><p className="mt-0.5 text-xs leading-4 text-slate-500">Choose how you want to provide the material.</p></div><button type="button" onClick={() => setSourcePickerOpen(false)} aria-label="Close source options" className="inline-flex h-11 w-11 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100"><X className="h-4 w-4" /></button></header>
         <div className="grid gap-2 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <label className="flex min-h-14 cursor-pointer items-center gap-3 rounded-md border border-slate-200 px-3 py-2.5 text-left hover:bg-slate-50"><span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-indigo-50 text-indigo-700"><Upload className="h-4 w-4" /></span><span><span className="block text-sm font-semibold text-slate-800">Choose a file</span><span className="block text-[11px] leading-4 text-slate-500">PDF, Word, Markdown or text. Scanned PDFs support OCR.</span></span><input type="file" accept=".pdf,.doc,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown" disabled={sourceDocumentBusy || aiBusy} onChange={readSourceFile} className="sr-only" /></label>
           <button type="button" onClick={openPasteDialog} className="flex min-h-14 items-center gap-3 rounded-md border border-slate-200 px-3 py-2.5 text-left hover:bg-slate-50"><span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-cyan-50 text-cyan-700"><ClipboardPaste className="h-4 w-4" /></span><span><span className="block text-sm font-semibold text-slate-800">Paste text</span><span className="block text-[11px] leading-4 text-slate-500">Email, office note, extract or other copied material.</span></span></button>

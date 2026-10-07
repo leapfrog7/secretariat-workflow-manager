@@ -34,15 +34,19 @@ export default function InstallAppButton() {
   const install = async () => {
     if (!installPrompt) {
       const appleMobile = /iphone|ipad|ipod/i.test(navigator.userAgent);
-      showToast(appleMobile
-        ? 'To install: open the browser Share menu and choose Add to Home Screen.'
-        : 'Open the browser menu and choose Install app or Add to Home screen.');
+      showToast({
+        tone: 'info',
+        title: 'Install from your browser',
+        message: appleMobile
+          ? 'Open the Share menu and choose Add to Home Screen.'
+          : 'Open the browser menu and choose Install app or Add to Home screen.',
+      });
       return;
     }
     await installPrompt.prompt();
     const choice = await installPrompt.userChoice;
     setInstallPrompt(null);
-    if (choice?.outcome !== 'accepted') showToast('Installation was not completed. You can try again from the browser menu.');
+    if (choice?.outcome !== 'accepted') showToast('Installation was not completed. You can try again from the browser menu.', 'info');
   };
 
   return (

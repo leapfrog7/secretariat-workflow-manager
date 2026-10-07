@@ -98,7 +98,8 @@ const [tables, policies, functions, migrations, triggers, workspaces, membership
       '025_casework_scale_and_telemetry.sql',
       '026_workspace_configuration_hardening.sql',
       '027_web_push_deadline_notifications.sql',
-      '028_workspace_reference_library.sql'
+      '028_workspace_reference_library.sql',
+      '029_reference_link_authorization_hardening.sql'
     )
   `),
   query(`
@@ -131,7 +132,7 @@ const expected = {
   tables: 23,
   policies: 53,
   functions: 36,
-  migrationRecords: 28,
+  migrationRecords: 29,
   securityGuardTriggers: 5,
 };
 const valid = Object.entries(expected).every(([key, value]) => result[key] === value);

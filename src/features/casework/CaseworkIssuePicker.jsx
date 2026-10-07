@@ -86,7 +86,7 @@ export default function CaseworkIssuePicker({ issues, selectedId = '', auth, onS
 
   return (
     <div ref={containerRef} className="relative min-w-0">
-      <label htmlFor={`${listId}-input`} className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500">Choose a matter</label>
+      <label htmlFor={`${listId}-input`} className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-slate-500">Choose a matter</label>
       <div className="relative">
         <Search className="pointer-events-none absolute left-3.5 top-3.5 h-4 w-4 text-slate-400" aria-hidden="true" />
         <input

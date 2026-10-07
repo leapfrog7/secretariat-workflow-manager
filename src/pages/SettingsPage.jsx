@@ -171,7 +171,7 @@ export default function SettingsPage() {
     try {
       setState((current) => ({ ...current, busy: 'persist' }));
       const granted = await requestPersistentStorage();
-      showToast(granted ? 'Persistent storage granted by the browser.' : 'Persistent storage was not granted by the browser.', granted ? 'success' : 'error');
+      showToast(granted ? 'Persistent storage granted by the browser.' : 'Persistent storage was not granted by the browser.', granted ? 'success' : 'warning');
       await load();
     } catch (error) {
       showToast(error.message || 'Unable to request persistent storage.', 'error');

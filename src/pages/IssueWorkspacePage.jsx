@@ -27,6 +27,9 @@ import { getIssueAccessLevel } from '../features/collaboration/accessApi';
 import UnsavedChangesGuard from '../components/common/UnsavedChangesGuard';
 import { dataSectionForIssueTab, loadedSectionsToRefresh, recordCountForIssueTab } from '../utils/issueWorkspaceLoading';
 import { handleTabListKeyDown } from '../utils/tabKeyboardUtils';
+import Alert from '../components/ui/Alert';
+import { buttonClassName } from '../components/ui/Button';
+import { Tab, TabCount, TabList } from '../components/ui/Tabs';
 
 const tabs = [
   { label: 'Current Position', mobileLabel: 'Position' },
@@ -398,49 +401,43 @@ export default function IssueWorkspacePage() {
         title={issue.shortTitle}
         actions={
           <>
-            <Link to="/issues" className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:border-teal-300 hover:bg-teal-50 hover:text-teal-800"><ArrowLeft className="h-4 w-4" />Issues</Link>
-            <Link to={`/casework/${issue.id}`} className="inline-flex h-10 items-center gap-2 rounded-md border border-indigo-200 bg-indigo-50 px-3 text-sm font-semibold text-indigo-800 transition-colors hover:bg-indigo-100"><FilePenLine className="h-4 w-4" />Open Casework</Link>
-            {canEditIssue && <Link to={`/issues/${issue.id}/edit`} className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm font-medium text-slate-700 transition-colors hover:border-teal-300 hover:bg-teal-50 hover:text-teal-800"><Pencil className="h-4 w-4" />Edit details</Link>}
+            <Link to="/issues" className={buttonClassName({ variant: 'secondary' })}><ArrowLeft className="h-4 w-4" />Issues</Link>
+            <Link to={`/casework/${issue.id}`} className={buttonClassName({ variant: 'accent' })}><FilePenLine className="h-4 w-4" />Open Casework</Link>
+            {canEditIssue && <Link to={`/issues/${issue.id}/edit`} className={buttonClassName({ variant: 'secondary' })}><Pencil className="h-4 w-4" />Edit details</Link>}
           </>
         }
       />
-      {!canEditIssue && <div className="mb-4 rounded-md border border-cyan-200 bg-cyan-50 px-3 py-3 text-sm text-cyan-950">Viewing access only. You can inspect the complete Issue record, but changes are disabled.</div>}
+      {!canEditIssue && <Alert tone="info" className="mb-4">Viewing access only. You can inspect the complete Issue record, but changes are disabled.</Alert>}
 
       <div className="mb-4 border-b border-[#d7e3e1] pb-3">
-        <div className="issue-tabs-mobile grid grid-cols-3 gap-1.5" role="tablist" aria-label="Issue workspace" onKeyDown={handleTabListKeyDown}>
+        <TabList className="issue-tabs-mobile grid grid-cols-3 gap-1.5" aria-label="Issue workspace" onKeyDown={handleTabListKeyDown}>
           {tabs.map((tab) => {
             const count = recordCountForIssueTab(tab.label, state.recordCounts, state.summaryVersionCount);
             const active = state.activeTab === tab.label;
             return (
-              <button
+              <Tab
                 key={tab.label}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                tabIndex={active ? 0 : -1}
+                active={active}
+                variant="segmented"
                 onClick={() => selectTab(tab.label)}
-                className={`flex min-h-11 min-w-0 items-center justify-center gap-1 rounded-md border px-1.5 py-2 text-xs font-semibold leading-4 transition-colors ${
-                  active
-                    ? 'border-teal-600 bg-teal-50 text-teal-900 shadow-sm'
-                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
-                }`}
+                className="flex items-center justify-center gap-1 px-1.5"
               >
                 <span className="truncate">{tab.mobileLabel}</span>
-                {count !== null && <span className={`shrink-0 rounded px-1 py-0.5 text-xs tabular-nums ${active ? 'bg-teal-700 text-white' : 'bg-slate-100 text-slate-500'}`}>{count}</span>}
-              </button>
+                {count !== null && <TabCount active={active} className="ml-0 rounded px-1">{count}</TabCount>}
+              </Tab>
             );
           })}
-        </div>
-        <div className="issue-tabs-desktop min-w-max gap-1" role="tablist" aria-label="Issue workspace" onKeyDown={handleTabListKeyDown}>
+        </TabList>
+        <TabList className="issue-tabs-desktop min-w-max gap-1" aria-label="Issue workspace" onKeyDown={handleTabListKeyDown}>
           {tabs.map((tab) => {
             const count = recordCountForIssueTab(tab.label, state.recordCounts, state.summaryVersionCount);
             return (
-              <button key={tab.label} type="button" role="tab" aria-selected={state.activeTab === tab.label} tabIndex={state.activeTab === tab.label ? 0 : -1} onClick={() => selectTab(tab.label)} className={`border-b-2 px-3 py-3 text-xs font-semibold transition-colors sm:px-4 sm:text-sm ${state.activeTab === tab.label ? 'border-teal-700 text-teal-800' : 'border-transparent text-slate-500 hover:text-slate-800'}`}>
-                {tab.label}{count !== null && <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs tabular-nums text-slate-600">{count}</span>}
-              </button>
+              <Tab key={tab.label} active={state.activeTab === tab.label} onClick={() => selectTab(tab.label)}>
+                {tab.label}{count !== null && <TabCount active={state.activeTab === tab.label}>{count}</TabCount>}
+              </Tab>
             );
           })}
-        </div>
+        </TabList>
       </div>
 
       {state.activeTab === 'Current Position' && (

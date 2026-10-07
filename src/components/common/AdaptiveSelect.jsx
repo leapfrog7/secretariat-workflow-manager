@@ -1,4 +1,6 @@
 import { useEffect, useId, useMemo, useState } from 'react';
+import { controlClassName as sharedControlClassName } from '../ui/FormControls';
+import { cx } from '../ui/utils';
 
 function normalizeOptions(options) {
   return options.map((option) => (
@@ -52,7 +54,7 @@ export default function AdaptiveSelect({
           disabled={disabled}
           required={required}
           aria-label={ariaLabel || (!label ? placeholder : undefined)}
-          className={`${controlClassName} w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-100`}
+          className={cx(sharedControlClassName, controlClassName)}
         >
           {includeBlank && <option value="">{placeholder}</option>}
           {items.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -83,7 +85,7 @@ export default function AdaptiveSelect({
           else if (!nextQuery) onChange('');
         }}
         onBlur={() => setQuery(items.find((item) => item.value === String(value || ''))?.label || '')}
-        className={`${controlClassName} w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 disabled:bg-slate-100`}
+        className={cx(sharedControlClassName, controlClassName)}
       />
       <datalist id={listId}>
         {items.map((option) => <option key={option.value} value={option.label} />)}

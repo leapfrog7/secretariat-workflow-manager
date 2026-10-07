@@ -1,8 +1,5 @@
-import { LoaderCircle } from 'lucide-react';
-
-function Skeleton({ className = '' }) {
-  return <span className={`loading-shimmer block rounded-lg bg-[var(--swm-surface-muted)] ${className}`} aria-hidden="true" />;
-}
+import Skeleton from '../ui/Skeleton';
+import OperationStatus from '../ui/OperationStatus';
 
 function DashboardSkeleton() {
   return <><Skeleton className="h-28 w-full sm:h-32" /><div className="grid grid-cols-3 gap-2 sm:grid-cols-6">{Array.from({ length: 6 }, (_, index) => <Skeleton key={index} className="h-16" />)}</div><div className="grid gap-3 sm:grid-cols-2"><Skeleton className="h-28" /><Skeleton className="h-28" /></div></>;
@@ -31,7 +28,7 @@ export default function LoadingState({ message = 'Loading...', variant = 'generi
   return (
     <div className="min-h-52 overflow-hidden border-y border-[var(--swm-border)] bg-white px-4 py-5 shadow-[var(--swm-shadow-xs)] sm:rounded-[var(--swm-radius-lg)] sm:border sm:p-5" role="status" aria-live="polite" aria-busy="true" data-loading-variant={variant}>
       <div className="mb-4 h-1 overflow-hidden rounded-full bg-teal-50" aria-hidden="true"><span className="route-progress block h-full bg-teal-600" /></div>
-      <div className="flex items-center gap-2 text-xs font-semibold text-[var(--swm-ink)] sm:text-sm"><LoaderCircle className="h-4 w-4 shrink-0 animate-spin text-teal-700" aria-hidden="true" /><span>{message}</span></div>
+      <OperationStatus state="loading" label={message} className="text-sm text-[var(--swm-ink)]" />
       <div className="mt-4 space-y-3" aria-hidden="true"><SkeletonLayout /></div>
     </div>
   );

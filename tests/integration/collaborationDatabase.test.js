@@ -17,6 +17,10 @@ const ids = {
   sharedParagraph: '60000000-0000-4000-8000-000000000002',
   note: '70000000-0000-4000-8000-000000000001',
   isolatedIssue: '80000000-0000-4000-8000-000000000001',
+  restrictedIssue: '30000000-0000-4000-8000-000000000002',
+  workspaceReference: '90000000-0000-4000-8000-000000000001',
+  accessibleReferenceLink: '91000000-0000-4000-8000-000000000001',
+  restrictedReferenceLink: '91000000-0000-4000-8000-000000000002',
 };
 
 async function applyMigrations() {
@@ -157,6 +161,103 @@ before(async () => {
     ) VALUES ($1, 'gemini', true, 'test-model', 'admin', 'admin')`,
     [ids.workspace],
   );
+});
+
+test('Reference Library saves bind authorization to the stored Issue', { skip: !databaseUrl }, async (context) => {
+  const saveLink = ({ issueId, linkId, referenceId = ids.workspaceReference, revision = 1, payloadIssueId = issueId }) => client.query(
+    `SELECT * FROM public.save_issue_reference_link_revision(
+      $1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::jsonb, $6::integer
+    )`,
+    [
+      ids.workspace,
+      issueId,
+      linkId,
+      referenceId,
+      JSON.stringify({ id: linkId, issueId: payloadIssueId, referenceId, relevanceNote: 'Attempted update' }),
+      revision,
+    ],
+  );
+
+  await useOwner();
+  await client.query(
+    `INSERT INTO public.cloud_issues (
+      workspace_id, id, payload, status, owning_division_id, visibility,
+      created_by, updated_by, revision
+    ) VALUES ($1, $2, $3::jsonb, 'Pending', $4, 'restricted', 'admin', 'admin', 1)`,
+    [
+      ids.workspace,
+      ids.restrictedIssue,
+      JSON.stringify({ id: ids.restrictedIssue, shortTitle: 'Restricted reference test', subject: 'Restricted reference test' }),
+      ids.division,
+    ],
+  );
+  await client.query(
+    `INSERT INTO public.workspace_references (
+      workspace_id, id, payload, status, created_by, updated_by
+    ) VALUES ($1, $2, $3::jsonb, 'active', 'admin', 'admin')`,
+    [ids.workspace, ids.workspaceReference, JSON.stringify({ id: ids.workspaceReference, title: 'Authorization test reference', status: 'active' })],
+  );
+  await client.query(
+    `INSERT INTO public.issue_reference_links (
+      workspace_id, issue_id, id, reference_id, payload, created_by, updated_by
+    ) VALUES
+      ($1, $2, $3, $4, $5::jsonb, 'admin', 'admin'),
+      ($1, $6, $7, $4, $8::jsonb, 'admin', 'admin')`,
+    [
+      ids.workspace,
+      ids.issue,
+      ids.accessibleReferenceLink,
+      ids.workspaceReference,
+      JSON.stringify({ id: ids.accessibleReferenceLink, issueId: ids.issue, referenceId: ids.workspaceReference, relevanceNote: 'Accessible link' }),
+      ids.restrictedIssue,
+      ids.restrictedReferenceLink,
+      JSON.stringify({ id: ids.restrictedReferenceLink, issueId: ids.restrictedIssue, referenceId: ids.workspaceReference, relevanceNote: 'Restricted link' }),
+    ],
+  );
+
+  await context.test('an accessible Issue cannot authorize an update to a restricted Issue link', async () => {
+    await useIdentity('editor');
+    await assert.rejects(
+      saveLink({ issueId: ids.issue, linkId: ids.restrictedReferenceLink }),
+      (error) => error.code === 'P0001' && /not available/i.test(error.message),
+    );
+
+    await useOwner();
+    const stored = await client.query(
+      'SELECT payload, revision FROM public.issue_reference_links WHERE workspace_id = $1 AND id = $2',
+      [ids.workspace, ids.restrictedReferenceLink],
+    );
+    assert.equal(stored.rows[0].revision, 1);
+    assert.equal(stored.rows[0].payload.relevanceNote, 'Restricted link');
+  });
+
+  await context.test('a stale cross-Issue request cannot receive the restricted payload', async () => {
+    await useIdentity('editor');
+    await assert.rejects(
+      saveLink({ issueId: ids.issue, linkId: ids.restrictedReferenceLink, revision: 0 }),
+      (error) => error.code === 'P0001' && /not available/i.test(error.message),
+    );
+  });
+
+  await context.test('payload identifiers must match the authorized target', async () => {
+    await useIdentity('editor');
+    await assert.rejects(
+      saveLink({
+        issueId: ids.issue,
+        linkId: ids.accessibleReferenceLink,
+        payloadIssueId: ids.restrictedIssue,
+      }),
+      (error) => error.code === 'P0001' && /payload does not match/i.test(error.message),
+    );
+  });
+
+  await context.test('a correctly bound save still updates the link', async () => {
+    await useIdentity('editor');
+    const result = await saveLink({ issueId: ids.issue, linkId: ids.accessibleReferenceLink });
+    assert.equal(result.rows[0].saved, true);
+    assert.equal(result.rows[0].revision, 2);
+    assert.equal(result.rows[0].payload.relevanceNote, 'Attempted update');
+  });
 });
 
 after(async () => {

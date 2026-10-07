@@ -11,6 +11,9 @@ import StatusBadge from '../components/common/StatusBadge';
 import CaseworkModule from '../features/casework/CaseworkModule';
 import CaseworkIssuePicker from '../features/casework/CaseworkIssuePicker';
 import { useToast } from '../components/common/ToastProvider';
+import Alert from '../components/ui/Alert';
+import Button from '../components/ui/Button';
+import OperationStatus from '../components/ui/OperationStatus';
 import { useAuth } from '../features/auth/AuthContext';
 import { getAllIssues, getIssueById } from '../db/issueRepository';
 import { getAllOfficers } from '../db/officerRepository';
@@ -47,53 +50,117 @@ export default function CaseworkPage() {
   const auth = useAuth();
   const { showToast } = useToast();
   const loadRequestRef = useRef(0);
+  const loadedIssueIdRef = useRef('');
   const [issues, setIssues] = useState([]);
   const [recentActivity, setRecentActivity] = useState([]);
   const [bundle, setBundle] = useState(emptyBundle);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [navigationLoading, setNavigationLoading] = useState(true);
+  const [navigationError, setNavigationError] = useState('');
+  const [workspaceLoading, setWorkspaceLoading] = useState(Boolean(issueId));
+  const [workspaceError, setWorkspaceError] = useState('');
   const [dirtySections, setDirtySections] = useState({});
   const [noteToDelete, setNoteToDelete] = useState(null);
 
-  const loadIssues = useCallback(async () => {
+  const fetchIssueNavigation = useCallback(async () => {
     const records = await getAllIssues({ includeArchived: false, includeScheduled: false });
     const activity = await getRecentCaseworkActivity(records);
-    setIssues(records);
-    setRecentActivity(activity);
-    return records;
+    return { records, activity };
   }, []);
+
+  const loadIssues = useCallback(async () => {
+    setNavigationLoading(true);
+    setNavigationError('');
+    try {
+      const { records, activity } = await fetchIssueNavigation();
+      setIssues(records);
+      setRecentActivity(activity);
+      return records;
+    } catch (loadError) {
+      setNavigationError(loadError.message || 'Unable to refresh the Casework list.');
+      throw loadError;
+    } finally {
+      setNavigationLoading(false);
+    }
+  }, [fetchIssueNavigation]);
 
   const loadCasework = useCallback(async () => {
     const requestId = loadRequestRef.current + 1;
     loadRequestRef.current = requestId;
-    setLoading(true);
+    const showFullLoading = !issueId || loadedIssueIdRef.current !== issueId;
+    if (showFullLoading) setLoading(true);
     setError('');
+    setNavigationLoading(true);
+    setNavigationError('');
+    setWorkspaceLoading(Boolean(issueId));
+    setWorkspaceError('');
+
+    const navigationPromise = fetchIssueNavigation().then(
+      (value) => ({ ok: true, value }),
+      (reason) => ({ ok: false, reason }),
+    );
     try {
-      const records = await loadIssues();
-      if (requestId !== loadRequestRef.current) return;
       if (!issueId) {
+        const navigationResult = await navigationPromise;
+        if (requestId !== loadRequestRef.current) return;
+        if (!navigationResult.ok) throw navigationResult.reason;
+        setIssues(navigationResult.value.records);
+        setRecentActivity(navigationResult.value.activity);
         setBundle(emptyBundle);
+        loadedIssueIdRef.current = '';
+        setNavigationLoading(false);
+        setWorkspaceLoading(false);
         setLoading(false);
         return;
       }
 
-      const [issue, officers, notes, communications, references, summary, accessLevel] = await Promise.all([
-        getIssueById(issueId),
+      const workspacePromise = Promise.all([
         getAllOfficers(),
         getNotesByIssue(issueId),
         getCommunicationsByIssue(issueId),
         getReferencesByIssue(issueId),
         getLatestSummary(issueId),
+      ]).then(
+        (value) => ({ ok: true, value }),
+        (reason) => ({ ok: false, reason }),
+      );
+      const [issue, accessLevel] = await Promise.all([
+        getIssueById(issueId),
         auth.workspace?.id && auth.workspace.division_access_enabled
           ? getIssueAccessLevel(auth.workspace.id, issueId)
           : Promise.resolve(auth.canEdit ? 'editor' : 'viewer'),
       ]);
       if (requestId !== loadRequestRef.current) return;
       if (!issue) throw new Error('This Issue is no longer available to you.');
-      setBundle({ issue, officers, notes, communications, references, summary, accessLevel });
-      if (!records.some((item) => item.id === issue.id) && !issue.isArchived && !issue.isScheduled) {
-        setIssues((current) => [issue, ...current]);
-      }
+      loadedIssueIdRef.current = issue.id;
+      setBundle({ ...emptyBundle, issue, accessLevel });
+      setIssues((current) => current.some((item) => item.id === issue.id) ? current : [issue, ...current]);
+      setLoading(false);
+
+      const applyWorkspace = workspacePromise.then((workspaceResult) => {
+        if (requestId !== loadRequestRef.current) return;
+        if (workspaceResult.ok) {
+          const [officers, notes, communications, references, summary] = workspaceResult.value;
+          setBundle({ issue, officers, notes, communications, references, summary, accessLevel });
+        } else {
+          setWorkspaceError(workspaceResult.reason?.message || 'Unable to load the Note and communication workspace.');
+        }
+        setWorkspaceLoading(false);
+      });
+      const applyNavigation = navigationPromise.then((navigationResult) => {
+        if (requestId !== loadRequestRef.current) return;
+        if (navigationResult.ok) {
+          setIssues(navigationResult.value.records.some((item) => item.id === issue.id)
+            ? navigationResult.value.records
+            : [issue, ...navigationResult.value.records]);
+          setRecentActivity(navigationResult.value.activity);
+        } else {
+          setNavigationError(navigationResult.reason?.message || 'Unable to refresh the Casework list.');
+        }
+        setNavigationLoading(false);
+      });
+      await Promise.all([applyWorkspace, applyNavigation]);
     } catch (loadError) {
       if (requestId !== loadRequestRef.current) return;
       setBundle(emptyBundle);
@@ -106,9 +173,13 @@ export default function CaseworkPage() {
         error: loadError,
       });
     } finally {
-      if (requestId === loadRequestRef.current) setLoading(false);
+      if (requestId === loadRequestRef.current) {
+        setLoading(false);
+        setWorkspaceLoading(false);
+        setNavigationLoading(false);
+      }
     }
-  }, [auth.canEdit, auth.workspace?.division_access_enabled, auth.workspace?.id, issueId, loadIssues]);
+  }, [auth.canEdit, auth.workspace?.division_access_enabled, auth.workspace?.id, fetchIssueNavigation, issueId]);
 
   useEffect(() => {
     setDirtySections({});
@@ -208,6 +279,8 @@ export default function CaseworkPage() {
         <div>
           <CaseworkIssuePicker issues={issues} selectedId={issueId} auth={auth} onSelect={(value) => navigate(`/casework/${value}`)} />
         </div>
+        {navigationLoading && bundle.issue ? <OperationStatus state="loading" label="Refreshing available matters…" className="mt-2" /> : null}
+        {navigationError && bundle.issue ? <Alert tone="warning" title="Matter list not refreshed" compact className="mt-2" action={<Button type="button" variant="quiet" size="sm" onClick={() => loadIssues().catch(() => {})}>Retry</Button>}>{navigationError} You can continue working on the selected matter.</Alert> : null}
       </section>
 
       {!bundle.issue ? (
@@ -224,6 +297,7 @@ export default function CaseworkPage() {
         <>
           {!canEditIssue && <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-cyan-200 bg-cyan-50 px-3 py-3 text-xs leading-5 text-cyan-950 sm:text-sm"><span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-cyan-600" />Viewing access only. You can read this Casework, but changes are disabled.</div>}
           <CaseworkModule
+            key={bundle.issue.id}
             issue={bundle.issue}
             officers={bundle.officers}
             summary={bundle.summary}
@@ -239,6 +313,10 @@ export default function CaseworkPage() {
             initialView={initialView}
             initialNoteId={initialNoteId}
             initialDraftId={initialDraftId}
+            dirtySections={dirtySections}
+            workspaceLoading={workspaceLoading}
+            workspaceError={workspaceError}
+            onRetryWorkspace={loadCasework}
           />
         </>
       )}
@@ -273,7 +351,7 @@ function CaseworkQueues({ activity, awaitingIssues }) {
         {activity.map((item) => (
           <article key={item.issue.id} className="transition-colors hover:bg-slate-50/70 sm:grid sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-3 sm:px-5 sm:py-4">
             <Link to={recentCaseworkHref(item)} aria-label={`Open ${item.issue.shortTitle}`} className="flex min-h-16 items-center gap-3 px-4 py-3.5 sm:hidden">
-              <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold text-slate-900">{item.issue.shortTitle}</span><span className="mt-1 block text-[11px] text-slate-500">{formatDateTime(item.activityAt)} · {item.activityKind === 'draft' ? 'Draft updated' : 'Note updated'}</span><span className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-medium text-slate-500">{item.latestNote ? <span className="inline-flex items-center gap-1"><MessageSquareText className="h-3 w-3 text-indigo-500" />Note {item.latestNote.sequence}</span> : null}{item.latestDraft ? <span className="inline-flex items-center gap-1"><FilePenLine className="h-3 w-3 text-teal-600" />Draft available</span> : null}</span></span>
+              <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold text-slate-900">{item.issue.shortTitle}</span><span className="mt-1 block text-xs text-slate-500">{formatDateTime(item.activityAt)} · {item.activityKind === 'draft' ? 'Draft updated' : 'Note updated'}</span><span className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-slate-500">{item.latestNote ? <span className="inline-flex items-center gap-1"><MessageSquareText className="h-3 w-3 text-indigo-500" />Note {item.latestNote.sequence}</span> : null}{item.latestDraft ? <span className="inline-flex items-center gap-1"><FilePenLine className="h-3 w-3 text-teal-600" />Draft available</span> : null}</span></span>
               <ChevronRight className="h-4 w-4 shrink-0 text-slate-400" />
             </Link>
             <div className="hidden min-w-0 sm:block">

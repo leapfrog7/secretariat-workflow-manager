@@ -37,7 +37,7 @@ test('mobile navigation keeps the five primary destinations in the intended orde
   assert.ok(reports > navigation.indexOf('const secondaryItems'));
   assert.match(navigation, /<span>More<\/span>/);
   assert.match(navigation, /item\.to === '\/issues\/new'/);
-  assert.match(navigation, /text-\[10px\]/);
+  assert.match(navigation, /text-xs/);
 });
 
 test('mobile typography is compact without triggering form-field zoom', () => {
@@ -46,15 +46,31 @@ test('mobile typography is compact without triggering form-field zoom', () => {
   assert.match(css, /input,[\s\S]*textarea[\s\S]*font-size:\s*16px/);
   assert.match(css, /@supports \(-webkit-touch-callout: none\)[\s\S]*select:not\(\[multiple\]\)[\s\S]*font-size:\s*16px/);
   assert.match(css, /select:not\(\[multiple\]\)[\s\S]*appearance:\s*none/);
-  assert.match(source('src/components/common/PageHeader.jsx'), /ui-page-title/);
+  assert.match(source('src/components/common/PageHeader.jsx'), /text-lg[\s\S]*sm:text-2xl/);
 });
 
 test('mobile navigation button and link labels share one typography contract', () => {
   const navigation = source('src/components/layout/MobileNavigation.jsx');
-  assert.equal((navigation.match(/text-\[10px\] font-semibold leading-none tracking-normal/g) || []).length, 2);
+  assert.equal((navigation.match(/text-xs font-semibold leading-none/g) || []).length, 2);
   const css = source('src/index.css');
   assert.doesNotMatch(css, /button,[\s\S]{0,80}font:\s*inherit/);
   assert.match(css, /@layer base[\s\S]*button,[\s\S]*font-family:\s*inherit/);
+});
+
+test('primary application surfaces use the shared Tailwind typography scale', () => {
+  for (const path of [
+    'src/pages/DashboardPage.jsx',
+    'src/pages/IssueRegisterPage.jsx',
+    'src/pages/CaseworkPage.jsx',
+    'src/components/common/PageHeader.jsx',
+    'src/components/layout/MobileNavigation.jsx',
+    'src/components/layout/Sidebar.jsx',
+    'src/components/navigation/CommandPalette.jsx',
+    'src/components/issues/IssueCard.jsx',
+  ]) {
+    assert.doesNotMatch(source(path), /text-\[(?:9|10|11|12|13|14|15)px\]/, path);
+  }
+  assert.doesNotMatch(source('src/index.css'), /\.ui-(?:page-title|section-title|body-copy|supporting-copy|compact-card)/);
 });
 
 test('Issue card actions keep proportional controls with extended tap areas', () => {
@@ -137,8 +153,9 @@ test('Casework keeps its primary controls and work modes mobile-sized', () => {
   const picker = source('src/features/casework/CaseworkIssuePicker.jsx');
   assert.match(page, /min-h-11 w-full[\s\S]*Open full Issue/);
   assert.match(page, /min-h-10 shrink-0[\s\S]*New Issue/);
-  assert.match(module, /grid grid-cols-2 gap-2[\s\S]*role="tablist" aria-label="Casework"/);
-  assert.match(module, /min-h-14 min-w-0/);
+  assert.match(module, /sticky top-14/);
+  assert.match(module, /<TabList className="grid grid-cols-2/);
+  assert.match(module, /variant="segmented"/);
   assert.match(picker, /h-11 w-full rounded-lg/);
 });
 

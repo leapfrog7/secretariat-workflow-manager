@@ -271,7 +271,7 @@ export default function RunningSummaryPanel({ issueId, issueTitle, latestSummary
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex min-w-0 items-start gap-2">
                       <FileText className="mt-0.5 h-4 w-4 shrink-0 text-cyan-700" />
-                      <div className="min-w-0"><p className="truncate text-xs font-semibold text-cyan-950">{sourceDocument.originalName || sourceDocument.name}</p><p className="mt-0.5 text-[11px] leading-4 text-cyan-800">{sourceDocument.sourceType === 'pdf' ? `${sourceDocument.pageCount || 0} reviewed page${sourceDocument.pageCount === 1 ? '' : 's'}` : sourceDocument.sourceType === 'word' ? 'Word text extracted locally' : 'Text loaded locally'} · available to AI only until you leave this editor</p></div>
+                      <div className="min-w-0"><p className="truncate text-xs font-semibold text-cyan-950">{sourceDocument.originalName || sourceDocument.name}</p><p className="mt-0.5 text-xs leading-4 text-cyan-800">{sourceDocument.sourceType === 'pdf' ? `${sourceDocument.pageCount || 0} reviewed page${sourceDocument.pageCount === 1 ? '' : 's'}` : sourceDocument.sourceType === 'word' ? 'Word text extracted locally' : 'Text loaded locally'} · available to AI only until you leave this editor</p></div>
                     </div>
                     <div className="grid grid-cols-2 gap-2 sm:flex">
                       <label className={`inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-md border border-cyan-200 bg-white px-3 text-xs font-semibold text-cyan-900 hover:bg-cyan-50 ${sourceDocumentBusy || aiStatus.status === 'summarizing' ? 'pointer-events-none opacity-60' : ''}`}><Upload className="h-4 w-4" />Replace<input type="file" accept={SOURCE_ACCEPT} disabled={sourceDocumentBusy || aiStatus.status === 'summarizing'} onChange={readSourceFile} className="sr-only" /></label>
@@ -280,7 +280,7 @@ export default function RunningSummaryPanel({ issueId, issueTitle, latestSummary
                   </div>
                 ) : (
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div><p className="text-xs font-semibold text-cyan-950">Add source document</p><p className="mt-0.5 text-[11px] leading-4 text-cyan-800">Attach a PDF, Word, Markdown or text file. Scanned PDF pages can be read with OCR and reviewed before use.</p></div>
+                    <div><p className="text-xs font-semibold text-cyan-950">Add source document</p><p className="mt-0.5 text-xs leading-4 text-cyan-800">Attach a PDF, Word, Markdown or text file. Scanned PDF pages can be read with OCR and reviewed before use.</p></div>
                     <label className={`inline-flex min-h-11 w-full shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md bg-cyan-700 px-4 text-xs font-semibold text-white shadow-sm hover:bg-cyan-800 sm:w-auto ${sourceDocumentBusy || aiStatus.status === 'summarizing' ? 'pointer-events-none opacity-60' : ''}`}>{sourceDocumentBusy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}{sourceDocumentBusy ? 'Reading document…' : 'Attach document'}<input type="file" accept={SOURCE_ACCEPT} disabled={sourceDocumentBusy || aiStatus.status === 'summarizing'} onChange={readSourceFile} className="sr-only" /></label>
                   </div>
                 )}

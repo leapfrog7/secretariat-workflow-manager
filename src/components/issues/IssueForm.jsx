@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Building2, CheckCircle2, LoaderCircle, LockKeyhole, Save, Users, X } from 'lucide-react';
+import { Building2, Check, LockKeyhole, Save, Users, X } from 'lucide-react';
 import { ISSUE_STATUSES, PRIORITIES, SUBJECT_TYPES } from '../../constants/issueConstants';
 import { createBlankIssue, normalizeIssue, normalizeTags, validateIssue } from '../../utils/issueUtils';
 import { todayISO } from '../../utils/dateUtils';
 import DisclosureSection from '../common/DisclosureSection';
 import AdaptiveSelect from '../common/AdaptiveSelect';
+import Alert from '../ui/Alert';
+import Button from '../ui/Button';
+import OperationStatus from '../ui/OperationStatus';
 
 export default function IssueForm({
   initialIssue,
@@ -75,7 +78,7 @@ export default function IssueForm({
 
   return (
     <form onSubmit={submit} className="space-y-4">
-      {saveError && <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{saveError}</div>}
+      {saveError ? <Alert tone="danger" title="Issue not saved">{saveError}</Alert> : null}
       <Section title={isEditing ? 'Issue details' : 'Create Issue'}>
         <Input className="sm:col-span-2" label="Title" value={issue.shortTitle} onChange={updateTitle} error={errors.shortTitle} required />
         <Input label="eFile number" value={issue.eFileNumber} onChange={(value) => update('eFileNumber', value)} />
@@ -105,15 +108,16 @@ export default function IssueForm({
         </DisclosureSection>
       )}
 
-      <div className="grid grid-cols-2 gap-2 sm:flex sm:justify-end">
-        <button type="button" onClick={onCancel} disabled={isSaving || isSaved} className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition-colors hover:border-teal-300 hover:bg-teal-50 disabled:opacity-50 sm:h-10">
+      <div className="grid grid-cols-2 items-center gap-2 sm:flex sm:justify-end">
+        <OperationStatus state={saveError ? 'error' : isSaving ? 'saving' : isSaved ? 'saved' : dirty ? 'dirty' : 'idle'} className="col-span-2 sm:mr-auto" />
+        <Button type="button" onClick={onCancel} disabled={isSaving || isSaved} variant="secondary" size="lg">
           <X className="h-4 w-4" aria-hidden="true" />
           Cancel
-        </button>
-        <button type="submit" disabled={isSaving || isSaved} className={`inline-flex h-11 min-w-32 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold text-white shadow-sm transition-colors disabled:cursor-not-allowed sm:h-10 ${isSaved ? 'bg-emerald-700' : 'bg-teal-700 hover:bg-teal-800 disabled:bg-slate-400'}`}>
-          {isSaving ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" /> : isSaved ? <CheckCircle2 className="h-4 w-4" aria-hidden="true" /> : <Save className="h-4 w-4" aria-hidden="true" />}
-          {isSaving ? 'Saving...' : isSaved ? 'Saved' : submitLabel}
-        </button>
+        </Button>
+        <Button type="submit" disabled={isSaved} loading={isSaving} loadingLabel="Saving…" variant={isSaved ? 'success' : 'primary'} size="lg" className="min-w-32">
+          {isSaved ? <Check className="h-4 w-4" aria-hidden="true" /> : <Save className="h-4 w-4" aria-hidden="true" />}
+          {isSaved ? 'Saved' : submitLabel}
+        </Button>
       </div>
     </form>
   );

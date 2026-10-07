@@ -111,16 +111,16 @@ export default function CommandPalette({ open, onClose, auth }) {
         </div>
       </div>
       <div id="workspace-command-results" role="listbox" className="max-h-[min(68dvh,34rem)] overscroll-contain overflow-y-auto p-1.5 sm:p-3">
-        {!query.trim() && navigationResults.length > 0 && <p className="px-2 pb-1 pt-1 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">Quick access</p>}
+        {!query.trim() && navigationResults.length > 0 && <p className="px-2 pb-1 pt-1 text-xs font-bold uppercase tracking-wider text-slate-400">Quick access</p>}
         {navigationResults.map((item, index) => <CommandRow key={item.id} item={{ ...item, kind: item.action ? 'action' : 'navigation' }} index={index} active={index === activeIndex} onActivate={setActiveIndex} onChoose={choose} />)}
-        {issueResults.length > 0 && <p className="px-2 pb-1 pt-4 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">{query.trim() ? 'Matching matters' : 'Recent matters'}</p>}
+        {issueResults.length > 0 && <p className="px-2 pb-1 pt-4 text-xs font-bold uppercase tracking-wider text-slate-400">{query.trim() ? 'Matching matters' : 'Recent matters'}</p>}
         {issueResults.map((issue, issueIndex) => {
           const item = results[navigationResults.length + issueIndex];
           return <CommandRow key={issue.id} item={item} index={navigationResults.length + issueIndex} active={navigationResults.length + issueIndex === activeIndex} onActivate={setActiveIndex} onChoose={choose} />;
         })}
         {status !== 'loading' && !results.length && <div className="px-4 py-12 text-center"><Search className="mx-auto h-6 w-6 text-slate-300" /><p className="mt-3 text-sm font-semibold text-slate-700">No matching workspace items</p><p className="mt-1 text-xs text-slate-500">Try a title, eFile number, status, or workspace area.</p></div>}
       </div>
-      <div className="hidden items-center gap-4 border-t border-slate-100 bg-slate-50/80 px-4 py-2 text-[11px] text-slate-500 sm:flex"><span><kbd className="font-semibold">↑↓</kbd> move</span><span><kbd className="font-semibold">Enter</kbd> open</span><span><kbd className="font-semibold">Esc</kbd> close</span></div>
+      <div className="hidden items-center gap-4 border-t border-slate-100 bg-slate-50/80 px-4 py-2 text-xs text-slate-500 sm:flex"><span><kbd className="font-semibold">↑↓</kbd> move</span><span><kbd className="font-semibold">Enter</kbd> open</span><span><kbd className="font-semibold">Esc</kbd> close</span></div>
     </ModalFrame>
   );
 }
@@ -130,7 +130,7 @@ function CommandRow({ item, index, active, onActivate, onChoose }) {
   return (
     <button id={`command-${item.id}`} type="button" role="option" aria-selected={active} onMouseEnter={() => onActivate(index)} onFocus={() => onActivate(index)} onClick={() => onChoose(item)} className={`flex min-h-[52px] w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors sm:min-h-14 sm:gap-3 sm:rounded-xl sm:px-3 sm:py-2.5 ${active ? 'bg-teal-50 text-teal-950' : 'text-slate-800 hover:bg-slate-50'}`} data-command-index={index}>
       <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg sm:h-9 sm:w-9 ${item.action ? 'bg-teal-700 text-white' : active ? 'bg-white text-teal-700 shadow-sm' : 'bg-slate-100 text-slate-500'}`}><Icon className="h-4 w-4 sm:h-[18px] sm:w-[18px]" aria-hidden="true" /></span>
-      <span className="min-w-0 flex-1"><span className="block truncate text-[13px] font-semibold sm:text-sm">{item.label}</span><span className="mt-0.5 block truncate text-[11px] text-slate-500 sm:text-xs">{item.description}</span></span>
+      <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{item.label}</span><span className="mt-0.5 block truncate text-xs text-slate-500">{item.description}</span></span>
       <ChevronRight className="h-4 w-4 shrink-0 text-slate-300" aria-hidden="true" />
     </button>
   );

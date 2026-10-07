@@ -370,7 +370,7 @@ export function EditorStatusBar({ editor, hint = 'Changes are saved with this re
   const text = editor?.getText({ blockSeparator: ' ' }).trim() || '';
   const words = text ? text.split(/\s+/).length : 0;
   return (
-    <div className="flex items-center justify-between gap-3 border-t border-slate-200 bg-slate-50/80 px-3 py-2 text-[11px] text-slate-500">
+    <div className="flex items-center justify-between gap-3 border-t border-slate-200 bg-slate-50/80 px-3 py-2 text-xs text-slate-500">
       <span className="truncate">{hint}</span>
       <span className="shrink-0 tabular-nums">{words.toLocaleString()} words · {text.length.toLocaleString()} characters</span>
     </div>
@@ -378,5 +378,5 @@ export function EditorStatusBar({ editor, hint = 'Changes are saved with this re
 }
 
 export function MoreToolsLabel({ children }) {
-  return <div className="mb-2 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500"><MoreHorizontal className="h-3.5 w-3.5" />{children}</div>;
+  return <div className="mb-2 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500"><MoreHorizontal className="h-3.5 w-3.5" />{children}</div>;
 }

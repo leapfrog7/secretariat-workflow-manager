@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { Bell, CheckCheck, Inbox, LoaderCircle } from 'lucide-react';
+import { Bell, CheckCheck, Inbox } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import { useAuth } from '../../features/auth/AuthContext';
 import { listNotifications, markAllNotificationsRead, markNotificationRead } from '../../features/notifications/cloudNotificationApi';
+import Alert from '../ui/Alert';
+import OperationStatus from '../ui/OperationStatus';
 
 export default function NotificationCenter() {
   const auth = useAuth();
@@ -74,8 +76,8 @@ export default function NotificationCenter() {
             {(unread > 0 || state.markingAll) && <button type="button" onClick={readAll} disabled={state.markingAll} title="Mark all as read" className="flex h-9 w-9 items-center justify-center rounded-md text-teal-700 hover:bg-teal-50 disabled:cursor-wait"><CheckCheck className={`h-4 w-4 ${state.markingAll ? 'animate-pulse' : ''}`} /></button>}
           </div>
           <div className="max-h-[calc(100dvh-8rem)] overflow-y-auto sm:max-h-[420px]">
-            {state.loading && !state.items.length && <div className="flex items-center justify-center gap-2 px-4 py-10 text-sm text-slate-500"><LoaderCircle className="h-4 w-4 animate-spin" />Loading...</div>}
-            {state.error && <div className="px-4 py-5 text-sm text-red-700">{state.error}</div>}
+            {state.loading && !state.items.length ? <div className="flex justify-center px-4 py-10"><OperationStatus state="loading" label="Loading notifications…" /></div> : null}
+            {state.error ? <div className="p-3"><Alert tone="danger" title="Notifications unavailable">{state.error}</Alert></div> : null}
             {!state.loading && !state.error && !state.items.length && <div className="px-4 py-10 text-center"><Inbox className="mx-auto h-6 w-6 text-slate-400" /><p className="mt-2 text-sm font-medium text-slate-700">Nothing needs your attention</p></div>}
             {state.items.map((item) => {
               const content = <div className="flex items-start gap-2"><span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${item.read_at ? 'bg-slate-300' : 'bg-teal-600'}`} /><div className="min-w-0"><div className="text-sm font-semibold text-slate-900">{item.title}</div><p className="mt-1 text-xs leading-5 text-slate-600">{item.message}</p><time className="mt-1.5 block text-xs text-slate-400">{formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}</time></div></div>;

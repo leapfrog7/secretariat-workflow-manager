@@ -19,10 +19,11 @@ test('PDF.js remains lazy but bypasses Vite dependency prebundling', () => {
   assert.match(source('src/features/noting/pdf/pdfExtractionService.js'), /import\('pdfjs-dist\/build\/pdf\.mjs'\)/);
 });
 
-test('mobile note AI actions share one row', () => {
+test('mobile note AI actions live in the contextual command bar', () => {
   const noting = source('src/features/noting/NotingPanel.jsx');
-  assert.match(noting, /grid w-full grid-cols-2 gap-2 sm:flex/);
-  assert.match(noting, /relative inline-flex min-w-0/);
-  assert.match(noting, /text-\[11px\][\s\S]*sm:text-xs/);
+  assert.match(noting, /<ContextualCommandBar/);
+  assert.match(noting, /contextAction=/);
+  assert.match(noting, /primaryAction=/);
+  assert.match(noting, /data-command-menu-action/);
   assert.equal(noting.match(/onClick=\{\(\) => openAIAssistance\(\)\}/g)?.length, 1);
 });
