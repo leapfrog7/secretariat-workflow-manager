@@ -823,7 +823,7 @@ function NoteForm({ issueId, issue, summary, note, notes, communications, refere
         status={<OperationStatus state={saveStatus === 'saving' ? 'saving' : saveStatus === 'saved' ? 'saved' : dirty ? 'dirty' : 'idle'} label={!dirty && saveStatus === 'idle' ? 'Ready to edit' : undefined} />}
         contextAction={(
           <div ref={aiMenuRef} className="relative inline-flex min-w-0">
-            <Button type="button" variant="accent" size="md" onClick={() => openAIAssistance()} disabled={!aiConfig || aiBusy || saveStatus !== 'idle'} className="min-w-12 rounded-r-none border-r-0 px-2.5 sm:min-w-0 sm:px-3">
+            <Button type="button" variant="accent" size="md" aria-label={aiBusy ? 'AI is working' : 'Help me write'} onClick={() => openAIAssistance()} disabled={!aiConfig || aiBusy || saveStatus !== 'idle'} className="min-w-12 rounded-r-none border-r-0 px-2.5 sm:min-w-0 sm:px-3">
               {aiBusy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
               <span className="sm:hidden">AI</span><span className="hidden sm:inline">{aiBusy ? 'AI is working…' : 'Help me write'}</span>
             </Button>

@@ -95,9 +95,11 @@ test('draft templates stay readable on desktop and use a non-flipping mobile lay
 
 test('noting AI refinement exposes mobile-sized controls without crowding actions', () => {
   const conversation = source('src/features/noting/NoteAIConversation.jsx');
+  const noting = source('src/features/noting/NotingPanel.jsx');
   assert.match(conversation, /grid grid-cols-2 gap-2[\s\S]*min-h-11 w-full[\s\S]*Show changes in editor/);
   assert.match(conversation, /min-h-11 w-full[\s\S]*Refine note/);
   assert.match(conversation, /min-h-11[\s\S]*Reject all[\s\S]*min-h-11[\s\S]*Accept all/);
+  assert.match(noting, /aria-label=\{aiBusy \? 'AI is working' : 'Help me write'\}/);
 });
 
 test('rich editors use compact mobile controls and progressively disclose advanced tools', () => {
