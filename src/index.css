@@ -848,24 +848,17 @@ textarea:focus {
 }
 
 @media (max-width: 639px) {
-  :root[data-text-size="small"] { font-size: 14px; }
+  :root[data-text-size="small"] { font-size: 15px; }
   :root:not([data-text-size]),
-  :root[data-text-size="normal"] { font-size: 15px; }
-  :root[data-text-size="large"] { font-size: 17px; }
+  :root[data-text-size="normal"] { font-size: 16px; }
+  :root[data-text-size="large"] { font-size: 18px; }
 
-  /* Text-entry controls remain at the iOS anti-zoom size. Selects can use
-     their component typography on other mobile browsers because they open a
-     native picker rather than a text keyboard. */
+  /* Keep control values consistent across mobile browsers while preserving
+     the iOS anti-zoom size. Hierarchy comes from labels, weight and color. */
   input,
-  textarea {
+  textarea,
+  select:not([multiple]) {
     font-size: 16px;
-  }
-
-  /* iOS can still zoom undersized native controls in some embedded contexts. */
-  @supports (-webkit-touch-callout: none) {
-    select:not([multiple]) {
-      font-size: 16px;
-    }
   }
 
   .surface {

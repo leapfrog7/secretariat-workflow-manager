@@ -9,7 +9,7 @@ import { configureCloudSettingsSync, syncWorkspaceSettings } from '../cloud/clou
 import { configureParagraphBankSync, syncParagraphBank } from '../drafting/paragraphBank/paragraphBankSync';
 import { configureReferenceLibrarySync, syncReferenceLibrary } from '../cloud/referenceLibrarySync';
 import { ensurePlatformWorkspace, listMyWorkspaces } from '../cloud/workspaceApi';
-import { commitLocalWorkspaceScope, prepareLocalWorkspaceScope } from '../cloud/localWorkspaceScope';
+import { clearLocalWorkspaceData, commitLocalWorkspaceScope, prepareLocalWorkspaceScope } from '../cloud/localWorkspaceScope';
 import { canEditWorkspace } from '../../utils/accessUtils';
 
 async function synchronizeWorkspace(configuration) {
@@ -210,6 +210,11 @@ export default function ConfiguredAuthProvider({ children }) {
     return synchronizeWorkspace(configuration);
   }
 
+  async function signOut({ clearLocalData = false } = {}) {
+    await cloudClient.auth.signOut();
+    if (clearLocalData) await clearLocalWorkspaceData();
+  }
+
   const value = useMemo(() => ({
     mode: 'cloud',
     loading: Boolean(session.isPending || (user && (profileState.loading || profileState.userId !== user.id || (profileState.profile?.status === 'active' && (workspaceState.loading || workspaceState.userId !== user.id))))),
@@ -229,7 +234,7 @@ export default function ConfiguredAuthProvider({ children }) {
     signUp: (details) => cloudClient.auth.signUp.email(details),
     requestPasswordReset: (details) => cloudClient.auth.requestPasswordReset(details),
     resetPassword: (details) => cloudClient.auth.resetPassword(details),
-    signOut: () => cloudClient.auth.signOut(),
+    signOut,
   }), [profileState, session.isPending, user, workspaceState]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

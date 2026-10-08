@@ -170,13 +170,13 @@ const NoteEditor = forwardRef(function NoteEditor({ value, onChange, onSelection
           <Tool label="Align right" active={editor.isActive({ textAlign: 'right' })} onClick={() => editor.chain().focus().setTextAlign('right').run()}><AlignRight className="h-4 w-4" /></Tool>
           <Tool label="Justify" active={editor.isActive({ textAlign: 'justify' })} onClick={() => editor.chain().focus().setTextAlign('justify').run()}><AlignJustify className="h-4 w-4" /></Tool>
         </div>
-        {editor.isActive('orderedList') && <div className="mt-3 grid grid-cols-[1fr_6rem] gap-2"><label><span className="mb-1 block text-[11px] font-semibold text-slate-600">Numbering format</span><select value={editor.getAttributes('orderedList').numberingStyle || 'decimal'} onChange={(event) => editor.chain().focus().setNumberingStyle(event.target.value).run()} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm">{GOVERNMENT_NUMBERING_STYLES.map((style) => <option key={style.value} value={style.value}>{style.label}</option>)}</select></label><label><span className="mb-1 block text-[11px] font-semibold text-slate-600">Start at</span><input type="number" min="1" max="999" value={editor.getAttributes('orderedList').start || 1} onChange={(event) => editor.chain().focus().updateAttributes('orderedList', { start: Math.max(1, Number(event.target.value) || 1) }).run()} className="h-10 w-full rounded-md border border-slate-300 bg-white px-2 text-sm" /></label></div>}
+        {editor.isActive('orderedList') && <div className="mt-3 grid grid-cols-[1fr_6rem] gap-2"><label><span className="mb-1 block text-xs font-semibold text-slate-600">Numbering format</span><select value={editor.getAttributes('orderedList').numberingStyle || 'decimal'} onChange={(event) => editor.chain().focus().setNumberingStyle(event.target.value).run()} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm">{GOVERNMENT_NUMBERING_STYLES.map((style) => <option key={style.value} value={style.value}>{style.label}</option>)}</select></label><label><span className="mb-1 block text-xs font-semibold text-slate-600">Start at</span><input type="number" min="1" max="999" value={editor.getAttributes('orderedList').start || 1} onChange={(event) => editor.chain().focus().updateAttributes('orderedList', { start: Math.max(1, Number(event.target.value) || 1) }).run()} className="h-10 w-full rounded-md border border-slate-300 bg-white px-2 text-sm" /></label></div>}
       </div>
       <div className="mt-4">
         <MoreToolsLabel>Document</MoreToolsLabel>
         <FormatPainterControls editor={editor} value={copiedFormat} onChange={setCopiedFormat} />
         <div className="mt-2"><PageBreakControl editor={editor} /></div>
-        <p className="mt-2 text-[11px] leading-4 text-slate-500">A page break is preserved in Word export. Shortcut: Ctrl/Cmd + Enter.</p>
+        <p className="mt-2 text-xs leading-4 text-slate-500">A page break is preserved in Word export. Shortcut: Ctrl/Cmd + Enter.</p>
       </div>
       <div className="mt-4">
         <MoreToolsLabel>Table</MoreToolsLabel>

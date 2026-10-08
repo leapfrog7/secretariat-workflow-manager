@@ -24,7 +24,7 @@ export default function AdaptiveSelect({
   hint = '',
   searchThreshold = 8,
   className = '',
-  labelClassName = 'text-sm font-medium text-slate-700',
+  labelClassName = 'text-xs font-semibold text-slate-700',
   controlClassName = 'h-10',
 }) {
   const listId = useId();

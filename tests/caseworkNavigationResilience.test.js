@@ -35,7 +35,7 @@ test('dirty reporting separates state changes from unmount cleanup', () => {
 
 test('service worker clones responses before asynchronous cache access', () => {
   const worker = source('public/sw.js');
-  const clone = worker.indexOf('const cacheCopy = response.ok ? response.clone() : null;');
+  const clone = worker.indexOf('const cacheCopy = isSafeCacheResponse(response) ? response.clone() : null;');
   const open = worker.indexOf('caches.open(CACHE_NAME)', clone);
   assert.ok(clone >= 0 && open > clone);
   assert.match(worker.slice(clone, open + 220), /\.catch\(\(\) => \{\}\)/);

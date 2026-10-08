@@ -1,5 +1,22 @@
-const CACHE_NAME = 'swm-shell-v1';
+const CACHE_NAME = 'swm-shell-v2';
 const APP_SHELL = ['./', './manifest.webmanifest', './favicon.svg'];
+const STATIC_DESTINATIONS = new Set(['font', 'image', 'manifest', 'script', 'style', 'worker']);
+
+function isStaticAssetRequest(request, url) {
+  if (url.origin !== self.location.origin || url.pathname.includes('/api/')) return false;
+  const scopePath = new URL(self.registration.scope).pathname;
+  const relativePath = url.pathname.slice(scopePath.length);
+  return STATIC_DESTINATIONS.has(request.destination)
+    || relativePath.startsWith('assets/')
+    || relativePath === 'manifest.webmanifest'
+    || relativePath === 'favicon.svg';
+}
+
+function isSafeCacheResponse(response) {
+  if (!response.ok || response.type !== 'basic') return false;
+  if (response.headers.get('Cache-Control')?.toLowerCase().includes('no-store')) return false;
+  return !response.headers.get('Content-Type')?.toLowerCase().includes('application/json');
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)));
@@ -33,9 +50,11 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  if (!isStaticAssetRequest(request, url)) return;
+
   event.respondWith(
     caches.match(request).then((cached) => cached || fetch(request).then((response) => {
-      const cacheCopy = response.ok ? response.clone() : null;
+      const cacheCopy = isSafeCacheResponse(response) ? response.clone() : null;
       if (cacheCopy) {
         caches.open(CACHE_NAME)
           .then((cache) => cache.put(request, cacheCopy))

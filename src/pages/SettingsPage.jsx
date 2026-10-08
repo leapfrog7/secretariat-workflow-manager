@@ -518,7 +518,7 @@ export default function SettingsPage() {
         {activeTab === 'profile' && <section className="surface rounded-md border-t-4 border-t-amber-500 p-4">
           <div className="flex items-start gap-2">
             <Building2 className="mt-0.5 h-5 w-5 text-amber-700" aria-hidden="true" />
-            <div><h2 className="text-sm font-semibold text-slate-950">Official drafting profile</h2><p className="mt-1 text-sm text-slate-600">Office identity and officers authorized to sign generated communications.</p></div>
+            <div><h2 className="text-sm font-bold text-slate-950">Official drafting profile</h2><p className="mt-1 text-xs leading-5 text-slate-500">Office identity and officers authorized to sign generated communications.</p></div>
           </div>
           {!canMutateWorkspace && <p className="mt-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">You can view this shared profile. Only a Workspace manager can change official identity, signatories and document defaults.</p>}
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -653,7 +653,7 @@ export default function SettingsPage() {
         {activeTab === 'reminders' && <section className="surface rounded-md border-t-4 border-t-rose-600 p-4">
           <div className="flex items-start gap-2">
             <BellRing className="mt-0.5 h-5 w-5 text-rose-700" aria-hidden="true" />
-            <div><h2 className="text-sm font-semibold text-slate-950">Reminders and digests</h2><p className="mt-1 text-sm text-slate-600">Choose how this account is notified about scheduled returns and deadlines.</p></div>
+            <div><h2 className="text-sm font-bold text-slate-950">Reminders and digests</h2><p className="mt-1 text-xs leading-5 text-slate-500">Choose how this account is notified about scheduled returns and deadlines.</p></div>
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <ReminderToggle label="In-app notifications" description="Show reminders in the notification inbox." checked={state.reminderSettings.inAppEnabled} onChange={(value) => setState((current) => ({ ...current, reminderSettings: { ...current.reminderSettings, inAppEnabled: value } }))} />

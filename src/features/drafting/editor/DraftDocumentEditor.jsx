@@ -174,11 +174,11 @@ function ParagraphBankRail({
         <label className="relative block">
           <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
           <span className="sr-only">Search Paragraph Bank</span>
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search wording or address" className="h-9 w-full rounded-md border border-slate-300 bg-white pl-8 pr-3 text-xs text-slate-800" />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search wording or address" className="h-10 w-full rounded-md border border-slate-300 bg-white pl-8 pr-3 text-base text-slate-800 sm:h-9 sm:text-xs" />
         </label>
         <label className="block">
           <span className="sr-only">Paragraph category</span>
-          <select value={category} onChange={(event) => setCategory(event.target.value)} className="h-9 w-full rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-700">
+          <select value={category} onChange={(event) => setCategory(event.target.value)} className="h-10 w-full rounded-md border border-slate-300 bg-white px-2 text-base text-slate-700 sm:h-9 sm:text-xs">
             <option value="">All categories</option>
             {PARAGRAPH_BANK_CATEGORIES.map((item) => <option key={item}>{item}</option>)}
           </select>
@@ -192,12 +192,12 @@ function ParagraphBankRail({
               <span className="flex items-start justify-between gap-2">
                 <span className="min-w-0">
                   <span className="block truncate text-xs font-semibold text-slate-800">{entry.title}</span>
-                  <span className="mt-0.5 block text-[11px] font-medium text-teal-700">{entry.category}</span>
+                  <span className="mt-0.5 block text-xs font-medium text-teal-700">{entry.category}</span>
                 </span>
                 {isAddress ? <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-slate-400 group-hover:text-teal-700" /> : <CornerDownLeft className="mt-0.5 h-4 w-4 shrink-0 text-slate-400 group-hover:text-teal-700" />}
               </span>
               <span className="mt-2 block whitespace-pre-line text-xs leading-5 text-slate-600 line-clamp-4">{entry.content}</span>
-              <span className="mt-2 block text-[11px] font-semibold text-teal-700 opacity-70 group-hover:opacity-100">{isAddress ? 'Use address' : 'Insert at cursor'}</span>
+              <span className="mt-2 block text-xs font-semibold text-teal-700 opacity-70 group-hover:opacity-100">{isAddress ? 'Use address' : 'Insert at cursor'}</span>
             </button>
           );
         })}
@@ -222,8 +222,8 @@ function DocumentDetailsPanel({
 }) {
   const metadata = document.metadata || {};
   const recipient = metadata.recipient || {};
-  const inputClass = 'h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-800 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-100';
-  const textareaClass = 'w-full rounded-md border border-slate-300 bg-white px-2.5 py-2 text-xs leading-5 text-slate-800 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-100';
+  const inputClass = 'h-10 w-full rounded-md border border-slate-300 bg-white px-2.5 text-base text-slate-800 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-100 sm:h-9 sm:text-xs';
+  const textareaClass = 'w-full rounded-md border border-slate-300 bg-white px-2.5 py-2 text-base leading-6 text-slate-800 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-100 sm:text-xs sm:leading-5';
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
       <div className="border-b border-slate-200 px-3 py-3">
@@ -231,15 +231,15 @@ function DocumentDetailsPanel({
         <p className="mt-1 text-xs leading-4 text-slate-500">Changes appear on the page immediately.</p>
       </div>
       <div className="space-y-3 px-3 py-3">
-        <label className="block"><span className="mb-1 block text-[11px] font-semibold text-slate-600">Communication type</span><select value={communicationType} onChange={(event) => onCommunicationTypeChange?.(event.target.value)} className={inputClass}>{COMMUNICATION_TYPES.map((type) => <option key={type}>{type}</option>)}</select></label>
-        <label className="block"><span className="mb-1 block text-[11px] font-semibold text-slate-600">Authorized signatory</span><select value={signatoryId} onChange={(event) => onSignatoryChange?.(event.target.value)} className={inputClass}><option value="">Select signatory</option>{signatories.map((officer) => <option key={officer.id} value={officer.id}>{officer.designation ? `${officer.name} - ${officer.designation}` : officer.name}</option>)}</select></label>
+        <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-600">Communication type</span><select value={communicationType} onChange={(event) => onCommunicationTypeChange?.(event.target.value)} className={inputClass}>{COMMUNICATION_TYPES.map((type) => <option key={type}>{type}</option>)}</select></label>
+        <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-600">Authorized signatory</span><select value={signatoryId} onChange={(event) => onSignatoryChange?.(event.target.value)} className={inputClass}><option value="">Select signatory</option>{signatories.map((officer) => <option key={officer.id} value={officer.id}>{officer.designation ? `${officer.name} - ${officer.designation}` : officer.name}</option>)}</select></label>
         <div className="grid grid-cols-2 gap-2">
-          <label className="block"><span className="mb-1 block text-[11px] font-semibold text-slate-600">Communication no.</span><input value={metadata.communicationNumber || ''} onChange={(event) => onDocumentDetailChange?.('fileNumber', event.target.value)} placeholder="Enter number" className={inputClass} /></label>
-          <label className="block"><span className="mb-1 block text-[11px] font-semibold text-slate-600">Date</span><input type="date" value={metadata.issueDate || ''} onChange={(event) => onDocumentDetailChange?.('issueDate', event.target.value)} className={inputClass} /></label>
+          <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-600">Communication no.</span><input value={metadata.communicationNumber || ''} onChange={(event) => onDocumentDetailChange?.('fileNumber', event.target.value)} placeholder="Enter number" className={inputClass} /></label>
+          <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-600">Date</span><input type="date" value={metadata.issueDate || ''} onChange={(event) => onDocumentDetailChange?.('issueDate', event.target.value)} className={inputClass} /></label>
         </div>
-        <label className="block"><span className="mb-1 block text-[11px] font-semibold text-slate-600">Subject</span><textarea rows={2} value={metadata.subject || ''} onChange={(event) => onDocumentDetailChange?.('subject', event.target.value)} placeholder="Enter communication subject" className={textareaClass} /></label>
+        <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-600">Subject</span><textarea rows={2} value={metadata.subject || ''} onChange={(event) => onDocumentDetailChange?.('subject', event.target.value)} placeholder="Enter communication subject" className={textareaClass} /></label>
         <div className="border-t border-slate-200 pt-3">
-          <p className="mb-2 text-[11px] font-semibold uppercase text-slate-500">Addressee</p>
+          <p className="mb-2 text-xs font-semibold uppercase text-slate-500">Addressee</p>
           <div className="space-y-2">
             <input aria-label="Addressee name" value={recipient.name || ''} onChange={(event) => onRecipientChange?.('name', event.target.value)} placeholder="Name" className={inputClass} />
             <input aria-label="Addressee designation" value={recipient.designation || ''} onChange={(event) => onRecipientChange?.('designation', event.target.value)} placeholder="Designation" className={inputClass} />
@@ -247,8 +247,8 @@ function DocumentDetailsPanel({
             <textarea aria-label="Recipient postal address" rows={4} value={recipient.address || ''} onChange={(event) => onRecipientChange?.('address', event.target.value)} placeholder="Postal address" className={textareaClass} />
           </div>
         </div>
-        <label className="block"><span className="mb-1 block text-[11px] font-semibold text-slate-600">Salutation</span><input value={metadata.salutation || ''} onChange={(event) => onDocumentDetailChange?.('salutation', event.target.value)} placeholder="Example: Sir/Madam" className={inputClass} /></label>
-        <label className="block"><span className="mb-1 block text-[11px] font-semibold text-slate-600">Copy / endorsement list</span><textarea rows={3} value={metadata.copyTo || ''} onChange={(event) => onDocumentDetailChange?.('copyTo', event.target.value)} placeholder="One recipient per line" className={textareaClass} /></label>
+        <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-600">Salutation</span><input value={metadata.salutation || ''} onChange={(event) => onDocumentDetailChange?.('salutation', event.target.value)} placeholder="Example: Sir/Madam" className={inputClass} /></label>
+        <label className="block"><span className="mb-1 block text-xs font-semibold text-slate-600">Copy / endorsement list</span><textarea rows={3} value={metadata.copyTo || ''} onChange={(event) => onDocumentDetailChange?.('copyTo', event.target.value)} placeholder="One recipient per line" className={textareaClass} /></label>
       </div>
     </div>
   );
@@ -298,7 +298,7 @@ function DraftReadinessPanel({ document, onEditDetails }) {
                 <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${review.errors.includes(finding) ? 'bg-red-600' : 'bg-amber-500'}`} />
                 <span>
                   <span className="block text-xs font-semibold text-slate-800">{finding.message}</span>
-                  <span className="mt-1 block text-[11px] leading-4 text-slate-500">
+                  <span className="mt-1 block text-xs leading-4 text-slate-500">
                     {canEditDetail ? 'Open Document details to complete it.' : 'Review the editable body and replace visible bracketed text.'}
                   </span>
                 </span>
@@ -312,7 +312,7 @@ function DraftReadinessPanel({ document, onEditDetails }) {
           <p className="mt-3 text-xs leading-5 text-slate-600">Review facts, citations and approvals before saving the final version.</p>
         </div>
       )}
-      <div className="border-t border-slate-200 bg-slate-50 px-3 py-3 text-[11px] leading-5 text-slate-500">
+      <div className="border-t border-slate-200 bg-slate-50 px-3 py-3 text-xs leading-5 text-slate-500">
         This checklist supports review; it does not certify factual or legal correctness.
       </div>
     </div>
@@ -346,7 +346,7 @@ function DraftSideRail({
       <div className="flex items-center gap-1 border-b border-slate-200 bg-slate-50 p-1.5">
         <button type="button" title="Document details" onClick={() => setTab('details')} className={`flex h-9 flex-1 items-center justify-center gap-1.5 rounded text-xs font-semibold ${tab === 'details' ? 'bg-white text-teal-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}><FilePenLine className="h-3.5 w-3.5" />Details</button>
         <button type="button" title="Paragraph Bank" onClick={() => setTab('bank')} className={`flex h-9 flex-1 items-center justify-center gap-1.5 rounded text-xs font-semibold ${tab === 'bank' ? 'bg-white text-teal-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}><BookOpen className="h-3.5 w-3.5" />Bank</button>
-        <button type="button" title="Review draft readiness" onClick={() => setTab('review')} className={`relative flex h-9 flex-1 items-center justify-center gap-1.5 rounded text-xs font-semibold ${tab === 'review' ? 'bg-white text-teal-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}><ClipboardCheck className="h-3.5 w-3.5" />Review{reviewCount > 0 && <span className="inline-flex min-w-4 items-center justify-center rounded-full bg-amber-100 px-1 text-[10px] font-bold text-amber-800">{reviewCount}</span>}</button>
+        <button type="button" title="Review draft readiness" onClick={() => setTab('review')} className={`relative flex h-9 flex-1 items-center justify-center gap-1.5 rounded text-xs font-semibold ${tab === 'review' ? 'bg-white text-teal-800 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}><ClipboardCheck className="h-3.5 w-3.5" />Review{reviewCount > 0 && <span className="inline-flex min-w-4 items-center justify-center rounded-full bg-amber-100 px-1 text-xs font-bold text-amber-800">{reviewCount}</span>}</button>
         {mobile && <button type="button" onClick={onClose} title="Close draft tools" className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded text-slate-500 hover:bg-white"><X className="h-4 w-4" /><span className="sr-only">Close draft tools</span></button>}
       </div>
       {tab === 'details' ? (
@@ -663,7 +663,7 @@ const DraftDocumentEditor = forwardRef(function DraftDocumentEditor({
             <ToolbarButton label="Increase paragraph or list level" onClick={() => increaseEditorIndent(editor)}><IndentIncrease className="h-4 w-4" /></ToolbarButton>
             <ToolbarButton label="Decrease paragraph or list level" disabled={!editor.isActive('listItem') && !Number(editor.getAttributes('paragraph').indent)} onClick={() => decreaseEditorIndent(editor)}><IndentDecrease className="h-4 w-4" /></ToolbarButton>
           </div>
-          {editor.isActive('orderedList') && <div className="mt-3 grid grid-cols-[1fr_6rem] gap-2"><label><span className="mb-1 block text-[11px] font-semibold text-slate-600">Numbering format</span><select value={editor.getAttributes('orderedList').numberingStyle || 'decimal'} onChange={(event) => editor.chain().focus().setNumberingStyle(event.target.value).run()} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm">{GOVERNMENT_NUMBERING_STYLES.map((numbering) => <option key={numbering.value} value={numbering.value}>{numbering.label}</option>)}</select></label><label><span className="mb-1 block text-[11px] font-semibold text-slate-600">Start at</span><input type="number" min="1" max="999" value={editor.getAttributes('orderedList').start || 1} onChange={(event) => editor.chain().focus().updateAttributes('orderedList', { start: Math.max(1, Number(event.target.value) || 1) }).run()} className="h-10 w-full rounded-md border border-slate-300 bg-white px-2 text-sm" /></label></div>}
+          {editor.isActive('orderedList') && <div className="mt-3 grid grid-cols-[1fr_6rem] gap-2"><label><span className="mb-1 block text-xs font-semibold text-slate-600">Numbering format</span><select value={editor.getAttributes('orderedList').numberingStyle || 'decimal'} onChange={(event) => editor.chain().focus().setNumberingStyle(event.target.value).run()} className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm">{GOVERNMENT_NUMBERING_STYLES.map((numbering) => <option key={numbering.value} value={numbering.value}>{numbering.label}</option>)}</select></label><label><span className="mb-1 block text-xs font-semibold text-slate-600">Start at</span><input type="number" min="1" max="999" value={editor.getAttributes('orderedList').start || 1} onChange={(event) => editor.chain().focus().updateAttributes('orderedList', { start: Math.max(1, Number(event.target.value) || 1) }).run()} className="h-10 w-full rounded-md border border-slate-300 bg-white px-2 text-sm" /></label></div>}
         </div>
         <div className="mt-4">
           <MoreToolsLabel>Alignment</MoreToolsLabel>
@@ -675,10 +675,10 @@ const DraftDocumentEditor = forwardRef(function DraftDocumentEditor({
           </div>
         </div>
         <div className="mt-4 grid grid-cols-2 gap-3">
-          <label><span className="mb-1 block text-[11px] font-semibold text-slate-600">Font</span><select value={style.fontFamily} onChange={(event) => onStyleChange?.({ fontFamily: event.target.value })} className="h-10 w-full rounded-md border border-slate-300 bg-white px-2 text-xs">{FONT_OPTIONS.map((font) => <option key={font}>{font}</option>)}</select></label>
-          <label><span className="mb-1 block text-[11px] font-semibold text-slate-600">Size</span><select value={Number(style.fontSize)} onChange={(event) => onStyleChange?.({ fontSize: Number(event.target.value) })} className="h-10 w-full rounded-md border border-slate-300 bg-white px-2 text-xs">{FONT_SIZES.map((size) => <option key={size} value={size}>{size} pt</option>)}</select></label>
-          <label><span className="mb-1 block text-[11px] font-semibold text-slate-600">Line spacing</span><select value={Number(style.lineSpacing)} onChange={(event) => onStyleChange?.({ lineSpacing: Number(event.target.value) })} className="h-10 w-full rounded-md border border-slate-300 bg-white px-2 text-xs">{LINE_SPACING.map((spacing) => <option key={spacing} value={spacing}>{spacing} lines</option>)}</select></label>
-          <label><span className="mb-1 block text-[11px] font-semibold text-slate-600">Margins</span><select value={style.margins || 'standard'} onChange={(event) => onStyleChange?.({ margins: event.target.value })} className="h-10 w-full rounded-md border border-slate-300 bg-white px-2 text-xs">{MARGIN_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+          <label><span className="mb-1 block text-xs font-semibold text-slate-600">Font</span><select value={style.fontFamily} onChange={(event) => onStyleChange?.({ fontFamily: event.target.value })} className="h-10 w-full rounded-md border border-slate-300 bg-white px-2 text-xs">{FONT_OPTIONS.map((font) => <option key={font}>{font}</option>)}</select></label>
+          <label><span className="mb-1 block text-xs font-semibold text-slate-600">Size</span><select value={Number(style.fontSize)} onChange={(event) => onStyleChange?.({ fontSize: Number(event.target.value) })} className="h-10 w-full rounded-md border border-slate-300 bg-white px-2 text-xs">{FONT_SIZES.map((size) => <option key={size} value={size}>{size} pt</option>)}</select></label>
+          <label><span className="mb-1 block text-xs font-semibold text-slate-600">Line spacing</span><select value={Number(style.lineSpacing)} onChange={(event) => onStyleChange?.({ lineSpacing: Number(event.target.value) })} className="h-10 w-full rounded-md border border-slate-300 bg-white px-2 text-xs">{LINE_SPACING.map((spacing) => <option key={spacing} value={spacing}>{spacing} lines</option>)}</select></label>
+          <label><span className="mb-1 block text-xs font-semibold text-slate-600">Margins</span><select value={style.margins || 'standard'} onChange={(event) => onStyleChange?.({ margins: event.target.value })} className="h-10 w-full rounded-md border border-slate-300 bg-white px-2 text-xs">{MARGIN_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
         </div>
         <div className="mt-4">
           <MoreToolsLabel>Table</MoreToolsLabel>
@@ -693,7 +693,7 @@ const DraftDocumentEditor = forwardRef(function DraftDocumentEditor({
           <MoreToolsLabel>Document</MoreToolsLabel>
           <FormatPainterControls editor={editor} value={copiedFormat} onChange={setCopiedFormat} />
           <div className="mt-2"><PageBreakControl editor={editor} /></div>
-          <p className="mt-2 text-[11px] leading-4 text-slate-500">The break applies only inside the editable body and is preserved in Word export.</p>
+          <p className="mt-2 text-xs leading-4 text-slate-500">The break applies only inside the editable body and is preserved in Word export.</p>
         </div>
       </MobileEditorMoreSheet>
     )}

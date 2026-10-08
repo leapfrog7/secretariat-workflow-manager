@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { CloudOff, LoaderCircle, LockKeyhole, ShieldAlert } from 'lucide-react';
 import { useAuth } from '../../features/auth/AuthContext';
 import PublicLandingPage from '../../pages/PublicLandingPage';
+import SecureSignOutDialog from './SecureSignOutDialog';
 
 export default function AccessGate({ children }) {
   const auth = useAuth();
@@ -52,16 +53,11 @@ function AccessMessage({ icon: Icon, spin = false, title, description, action })
 }
 
 function SignOutButton() {
-  const auth = useAuth();
-  const [busy, setBusy] = useState(false);
-  const signOut = async () => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      await auth.signOut();
-    } finally {
-      setBusy(false);
-    }
-  };
-  return <button type="button" onClick={signOut} disabled={busy} className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 disabled:cursor-wait disabled:opacity-60">{busy && <LoaderCircle className="h-4 w-4 animate-spin" />}{busy ? 'Signing out...' : 'Sign out'}</button>;
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)} className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700">Sign out</button>
+      <SecureSignOutDialog open={open} onClose={() => setOpen(false)} />
+    </>
+  );
 }

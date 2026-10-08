@@ -40,13 +40,14 @@ test('mobile navigation keeps the five primary destinations in the intended orde
   assert.match(navigation, /text-xs/);
 });
 
-test('mobile typography is compact without triggering form-field zoom', () => {
+test('mobile typography preserves hierarchy without triggering form-field zoom', () => {
   const css = source('src/index.css');
-  assert.match(css, /:root\[data-text-size="normal"\][\s\S]*font-size:\s*15px/);
-  assert.match(css, /input,[\s\S]*textarea[\s\S]*font-size:\s*16px/);
-  assert.match(css, /@supports \(-webkit-touch-callout: none\)[\s\S]*select:not\(\[multiple\]\)[\s\S]*font-size:\s*16px/);
+  assert.match(css, /:root\[data-text-size="normal"\][\s\S]*font-size:\s*16px/);
+  assert.match(css, /input,[\s\S]*textarea,[\s\S]*select:not\(\[multiple\]\)[\s\S]*font-size:\s*16px/);
   assert.match(css, /select:not\(\[multiple\]\)[\s\S]*appearance:\s*none/);
   assert.match(source('src/components/common/PageHeader.jsx'), /text-lg[\s\S]*sm:text-2xl/);
+  assert.match(source('src/components/ui/FormControls.jsx'), /text-base[\s\S]*sm:text-sm/);
+  assert.match(source('src/components/common/AdaptiveSelect.jsx'), /text-xs font-semibold text-slate-700/);
 });
 
 test('mobile navigation button and link labels share one typography contract', () => {
@@ -71,6 +72,20 @@ test('primary application surfaces use the shared Tailwind typography scale', ()
     assert.doesNotMatch(source(path), /text-\[(?:9|10|11|12|13|14|15)px\]/, path);
   }
   assert.doesNotMatch(source('src/index.css'), /\.ui-(?:page-title|section-title|body-copy|supporting-copy|compact-card)/);
+});
+
+test('mobile work surfaces do not use sub-12px functional typography', () => {
+  for (const path of [
+    'src/features/noting/NotingPanel.jsx',
+    'src/features/noting/NoteAIConversation.jsx',
+    'src/features/noting/NoteEditor.jsx',
+    'src/features/noting/pdf/PdfContextDialog.jsx',
+    'src/features/drafting/DraftingWorkspace.jsx',
+    'src/features/drafting/editor/DraftDocumentEditor.jsx',
+    'src/features/drafting/paragraphBank/ParagraphBankPanel.jsx',
+  ]) {
+    assert.doesNotMatch(source(path), /text-\[(?:9|10|11)px\]/, path);
+  }
 });
 
 test('Issue card actions keep proportional controls with extended tap areas', () => {
