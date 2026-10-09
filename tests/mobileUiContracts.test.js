@@ -43,11 +43,26 @@ test('mobile navigation keeps the five primary destinations in the intended orde
 test('mobile typography preserves hierarchy without triggering form-field zoom', () => {
   const css = source('src/index.css');
   assert.match(css, /:root\[data-text-size="normal"\][\s\S]*font-size:\s*16px/);
-  assert.match(css, /input,[\s\S]*textarea,[\s\S]*select:not\(\[multiple\]\)[\s\S]*font-size:\s*16px/);
+  assert.match(css, /input,[\s\S]*textarea\s*\{[\s\S]*font-size:\s*16px/);
+  assert.doesNotMatch(css, /input,[\s\S]{0,80}select:not\(\[multiple\]\)[\s\S]{0,80}font-size:\s*16px/);
   assert.match(css, /select:not\(\[multiple\]\)[\s\S]*appearance:\s*none/);
   assert.match(source('src/components/common/PageHeader.jsx'), /text-lg[\s\S]*sm:text-2xl/);
-  assert.match(source('src/components/ui/FormControls.jsx'), /text-base[\s\S]*sm:text-sm/);
+  assert.match(source('src/components/ui/FormControls.jsx'), /text-sm[\s\S]*placeholder:text-sm/);
   assert.match(source('src/components/common/AdaptiveSelect.jsx'), /text-xs font-semibold text-slate-700/);
+  assert.doesNotMatch(source('src/features/noting/NoteAIConversation.jsx'), /<select[^>]*className="[^"]*text-base/);
+  assert.doesNotMatch(source('src/features/drafting/editor/DraftDocumentEditor.jsx'), /<select[^>]*className="[^"]*text-base/);
+});
+
+test('mobile search placeholders use a quieter shared text size', () => {
+  for (const path of [
+    'src/components/common/SearchInput.jsx',
+    'src/components/navigation/CommandPalette.jsx',
+    'src/features/casework/CaseworkIssuePicker.jsx',
+    'src/features/drafting/editor/DraftDocumentEditor.jsx',
+    'src/features/drafting/paragraphBank/ParagraphBankPanel.jsx',
+  ]) {
+    assert.match(source(path), /placeholder:text-sm/, `${path} should size search placeholders explicitly`);
+  }
 });
 
 test('mobile navigation button and link labels share one typography contract', () => {

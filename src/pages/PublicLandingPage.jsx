@@ -10,7 +10,6 @@ import {
   FileCheck2,
   Files,
   GitBranch,
-  Layers3,
   LoaderCircle,
   LockKeyhole,
   MessageSquareText,
@@ -22,6 +21,7 @@ import {
 } from 'lucide-react';
 import { APP_NAME } from '../constants/issueConstants';
 import { useAuth } from '../features/auth/AuthContext';
+import SwmMark from '../components/branding/SwmMark';
 
 const OUTCOMES = [
   { icon: Radar, title: 'Monitor what matters', text: 'See present positions, deadlines and recent movement without reconstructing the file every morning.' },
@@ -47,7 +47,7 @@ export default function PublicLandingPage() {
       <header className="relative z-30 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-[1440px] items-center justify-between gap-4 px-4 sm:h-18 sm:px-6 lg:px-10">
           <button type="button" onClick={() => scrollToSection('home')} className="flex min-w-0 items-center gap-2.5 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2">
-            <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#17333b] text-white shadow-sm"><Layers3 className="h-4.5 w-4.5" /></span>
+            <SwmMark className="h-9 w-9 shrink-0 rounded-xl shadow-sm" />
             <span className="min-w-0"><span className="block truncate text-sm font-bold tracking-tight text-[#17333b] sm:text-base">SWM</span><span className="hidden text-[10px] font-medium uppercase tracking-[0.16em] text-slate-500 sm:block">Secretariat workflow</span></span>
           </button>
           <nav aria-label="Homepage" className="hidden items-center gap-7 text-sm font-semibold text-slate-600 md:flex">
@@ -131,7 +131,7 @@ export default function PublicLandingPage() {
       </section>
 
       <footer className="border-t border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-[1440px] flex-col gap-4 px-4 py-7 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-10"><div className="flex items-center gap-2 font-semibold text-[#17333b]"><Layers3 className="h-4 w-4" />{APP_NAME}</div><p>Clear ownership. Complete context. Confident action.</p></div>
+        <div className="mx-auto flex max-w-[1440px] flex-col gap-4 px-4 py-7 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-10"><div className="flex items-center gap-2 font-semibold text-[#17333b]"><SwmMark className="h-5 w-5 rounded-md" />{APP_NAME}</div><p>Clear ownership. Complete context. Confident action.</p></div>
       </footer>
 
       <AuthDialog mode={authDialog} onModeChange={setAuthDialog} onClose={() => setAuthDialog('')} />

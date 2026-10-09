@@ -33,7 +33,7 @@ export default function ReferencesPage() {
   return <div className="space-y-4">
     <PageHeader eyebrow="Shared knowledge" title="Reference Library" description="Maintain rules, orders and authorities once, then attach the relevant extracts to any Issue." />
     <div className="surface flex flex-col gap-3 rounded-[var(--swm-radius-lg)] p-3 sm:flex-row sm:items-center">
-      <label className="relative min-w-0 flex-1"><Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" /><span className="sr-only">Search references</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search title, authority, citation, tag or retained text" className="h-10 w-full rounded-md border border-slate-300 bg-white pl-9 pr-3 text-sm" /></label>
+      <label className="relative min-w-0 flex-1"><Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" /><span className="sr-only">Search references</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search title, authority, citation, tag or retained text" className="h-10 w-full rounded-md border border-slate-300 bg-white pl-9 pr-3 text-sm placeholder:text-sm" /></label>
       {auth.canEdit && <Button onClick={() => setEditing(normalizeWorkspaceReference({ ownerUserId: auth.user?.id || '' }))} size="lg"><Plus className="h-4 w-4" />Create reference</Button>}
     </div>
     {error && <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}

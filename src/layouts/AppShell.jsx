@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from '../components/layout/Sidebar';
 import MobileNavigation from '../components/layout/MobileNavigation';
-import { ClipboardCheck, LogOut, Search, ShieldCheck } from 'lucide-react';
+import { LogOut, Search, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../features/auth/AuthContext';
 import NotificationCenter from '../components/notifications/NotificationCenter';
 import LoadingState from '../components/common/LoadingState';
@@ -13,6 +13,7 @@ import ConnectivityBanner from '../components/cloud/ConnectivityBanner';
 import InstallAppButton from '../components/pwa/InstallAppButton';
 import RouteBreadcrumbs from '../components/navigation/RouteBreadcrumbs';
 import SecureSignOutDialog from '../components/auth/SecureSignOutDialog';
+import SwmMark from '../components/branding/SwmMark';
 
 const CommandPalette = lazy(() => import('../components/navigation/CommandPalette'));
 
@@ -54,9 +55,7 @@ export default function AppShell() {
         <div className="min-w-0 flex-1">
           <header className="app-header sticky top-0 z-30 flex h-14 items-center justify-between border-b border-[var(--swm-border)] bg-white/95 px-3 shadow-[var(--swm-shadow-xs)] backdrop-blur-xl sm:px-4">
             <div className="flex min-w-0 items-center gap-2.5">
-              <div className="app-mobile-brand-icon flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--swm-radius-md)] bg-[var(--swm-ink)] text-white shadow-sm">
-                <ClipboardCheck className="h-4 w-4" aria-hidden="true" />
-              </div>
+              <SwmMark className="app-mobile-brand-icon h-8 w-8 shrink-0 rounded-[var(--swm-radius-md)] shadow-sm" />
               <div className="min-w-0">
                 <div className="app-mobile-brand-text truncate text-sm font-bold leading-4 text-[var(--swm-ink)]">SWM</div>
                 <div className="max-w-40 truncate text-xs leading-4 text-slate-500 sm:max-w-56 sm:text-sm sm:font-medium sm:text-slate-700">{auth.workspace?.name || 'Issue tracking workspace'}</div>

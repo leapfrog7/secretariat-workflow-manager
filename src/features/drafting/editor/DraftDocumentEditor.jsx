@@ -174,11 +174,11 @@ function ParagraphBankRail({
         <label className="relative block">
           <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
           <span className="sr-only">Search Paragraph Bank</span>
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search wording or address" className="h-10 w-full rounded-md border border-slate-300 bg-white pl-8 pr-3 text-base text-slate-800 sm:h-9 sm:text-xs" />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search wording or address" className="h-10 w-full rounded-md border border-slate-300 bg-white pl-8 pr-3 text-base text-slate-800 placeholder:text-sm sm:h-9 sm:text-xs" />
         </label>
         <label className="block">
           <span className="sr-only">Paragraph category</span>
-          <select value={category} onChange={(event) => setCategory(event.target.value)} className="h-10 w-full rounded-md border border-slate-300 bg-white px-2 text-base text-slate-700 sm:h-9 sm:text-xs">
+          <select value={category} onChange={(event) => setCategory(event.target.value)} className="h-10 w-full rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-700 sm:h-9 sm:text-xs">
             <option value="">All categories</option>
             {PARAGRAPH_BANK_CATEGORIES.map((item) => <option key={item}>{item}</option>)}
           </select>

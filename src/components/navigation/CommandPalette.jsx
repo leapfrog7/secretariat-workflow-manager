@@ -102,7 +102,7 @@ export default function CommandPalette({ open, onClose, auth }) {
                 if (event.key === 'Enter' && results[activeIndex]) { event.preventDefault(); choose(results[activeIndex]); }
               }}
               placeholder="Search matters, eFiles, or areas…"
-              className="h-10 min-w-0 flex-1 border-0 bg-transparent px-2 text-base font-medium text-slate-900 outline-none placeholder:text-slate-400 focus-visible:outline-none sm:h-11"
+              className="h-10 min-w-0 flex-1 border-0 bg-transparent px-2 text-base font-medium text-slate-900 outline-none placeholder:text-sm placeholder:text-slate-400 focus-visible:outline-none sm:h-11"
             />
             {status === 'loading' && <LoaderCircle className="mr-2 h-4 w-4 animate-spin text-teal-700" aria-label="Searching" />}
             {query && status !== 'loading' ? <button type="button" onClick={() => setQuery('')} aria-label="Clear search" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-800"><X className="h-4 w-4" /></button> : null}

@@ -1,6 +1,6 @@
 # Secretariat Workflow Manager: Project Mental Map
 
-Last updated: 12 August 2026
+Last updated: 9 October 2026
 
 This is the repository navigation guide. It explains what each maintained source file does, which layer owns which responsibility, and how the files call or depend on one another. Generated folders (`dist`, `node_modules`), local secrets/logs, and binary OCR assets are intentionally excluded.
 
@@ -37,6 +37,8 @@ index.html
 ```
 
 `ConfiguredAuthProvider` validates the Neon session/profile/membership, scopes the local cache, configures sync runtimes, and reconciles Neon into Dexie. `AppShell` supplies navigation, sync status, conflicts, notifications and PWA installation around the active route.
+
+Signed-out visitors remain inside `AccessGate`, which renders `PublicLandingPage` with the account dialog instead of mounting the authenticated shell. Signed-in users enter the operational Home dashboard at `/home`.
 
 ### Normal Issue write
 
@@ -135,7 +137,7 @@ cloudAIClient
 | `src/constants/issueConstants.js` | Central product vocabulary and defaults: statuses, priorities, communication types, database version, settings, routes and AI preferences. Domain/UI files import from here instead of redefining values. |
 | `src/routes/AppRoutes.jsx` | Hash-router route table. Wraps the app with `AccessGate`/`AppShell`, protects edit/admin routes, and lazy-loads pages through `routePreload`. |
 | `src/routes/routePreload.js` | Single import map for lazy routing and predictive navigation preload. Used by routes and navigation feedback. |
-| `src/layouts/AppShell.jsx` | Persistent header/sidebar/mobile-nav layout. Hosts sync, conflicts, notifications, PWA install and route progress around `<Outlet>`. |
+| `src/layouts/AppShell.jsx` | Persistent header/sidebar/mobile-nav layout. Hosts the shared SWM mark, sync, conflicts, notifications, PWA install and route progress around `<Outlet>`. |
 | `src/index.css` | Tailwind import and global design behavior: responsive shell switching, mobile density, text-size preferences, safe areas, touch targets, focus, motion reduction, surfaces and Markdown rendering. |
 | `src/hooks/useDirtyStateReporter.js` | Stable dirty-state reporting and unmount cleanup. Prevents changing callback identity from creating navigation/loading loops in Casework children. |
 
@@ -143,6 +145,8 @@ cloudAIClient
 
 | File | Responsibility and main dependencies |
 | --- | --- |
+| `src/pages/PublicLandingPage.jsx` | Responsive signed-out product homepage with lifecycle explanation and sign-in/create-account calls to action. Rendered by `AccessGate`, outside the authenticated route shell. |
+| `src/pages/DashboardPage.jsx` | Primary signed-in Home dashboard: workspace search, filtered register focus views, attention queue and recent Note/Draft continuation. |
 | `src/pages/IssueRegisterPage.jsx` | Primary Issues register: search/filter/view modes, cloud-paged Casework-scale search fallback, archive/restore/delete, table/card representations. Uses Issue/officer/communication repositories and Issue components. |
 | `src/pages/IssueFormPage.jsx` | Loads and saves Issue create/edit forms. Delegates fields to `IssueForm`, persistence to `issueRepository`, and access defaults to collaboration helpers. |
 | `src/pages/IssueWorkspacePage.jsx` | One Issue's details and child-resource workspace. Loads lightweight counts first and deferred tabs on demand; connects milestones, summaries, communications, references, access, Notes and Casework deep links. |
@@ -151,7 +155,6 @@ cloudAIClient
 | `src/pages/ReferencesPage.jsx` | Workspace Reference Library: search, metadata, selective PDF/OCR or document-text retention, reusable extracts and archive controls. |
 | `src/pages/AdminPage.jsx` | Platform/workspace administration: approvals, workspace assignment/provisioning, directory, divisions, policy and Cloud AI usage. Calls auth, workspace, access and AI admin APIs. |
 | `src/pages/SettingsPage.jsx` | Personal/workspace settings, officer directory, office profile, appearance, Local/Cloud AI, reminders, push consent and backup/restore. Uses settings sync, repositories and notification APIs. |
-| `src/pages/DashboardPage.jsx` | Legacy/auxiliary operational dashboard summaries. Not currently a primary route. |
 | `src/pages/ReviewPage.jsx` | Legacy action-review surface retained in source; `/review` currently redirects to Issues. |
 | `src/pages/HelpPage.jsx` | In-app workflow and safety guidance. Should be updated when visible behavior changes. |
 | `src/pages/NotFoundPage.jsx` | Unknown-route recovery page. |
@@ -164,6 +167,7 @@ cloudAIClient
 | --- | --- |
 | `src/components/layout/Sidebar.jsx` | Collapsible desktop/landscape navigation; persists collapsed preference and shows route-opening feedback. |
 | `src/components/layout/MobileNavigation.jsx` | Safe-area bottom navigation, distinct Create action and More sheet/menu. Reads auth permissions and navigation feedback. |
+| `src/components/branding/SwmMark.jsx` | Reusable professional workflow mark used by authenticated and public product surfaces; `public/favicon.svg` carries the matching standalone asset. |
 | `src/components/common/NavigationFeedback.jsx` | Provider/hooks for immediate route progress and pending destination state. |
 | `src/components/common/UnsavedChangesGuard.jsx` | Blocks accidental internal/browser navigation when an editor reports unsaved work. |
 
@@ -171,12 +175,13 @@ cloudAIClient
 
 | File | Responsibility |
 | --- | --- |
+| `src/components/ui/*` | Owned SWM component system: buttons, icon buttons, cards/surfaces, form controls, tabs, section headers, skeletons, alerts, badges, operation status and the contextual command bar. Components use Tailwind utilities over the shared tokens in `index.css`. |
 | `AdaptiveSelect.jsx` | Native select for short lists and searchable datalist for longer lists. |
 | `ModalFrame.jsx` | Accessible modal/mobile-sheet frame: focus trap, Escape/backdrop closing, scroll lock, safe areas and focus restoration. |
 | `ConfirmDialog.jsx` | Standard confirmation UI built on `ModalFrame`. |
 | `PageHeader.jsx` | Responsive page title, description and action layout using global density tokens. |
 | `DisclosureSection.jsx` | Reusable progressive-disclosure section. |
-| `SearchInput.jsx` | Standard search field presentation. |
+| `SearchInput.jsx` | Standard search field presentation. Mobile placeholders use the compact `text-sm` hierarchy while entered text retains the iOS-safe input size. |
 | `EmptyState.jsx`, `ErrorState.jsx`, `LoadingState.jsx` | Consistent empty, failure and loading states. |
 | `AppErrorBoundary.jsx`, `RouteErrorPage.jsx` | Global component and router error recovery. |
 | `ToastProvider.jsx` | Global transient feedback API and safe mobile positioning. |
@@ -342,8 +347,8 @@ cloudAIClient
 | `PushNotificationSetting.jsx` | Per-device Web Push consent and subscription management. |
 | `src/components/pwa/InstallAppButton.jsx` | Handles `beforeinstallprompt` and platform-specific install guidance. |
 | `public/manifest.webmanifest` | PWA identity, icons, start URL and standalone mode. |
-| `public/sw.js` | App-shell caching, navigation/cache behavior, deadline push display and notification click routing. |
-| `public/favicon.svg` | Application icon source. |
+| `public/sw.js` | Versioned app-shell caching, navigation/cache behavior, deadline push display and notification click routing. Its cache key must advance when a changed shell asset must replace an older installed copy. |
+| `public/favicon.svg` | Standalone SWM workflow-mark asset used by browser and PWA metadata. |
 
 ## 14. Reporting and general utilities
 
@@ -414,6 +419,7 @@ Migrations are append-only and applied by filename order. Browser UI must not as
 | `026_workspace_configuration_hardening.sql` | Restricts officer/profile settings and adds revision checks. |
 | `027_web_push_deadline_notifications.sql` | Scoped push subscriptions and deadline notification delivery. |
 | `028_workspace_reference_library.sql` | Reusable workspace references, Issue links, RLS, revision saves and legacy-reference migration. |
+| `029_reference_link_authorization_hardening.sql` | Binds Reference Library link saves to the authorized stored Issue and prevents cross-Issue conflict disclosure. Must follow migration 028. |
 
 ## 17. Operational scripts and CI
 
@@ -442,6 +448,8 @@ Most tests use Node's built-in runner. UI contract tests intentionally inspect s
 | `accessUtils.test.js` | Role/effective-access derivation and fail-closed cases. |
 | `apiServer.test.js` | Portable routing, health, CORS, auth and malformed bodies. |
 | `applicationResilienceContracts.test.js` | Error boundaries, shell accessibility and tab keyboard adoption. |
+| `branding.test.js` | Shared SWM mark usage, favicon identity and service-worker cache invalidation. |
+| `browserSecurityHardening.test.js` | Browser CSP, safe service-worker caching and explicit local-data purge on sign-out. |
 | `caseworkActivity.test.js` | Recent/Awaiting derivation. |
 | `caseworkArchitecture.test.js` | Shared top-level Casework composition/deep links/alignment. |
 | `caseworkNavigationResilience.test.js` | Stable dirty reporters and service-worker response cloning. |
@@ -451,16 +459,20 @@ Most tests use Node's built-in runner. UI contract tests intentionally inspect s
 | `cloudIssueItemRecovery.test.js` | Safe missing-row versus permission error interpretation. |
 | `cloudPagination.test.js` | Counted complete pages and partial-response refusal. |
 | `cloudPayloadUtils.test.js` | Material equality despite sync metadata/key order. |
+| `designSystemContracts.test.js` | Owned UI primitives, shared feedback language and adoption by high-use work surfaces. |
 | `documentTextExtraction.test.js` | Word/text/Markdown extraction and legacy `.doc` messaging. |
 | `draftAIOrchestrator.test.js` | Provider-independent body-only drafting and prompt contract. |
 | `draftDocument.test.js` | Templates, protected structure, normalization and validation. |
 | `draftDocxRenderer.test.js` | Word structure, formatting, tables and indentation. |
 | `draftVersioning.test.js`, `draftWorkingCopy.test.js` | Snapshot retention and mutable/immutable dirty behavior. |
 | `integration/collaborationDatabase.test.js` | Real PostgreSQL RLS, revisions, retention and workspace isolation. |
+| `homeDashboard.test.js` | Home focus views, canonical eFile display, attention reasons and route/search behavior. |
+| `issueRegisterPerformance.test.js` | Deferred register search, conditional communication lookup and pagination across register modes. |
 | `issueUtils.test.js`, `issueWorkspaceLoading.test.js` | Issue helpers, previews and deferred section/count mapping. |
 | `lmStudioClient.test.js` | Local model selection, errors and context limits. |
 | `localWorkspaceScope.test.js` | User/workspace cache isolation. |
 | `mobileUiContracts.test.js` | Safe areas, dialogs, navigation, density, PWA and mobile layout. |
+| `navigationRefinement.test.js` | Shared shell navigation hierarchy and route-opening interaction contracts. |
 | `e2e/mobile-casework.spec.js` | Real Chromium checks for phone navigation, Issue creation and viewport-safe Casework source/paste dialogs. |
 | `noteAI.test.js`, `noteUtils.test.js` | Noting prompts/modes/selection rewrite and rich/revision data. |
 | `officerUtils.test.js` | Officer identity and remapping. |
@@ -469,6 +481,7 @@ Most tests use Node's built-in runner. UI contract tests intentionally inspect s
 | `pdfOcrService.test.js` | OCR languages, sanitization, merging and page Markdown. |
 | `pdfTextToMarkdown.test.js` | PDF layout reconstruction and OCR candidate detection. |
 | `positionUpdateUtils.test.js` | Present-position/milestone correction. |
+| `publicLandingPage.test.js` | Signed-out homepage routing, responsive account flows and compact lifecycle cards. |
 | `pushNotifications.test.js` | Subscription security, daily delivery and service-worker handling. |
 | `reportAIUtils.test.js`, `reportUtils.test.js` | Report prompts, periods, datasets and Word/CSV exports. |
 | `referenceLibrary.test.js` | Reference/link separation, retained-text limits, routing, OCR integration and RLS migration contracts. |

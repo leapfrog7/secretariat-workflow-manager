@@ -1,7 +1,7 @@
 import { forwardRef, useId } from 'react';
 import { cx } from './utils';
 
-export const controlClassName = 'w-full rounded-[var(--swm-radius-md)] border border-[var(--swm-border-strong)] bg-white px-3 text-base text-slate-900 shadow-[var(--swm-shadow-xs)] transition-[border-color,box-shadow] placeholder:text-slate-400 focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-600/15 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 sm:text-sm';
+export const controlClassName = 'w-full rounded-[var(--swm-radius-md)] border border-[var(--swm-border-strong)] bg-white px-3 text-sm text-slate-900 shadow-[var(--swm-shadow-xs)] transition-[border-color,box-shadow] placeholder:text-sm placeholder:text-slate-400 focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-600/15 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500';
 
 export function Field({ label, hint, error, required = false, htmlFor, hintId, errorId, className = '', children }) {
   return (

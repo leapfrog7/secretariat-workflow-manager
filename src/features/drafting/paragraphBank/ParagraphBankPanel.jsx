@@ -144,7 +144,7 @@ export default function ParagraphBankPanel({
       )}
 
       <div className="grid gap-2 border-b border-[#e3ebe9] bg-slate-50 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_180px_auto] sm:px-5">
-        <label className="relative"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" /><span className="sr-only">Search paragraph bank</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search wording, name or tag" className="h-10 w-full rounded-md border border-slate-300 bg-white pl-9 pr-3 text-sm" /></label>
+        <label className="relative"><Search className="pointer-events-none absolute left-3 top-3 h-4 w-4 text-slate-400" /><span className="sr-only">Search paragraph bank</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search wording, name or tag" className="h-10 w-full rounded-md border border-slate-300 bg-white pl-9 pr-3 text-sm placeholder:text-sm" /></label>
         <AdaptiveSelect ariaLabel="Filter paragraph category" value={category} onChange={setCategory} options={PARAGRAPH_BANK_CATEGORIES} placeholder="All categories" />
         <label className="flex h-10 items-center gap-2 text-xs font-medium text-slate-600"><input type="checkbox" checked={showAllTypes} onChange={(event) => setShowAllTypes(event.target.checked)} className="h-4 w-4 rounded border-slate-300 accent-teal-700" />Show all types</label>
       </div>

@@ -113,7 +113,7 @@ export default function CaseworkIssuePicker({ issues, selectedId = '', auth, onS
               choose(results[0]);
             }
           }}
-          className="h-11 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-10 text-sm font-medium text-slate-900 shadow-sm focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-100 sm:h-12"
+          className="h-11 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-10 text-sm font-medium text-slate-900 shadow-sm placeholder:text-sm focus:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-100 sm:h-12"
         />
         {status === 'loading' ? <LoaderCircle className="absolute right-3.5 top-3.5 h-4 w-4 animate-spin text-teal-700" aria-label="Searching Issues" /> : <ChevronDown className={`pointer-events-none absolute right-3.5 top-3.5 h-4 w-4 transition-[transform,color] duration-150 ${open ? 'rotate-180 text-teal-600' : 'text-slate-400'}`} aria-hidden="true" />}
       </div>

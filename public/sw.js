@@ -1,4 +1,4 @@
-const CACHE_NAME = 'swm-shell-v2';
+const CACHE_NAME = 'swm-shell-v3';
 const APP_SHELL = ['./', './manifest.webmanifest', './favicon.svg'];
 const STATIC_DESTINATIONS = new Set(['font', 'image', 'manifest', 'script', 'style', 'worker']);
 

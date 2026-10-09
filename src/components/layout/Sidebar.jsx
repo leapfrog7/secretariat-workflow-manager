@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { BookMarked, BookOpenCheck, ClipboardCheck, ClipboardList, FilePenLine, FilePlus2, FileText, House, LoaderCircle, PanelLeftClose, PanelLeftOpen, Settings, UserRoundCog } from 'lucide-react';
+import { BookMarked, BookOpenCheck, ClipboardList, FilePenLine, FilePlus2, FileText, House, LoaderCircle, PanelLeftClose, PanelLeftOpen, Settings, UserRoundCog } from 'lucide-react';
 import { useAuth } from '../../features/auth/AuthContext';
 import { useNavigationFeedback } from '../common/NavigationFeedback';
+import SwmMark from '../branding/SwmMark';
 
 const workspaceItems = [
   { label: 'Home', to: '/home', icon: House },
@@ -42,9 +43,7 @@ export default function Sidebar() {
     <aside className={`app-sidebar sticky top-0 h-screen shrink-0 overflow-y-auto border-r border-white/10 bg-[var(--swm-ink)] text-white shadow-[8px_0_28px_rgb(15_49_56_/_0.06)] transition-[width] ${collapsed ? 'w-[68px]' : 'w-64'}`}>
       <div className={`py-5 ${collapsed ? 'px-3' : 'px-4'}`}>
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-teal-600 text-white shadow-sm">
-            <ClipboardCheck className="h-[18px] w-[18px]" aria-hidden="true" />
-          </div>
+          <SwmMark className="h-9 w-9 shrink-0 rounded-xl shadow-sm ring-1 ring-white/10" />
           <div className={`min-w-0 flex-1 ${collapsed ? 'hidden' : ''}`}>
             <div className="text-sm font-semibold tracking-wide text-white">SWM</div>
             <div className="mt-0.5 truncate text-xs text-slate-300">{auth.workspace?.name || 'Secretariat workspace'}</div>

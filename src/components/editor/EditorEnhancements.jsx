@@ -281,7 +281,7 @@ export function EditorFindReplace({ editor, open, onClose }) {
         <label className="relative block">
           <span className="sr-only">Find text</span>
           <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-          <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Find" className="h-9 w-full rounded-md border border-slate-300 bg-white pl-9 pr-3 text-sm" />
+          <input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Find" className="h-9 w-full rounded-md border border-slate-300 bg-white pl-9 pr-3 text-sm placeholder:text-sm" />
         </label>
         <div className="flex items-center gap-1 text-xs text-slate-500">
           <span className="min-w-12 text-center tabular-nums">{matches.length ? `${Math.max(0, activeIndex) + 1}/${matches.length}` : '0/0'}</span>
@@ -291,7 +291,7 @@ export function EditorFindReplace({ editor, open, onClose }) {
         <label className="relative block">
           <span className="sr-only">Replacement text</span>
           <Replace className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-          <input value={replacement} onChange={(event) => setReplacement(event.target.value)} placeholder="Replace with" className="h-9 w-full rounded-md border border-slate-300 bg-white pl-9 pr-3 text-sm" />
+          <input value={replacement} onChange={(event) => setReplacement(event.target.value)} placeholder="Replace with" className="h-9 w-full rounded-md border border-slate-300 bg-white pl-9 pr-3 text-sm placeholder:text-sm" />
         </label>
         <div className="flex items-center gap-1">
           <button type="button" disabled={!matches.length} onClick={replaceCurrent} className="h-9 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 disabled:opacity-40">Replace</button>
